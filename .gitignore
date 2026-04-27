@@ -1,0 +1,13 @@
+# Gradle build outputs and caches
+build/
+.gradle/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Python
+scripts/__pycache__/
+*.pyc
+*.pyo
