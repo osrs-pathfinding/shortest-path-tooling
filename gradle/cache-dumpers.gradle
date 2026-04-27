@@ -5,7 +5,7 @@
 // scripts/rebuild_bank_tsv.py to add stand-tile rows to bank.tsv.
 //
 // Usage:
-//   collision-map-update/download-latest-cache.sh      # produces ./cache and ./keys.json
+//   shortest-path/collision-map-update/download-latest-cache.sh      # produces ./cache and ./keys.json
 //   sed -i '' 's/mapsquare/region/g; s/key/keys/g' keys.json
 //   ./gradlew bankTileDump -PbankTileCacheDir=$PWD/cache -PbankTileXteaPath=$PWD/keys.json
 def bankTileCacheDir = providers.gradleProperty('bankTileCacheDir').orElse('')
@@ -33,7 +33,7 @@ tasks.register('bankTileDump', Test) {
     doFirst {
         if (bankTileCacheDir.get().isEmpty() || bankTileXteaPath.get().isEmpty()) {
             throw new GradleException("bankTileDump requires -PbankTileCacheDir and -PbankTileXteaPath. " +
-                    "Run collision-map-update/download-latest-cache.sh first to produce ./cache and ./keys.json, " +
+                    "Run shortest-path/collision-map-update/download-latest-cache.sh first to produce ./cache and ./keys.json, " +
                     "then patch keys.json (mapsquare->region, key->keys).")
         }
     }

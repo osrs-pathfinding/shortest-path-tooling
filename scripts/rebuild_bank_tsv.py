@@ -62,9 +62,10 @@ from typing import Optional
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
-BANK_TSV = REPO / "src/main/resources/destinations/game_features/bank.tsv"
+PLUGIN = REPO / "shortest-path"
+BANK_TSV = PLUGIN / "src/main/resources/destinations/game_features/bank.tsv"
 PLACEMENTS_TSV = REPO / "build/bank-tiles/bank_tile_placements.tsv"
-COLLISION_ZIP = REPO / "src/main/resources/collision-map.zip"
+COLLISION_ZIP = PLUGIN / "src/main/resources/collision-map.zip"
 
 # Name-assignment radius (Chebyshev tiles): max distance a cache
 # placement may be from a curated tile of the same bank before it's
