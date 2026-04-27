@@ -50,8 +50,6 @@ compileTestJava.source fileTree(
     dir: 'shortest-path/src/test/java',
     includes: [
         'shortestpath/pathfinder/TestPathfinderConfig.java',
-        'shortestpath/pathfinder/ProfilingPathfinder.java',
-        'shortestpath/pathfinder/PathfinderProfile.java',
         'shortestpath/TestShortestPathConfig.java',
     ]
 )
