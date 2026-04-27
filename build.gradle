@@ -1,0 +1,60 @@
+plugins {
+    id 'java'
+    id 'checkstyle'
+}
+
+repositories {
+    mavenLocal()
+    maven {
+        url = 'https://repo.runelite.net'
+        content {
+            includeGroupByRegex("net\\.runelite.*")
+        }
+    }
+    mavenCentral()
+}
+
+def runeLiteVersion = 'latest.release'
+
+dependencies {
+    // Plugin main sources via composite build (shortest-path is included in settings.gradle)
+    testImplementation 'shortestpath:shortest-path'
+
+    // RuneLite — needed directly because the plugin declares client as compileOnly
+    testImplementation group: 'net.runelite', name: 'client', version: runeLiteVersion
+    testImplementation group: 'net.runelite', name: 'jshell', version: runeLiteVersion
+    testImplementation(group: 'net.runelite', name: 'cache', version: runeLiteVersion) {
+        exclude group: 'org.slf4j', module: 'slf4j-simple'
+    }
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:3.4.6'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+
+    testCompileOnly 'org.projectlombok:lombok:1.18.30'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release.set(11)
+}
+
+tasks.withType(Checkstyle).configureEach {
+    enabled = false
+}
+
+// Pull in the plugin's test helpers that the dashboard/dump code depends on.
+// These files stay in shortest-path/src/test/java (no changes to the plugin build).
+compileTestJava.source fileTree(
+    dir: 'shortest-path/src/test/java',
+    includes: [
+        'shortestpath/pathfinder/TestPathfinderConfig.java',
+        'shortestpath/pathfinder/ProfilingPathfinder.java',
+        'shortestpath/pathfinder/PathfinderProfile.java',
+        'shortestpath/TestShortestPathConfig.java',
+    ]
+)
+
+apply from: 'gradle/dashboards.gradle'
+apply from: 'gradle/cache-dumpers.gradle'
