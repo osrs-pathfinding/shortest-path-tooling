@@ -119,22 +119,6 @@ public class SailingAmenityVarbitDumperTest {
             System.out.println();
             System.out.println("=== Rowboats ===");
 
-            // Build a set of world tiles marked as blocked (water / impassable) at plane 0.
-            // TILE_SETTING_BLOCKED = 1 (bit 0). We only care about plane 0 for these transports.
-            Set<Long> blockedTiles = new HashSet<>();
-            for (Region region : regionLoader.getRegions()) {
-                int baseX = region.getBaseX();
-                int baseY = region.getBaseY();
-                for (int lx = 0; lx < 64; lx++) {
-                    for (int ly = 0; ly < 64; ly++) {
-                        if ((region.getTileSetting(0, lx, ly) & 1) != 0) {
-                            long key = ((long)(baseX + lx) << 16) | ((long)(baseY + ly) << 2);
-                            blockedTiles.add(key);
-                        }
-                    }
-                }
-            }
-
             int[] rowboatSeedIds = {58658, 58659};
             Set<Integer> rowboatSeedSet = new HashSet<>();
             for (int id : rowboatSeedIds) rowboatSeedSet.add(id);
@@ -164,10 +148,23 @@ public class SailingAmenityVarbitDumperTest {
                 }
             }
 
-            // The departure tile is the walkable (non-blocked) adjacent tile closest to the
+            // Build a region lookup: world tile → Region (for overlay ID queries).
+            // A tile with overlayId == 0 is bare ground (land). Sailing water tiles have
+            // a floor overlay texture applied (non-zero overlayId), which is the reliable
+            // signal to exclude them. getTileSetting BLOCKED bit and CollisionMap both fail
+            // here because sailing water is intentionally passable by ship.
+            Map<Long, Region> tileToRegion = new HashMap<>();
+            for (Region region : regionLoader.getRegions()) {
+                int baseX = region.getBaseX(), baseY = region.getBaseY();
+                for (int lx = 0; lx < 64; lx++) {
+                    for (int ly = 0; ly < 64; ly++) {
+                        tileToRegion.put(((long)(baseX + lx) << 16) | (baseY + ly), region);
+                    }
+                }
+            }
+
+            // The departure tile is the land (overlayId == 0) adjacent tile closest to the
             // object's geometric center: centerX = objX + sizeX/2, centerY = objY + sizeY/2.
-            // This matches how OSRS pathfinds to interactable objects and is verified against
-            // the known Angler's Retreat departure tiles (2471,2724 island; 2543,2844 mainland).
             System.out.println("id\tvarbitId\ttransforms\tobjX\tobjY\tplane\tori\tsizeX\tsizeY\tdeparture");
             for (ObjectDefinition p : rowboatParents) {
                 List<Location> locs = rowboatLocations.containsKey(p.getId())
@@ -180,29 +177,31 @@ public class SailingAmenityVarbitDumperTest {
                     int sizeY = (ori == 1 || ori == 3) ? p.getSizeX() : p.getSizeY();
                     int ox = pos.getX(), oy = pos.getY(), oz = pos.getZ();
 
-                    // Geometric center of the footprint (integer division, matching wiki map endpoints).
-                    int centerX = ox + sizeX / 2;
-                    int centerY = oy + sizeY / 2;
+                    // Geometric center of the footprint.
+                    double centerX = ox + sizeX / 2.0;
+                    double centerY = oy + sizeY / 2.0;
 
-                    // Enumerate all four faces of the footprint, keep only non-blocked tiles.
+                    // Enumerate all four faces of the footprint, keep only land tiles.
                     int bestX = -1, bestY = -1;
                     double bestDist = Double.MAX_VALUE;
                     int[][] candidates = new int[sizeX * 2 + sizeY * 2][2];
                     int nc = 0;
                     for (int dy = 0; dy < sizeY; dy++) {
-                        candidates[nc++] = new int[]{ox - 1, oy + dy};           // west
-                        candidates[nc++] = new int[]{ox + sizeX, oy + dy};       // east
+                        candidates[nc++] = new int[]{ox - 1, oy + dy};         // west
+                        candidates[nc++] = new int[]{ox + sizeX, oy + dy};     // east
                     }
                     for (int dx = 0; dx < sizeX; dx++) {
-                        candidates[nc++] = new int[]{ox + dx, oy - 1};           // south
-                        candidates[nc++] = new int[]{ox + dx, oy + sizeY};       // north
+                        candidates[nc++] = new int[]{ox + dx, oy - 1};         // south
+                        candidates[nc++] = new int[]{ox + dx, oy + sizeY};     // north
                     }
                     for (int i = 0; i < nc; i++) {
                         int cx = candidates[i][0], cy = candidates[i][1];
-                        long key = ((long)cx << 16) | ((long)cy << 2) | oz;
-                        if (blockedTiles.contains(key)) continue;
-                        double dx = cx - centerX, dy = cy - centerY;
-                        double dist = dx * dx + dy * dy;
+                        Region r = tileToRegion.get(((long)cx << 16) | cy);
+                        if (r == null) continue;
+                        int lx = cx - r.getBaseX(), ly = cy - r.getBaseY();
+                        if (r.getOverlayId(oz, lx, ly) != 0) continue; // water/overlay tile
+                        double ddx = cx - centerX, ddy = cy - centerY;
+                        double dist = ddx * ddx + ddy * ddy;
                         if (dist < bestDist) { bestDist = dist; bestX = cx; bestY = cy; }
                     }
 
@@ -215,6 +214,7 @@ public class SailingAmenityVarbitDumperTest {
                         + "\t" + departure);
                 }
             }
+            System.out.println();
 
             // 5. Sailors' Marker dump. Print the marker def's own varbit/varp,
             //    any multi-loc parent that transforms into it, and every
