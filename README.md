@@ -7,7 +7,7 @@ This repo carries `shortest-path` as a git submodule and uses a Gradle [composit
 ## Quick start
 
 ```bash
-git clone --recurse-submodules https://github.com/FIrgolitsch/shortest-path-tooling.git
+git clone --recurse-submodules https://github.com/osrs-pathfinding/shortest-path-tooling.git
 cd shortest-path-tooling
 ./gradlew dashboard
 python -m http.server --directory build/reports/pathfinder-dashboard 8000
