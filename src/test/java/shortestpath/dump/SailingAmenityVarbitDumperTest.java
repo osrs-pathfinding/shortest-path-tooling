@@ -112,7 +112,111 @@ public class SailingAmenityVarbitDumperTest {
                     + "\t" + coord);
             }
 
-            // 4. Sailors' Marker dump. Print the marker def's own varbit/varp,
+            // 4. Rowboat dump. Same pattern as bank chests but seeded on the rowboat
+            //    object IDs: 58658 = "Rowboat space" (unbuilt), 58659 = "Rowboat" (built).
+            //    Uses tile settings (bit 0 = BLOCKED/water) to identify which face of each
+            //    rowboat footprint is accessible, giving the exact player departure tile.
+            System.out.println();
+            System.out.println("=== Rowboats ===");
+
+            // Build a set of world tiles marked as blocked (water / impassable) at plane 0.
+            // TILE_SETTING_BLOCKED = 1 (bit 0). We only care about plane 0 for these transports.
+            Set<Long> blockedTiles = new HashSet<>();
+            for (Region region : regionLoader.getRegions()) {
+                int baseX = region.getBaseX();
+                int baseY = region.getBaseY();
+                for (int lx = 0; lx < 64; lx++) {
+                    for (int ly = 0; ly < 64; ly++) {
+                        if ((region.getTileSetting(0, lx, ly) & 1) != 0) {
+                            long key = ((long)(baseX + lx) << 16) | ((long)(baseY + ly) << 2);
+                            blockedTiles.add(key);
+                        }
+                    }
+                }
+            }
+
+            int[] rowboatSeedIds = {58658, 58659};
+            Set<Integer> rowboatSeedSet = new HashSet<>();
+            for (int id : rowboatSeedIds) rowboatSeedSet.add(id);
+
+            List<ObjectDefinition> rowboatParents = new ArrayList<>();
+            for (ObjectDefinition def : objectManager.getObjects()) {
+                int[] dest = def.getConfigChangeDest();
+                if (dest == null) continue;
+                for (int d : dest) {
+                    if (rowboatSeedSet.contains(d)) { rowboatParents.add(def); break; }
+                }
+            }
+            rowboatParents.sort((a, b) -> Integer.compare(a.getId(), b.getId()));
+
+            Set<Integer> rowboatParentIds = new HashSet<>();
+            for (ObjectDefinition p : rowboatParents) rowboatParentIds.add(p.getId());
+
+            // Collect all Location objects (preserving orientation) per parent ID.
+            Map<Integer, List<Location>> rowboatLocations = new HashMap<>();
+            for (Region region : regionLoader.getRegions()) {
+                for (Location loc : region.getLocations()) {
+                    if (!rowboatParentIds.contains(loc.getId())) continue;
+                    if (!rowboatLocations.containsKey(loc.getId())) {
+                        rowboatLocations.put(loc.getId(), new ArrayList<>());
+                    }
+                    rowboatLocations.get(loc.getId()).add(loc);
+                }
+            }
+
+            // The departure tile is the walkable (non-blocked) adjacent tile closest to the
+            // object's geometric center: centerX = objX + sizeX/2, centerY = objY + sizeY/2.
+            // This matches how OSRS pathfinds to interactable objects and is verified against
+            // the known Angler's Retreat departure tiles (2471,2724 island; 2543,2844 mainland).
+            System.out.println("id\tvarbitId\ttransforms\tobjX\tobjY\tplane\tori\tsizeX\tsizeY\tdeparture");
+            for (ObjectDefinition p : rowboatParents) {
+                List<Location> locs = rowboatLocations.containsKey(p.getId())
+                    ? rowboatLocations.get(p.getId()) : new ArrayList<>();
+                for (Location loc : locs) {
+                    Position pos = loc.getPosition();
+                    int ori = loc.getOrientation();
+                    // Orientation 1 and 3 rotate 90°, swapping X and Y extents.
+                    int sizeX = (ori == 1 || ori == 3) ? p.getSizeY() : p.getSizeX();
+                    int sizeY = (ori == 1 || ori == 3) ? p.getSizeX() : p.getSizeY();
+                    int ox = pos.getX(), oy = pos.getY(), oz = pos.getZ();
+
+                    // Geometric center of the footprint (integer division, matching wiki map endpoints).
+                    int centerX = ox + sizeX / 2;
+                    int centerY = oy + sizeY / 2;
+
+                    // Enumerate all four faces of the footprint, keep only non-blocked tiles.
+                    int bestX = -1, bestY = -1;
+                    double bestDist = Double.MAX_VALUE;
+                    int[][] candidates = new int[sizeX * 2 + sizeY * 2][2];
+                    int nc = 0;
+                    for (int dy = 0; dy < sizeY; dy++) {
+                        candidates[nc++] = new int[]{ox - 1, oy + dy};           // west
+                        candidates[nc++] = new int[]{ox + sizeX, oy + dy};       // east
+                    }
+                    for (int dx = 0; dx < sizeX; dx++) {
+                        candidates[nc++] = new int[]{ox + dx, oy - 1};           // south
+                        candidates[nc++] = new int[]{ox + dx, oy + sizeY};       // north
+                    }
+                    for (int i = 0; i < nc; i++) {
+                        int cx = candidates[i][0], cy = candidates[i][1];
+                        long key = ((long)cx << 16) | ((long)cy << 2) | oz;
+                        if (blockedTiles.contains(key)) continue;
+                        double dx = cx - centerX, dy = cy - centerY;
+                        double dist = dx * dx + dy * dy;
+                        if (dist < bestDist) { bestDist = dist; bestX = cx; bestY = cy; }
+                    }
+
+                    String departure = bestX == -1 ? "?" : bestX + "," + bestY + "," + oz;
+                    System.out.println(p.getId()
+                        + "\t" + p.getVarbitID()
+                        + "\t" + Arrays.toString(p.getConfigChangeDest())
+                        + "\t" + ox + "\t" + oy + "\t" + oz
+                        + "\t" + ori + "\t" + sizeX + "\t" + sizeY
+                        + "\t" + departure);
+                }
+            }
+
+            // 5. Sailors' Marker dump. Print the marker def's own varbit/varp,
             //    any multi-loc parent that transforms into it, and every
             //    world placement of the marker object id.
             System.out.println();
