@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
-import net.runelite.cache.EntityOpsDefinition;
 import net.runelite.cache.ObjectManager;
 import net.runelite.cache.definitions.ObjectDefinition;
 import net.runelite.cache.fs.Store;
@@ -84,8 +83,8 @@ public class BankTileDumperTest {
             "Enable with -DbankTiles.dump=true (and provide -DbankTiles.cacheDir / -DbankTiles.xteaPath)",
             Boolean.getBoolean(DUMP_PROPERTY));
 
-        String cacheDir = requiredProperty(CACHE_DIR_PROPERTY);
-        String xteaPath = requiredProperty(XTEA_PROPERTY);
+        String cacheDir = CacheUtils.requiredProperty(CACHE_DIR_PROPERTY);
+        String xteaPath = CacheUtils.requiredProperty(XTEA_PROPERTY);
         Path output = Paths.get(System.getProperty(OUTPUT_PROPERTY,
             "build/bank-tiles/bank_tile_placements.tsv"));
         Pattern[] patterns = resolvePatterns();
@@ -115,14 +114,6 @@ public class BankTileDumperTest {
 
         writeTsv(rows, output);
         System.out.println("Wrote " + rows.size() + " placements to " + output.toAbsolutePath());
-    }
-
-    private static String requiredProperty(String key) {
-        String value = System.getProperty(key);
-        if (value == null || value.isEmpty()) {
-            throw new IllegalStateException("Missing required system property -D" + key + "=...");
-        }
-        return value;
     }
 
     private static Pattern[] resolvePatterns() {
@@ -165,32 +156,12 @@ public class BankTileDumperTest {
             // Only the interactive variants have a "Bank" or "Collect"
             // menu option. Require one of those ops to avoid dumping
             // decorations next to real booths.
-            if (!hasBankAction(def)) {
+            if (!CacheUtils.hasAction(def, "Bank", "Use-quickly", "Collect", "Deposit")) {
                 continue;
             }
             ids.add(def.getId());
         }
         return ids;
-    }
-
-    private static boolean hasBankAction(ObjectDefinition def) {
-        EntityOpsDefinition ops = def.getOps();
-        if (ops == null || ops.ops == null) {
-            return false;
-        }
-        for (EntityOpsDefinition.Op op : ops.ops) {
-            if (op == null || op.text == null) {
-                continue;
-            }
-            String t = op.text;
-            if (t.equalsIgnoreCase("Bank")
-                || t.equalsIgnoreCase("Use-quickly")
-                || t.equalsIgnoreCase("Collect")
-                || t.equalsIgnoreCase("Deposit")) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static List<Row> collectRows(RegionLoader regionLoader, ObjectManager objectManager,

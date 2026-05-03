@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,8 +54,8 @@ public class SailingAmenityVarbitDumperTest {
             "Enable with -Dsailing.amenity.dump=true and supply -Dsailing.amenity.cacheDir / -Dsailing.amenity.xteaPath",
             Boolean.getBoolean("sailing.amenity.dump"));
 
-        String cacheDir = requiredProperty("sailing.amenity.cacheDir");
-        String xteaPath = requiredProperty("sailing.amenity.xteaPath");
+        String cacheDir = CacheUtils.requiredProperty("sailing.amenity.cacheDir");
+        String xteaPath = CacheUtils.requiredProperty("sailing.amenity.xteaPath");
 
         XteaKeyManager xteaKeyManager = new XteaKeyManager();
         try (FileInputStream fin = new FileInputStream(xteaPath)) {
@@ -69,36 +68,16 @@ public class SailingAmenityVarbitDumperTest {
             ObjectManager objectManager = new ObjectManager(store);
             objectManager.load();
 
-            Set<Integer> seedSet = new HashSet<>();
-            for (int id : SEED_IDS) seedSet.add(id);
-
             // 1. Parent multi-loc objects that transform into the seed IDs.
-            List<ObjectDefinition> parents = new ArrayList<>();
-            for (ObjectDefinition def : objectManager.getObjects()) {
-                int[] dest = def.getConfigChangeDest();
-                if (dest == null) continue;
-                for (int d : dest) {
-                    if (seedSet.contains(d)) { parents.add(def); break; }
-                }
-            }
-            parents.sort((a, b) -> Integer.compare(a.getId(), b.getId()));
+            List<ObjectDefinition> parents = CacheUtils.collectMultiLocParents(objectManager, SEED_IDS);
 
-            // 2. World placements of those parents.
+            // 2. World placements of those parents (one per island).
             RegionLoader regionLoader = new RegionLoader(store, xteaKeyManager);
             regionLoader.loadRegions();
             regionLoader.calculateBounds();
 
-            Set<Integer> parentIds = new HashSet<>();
-            for (ObjectDefinition p : parents) parentIds.add(p.getId());
-
-            Map<Integer, int[]> placement = new HashMap<>();
-            for (Region region : regionLoader.getRegions()) {
-                for (Location loc : region.getLocations()) {
-                    if (!parentIds.contains(loc.getId())) continue;
-                    Position pos = loc.getPosition();
-                    placement.put(loc.getId(), new int[]{pos.getX(), pos.getY(), pos.getZ()});
-                }
-            }
+            Map<Integer, int[]> placement =
+                CacheUtils.collectFirstPlacementByObjectId(regionLoader, CacheUtils.parentIdSet(parents));
 
             // 3. Report.
             System.out.println("id\tvarbitId\tvarpId\ttransforms\tx\ty\tplane");
@@ -120,48 +99,14 @@ public class SailingAmenityVarbitDumperTest {
             System.out.println("=== Rowboats ===");
 
             int[] rowboatSeedIds = {58658, 58659};
-            Set<Integer> rowboatSeedSet = new HashSet<>();
-            for (int id : rowboatSeedIds) rowboatSeedSet.add(id);
-
-            List<ObjectDefinition> rowboatParents = new ArrayList<>();
-            for (ObjectDefinition def : objectManager.getObjects()) {
-                int[] dest = def.getConfigChangeDest();
-                if (dest == null) continue;
-                for (int d : dest) {
-                    if (rowboatSeedSet.contains(d)) { rowboatParents.add(def); break; }
-                }
-            }
-            rowboatParents.sort((a, b) -> Integer.compare(a.getId(), b.getId()));
-
-            Set<Integer> rowboatParentIds = new HashSet<>();
-            for (ObjectDefinition p : rowboatParents) rowboatParentIds.add(p.getId());
+            List<ObjectDefinition> rowboatParents = CacheUtils.collectMultiLocParents(objectManager, rowboatSeedIds);
+            Set<Integer> rowboatParentIds = CacheUtils.parentIdSet(rowboatParents);
 
             // Collect all Location objects (preserving orientation) per parent ID.
-            Map<Integer, List<Location>> rowboatLocations = new HashMap<>();
-            for (Region region : regionLoader.getRegions()) {
-                for (Location loc : region.getLocations()) {
-                    if (!rowboatParentIds.contains(loc.getId())) continue;
-                    if (!rowboatLocations.containsKey(loc.getId())) {
-                        rowboatLocations.put(loc.getId(), new ArrayList<>());
-                    }
-                    rowboatLocations.get(loc.getId()).add(loc);
-                }
-            }
+            Map<Integer, List<Location>> rowboatLocations =
+                CacheUtils.collectLocationsByObjectId(regionLoader, rowboatParentIds);
 
-            // Build a region lookup: world tile → Region (for overlay ID queries).
-            // A tile with overlayId == 0 is bare ground (land). Sailing water tiles have
-            // a floor overlay texture applied (non-zero overlayId), which is the reliable
-            // signal to exclude them. getTileSetting BLOCKED bit and CollisionMap both fail
-            // here because sailing water is intentionally passable by ship.
-            Map<Long, Region> tileToRegion = new HashMap<>();
-            for (Region region : regionLoader.getRegions()) {
-                int baseX = region.getBaseX(), baseY = region.getBaseY();
-                for (int lx = 0; lx < 64; lx++) {
-                    for (int ly = 0; ly < 64; ly++) {
-                        tileToRegion.put(((long)(baseX + lx) << 16) | (baseY + ly), region);
-                    }
-                }
-            }
+            Map<Long, Region> tileToRegion = CacheUtils.buildTileToRegion(regionLoader);
 
             // The departure tile is the land (overlayId == 0) adjacent tile closest to the
             // object's geometric center: centerX = objX + sizeX/2, centerY = objY + sizeY/2.
@@ -172,40 +117,11 @@ public class SailingAmenityVarbitDumperTest {
                 for (Location loc : locs) {
                     Position pos = loc.getPosition();
                     int ori = loc.getOrientation();
-                    // Orientation 1 and 3 rotate 90°, swapping X and Y extents.
-                    int sizeX = (ori == 1 || ori == 3) ? p.getSizeY() : p.getSizeX();
-                    int sizeY = (ori == 1 || ori == 3) ? p.getSizeX() : p.getSizeY();
+                    int sizeX = CacheUtils.effectiveSizeX(p, ori);
+                    int sizeY = CacheUtils.effectiveSizeY(p, ori);
                     int ox = pos.getX(), oy = pos.getY(), oz = pos.getZ();
-
-                    // Geometric center of the footprint.
-                    double centerX = ox + sizeX / 2.0;
-                    double centerY = oy + sizeY / 2.0;
-
-                    // Enumerate all four faces of the footprint, keep only land tiles.
-                    int bestX = -1, bestY = -1;
-                    double bestDist = Double.MAX_VALUE;
-                    int[][] candidates = new int[sizeX * 2 + sizeY * 2][2];
-                    int nc = 0;
-                    for (int dy = 0; dy < sizeY; dy++) {
-                        candidates[nc++] = new int[]{ox - 1, oy + dy};         // west
-                        candidates[nc++] = new int[]{ox + sizeX, oy + dy};     // east
-                    }
-                    for (int dx = 0; dx < sizeX; dx++) {
-                        candidates[nc++] = new int[]{ox + dx, oy - 1};         // south
-                        candidates[nc++] = new int[]{ox + dx, oy + sizeY};     // north
-                    }
-                    for (int i = 0; i < nc; i++) {
-                        int cx = candidates[i][0], cy = candidates[i][1];
-                        Region r = tileToRegion.get(((long)cx << 16) | cy);
-                        if (r == null) continue;
-                        int lx = cx - r.getBaseX(), ly = cy - r.getBaseY();
-                        if (r.getOverlayId(oz, lx, ly) != 0) continue; // water/overlay tile
-                        double ddx = cx - centerX, ddy = cy - centerY;
-                        double dist = ddx * ddx + ddy * ddy;
-                        if (dist < bestDist) { bestDist = dist; bestX = cx; bestY = cy; }
-                    }
-
-                    String departure = bestX == -1 ? "?" : bestX + "," + bestY + "," + oz;
+                    int[] dep = CacheUtils.closestLandAdjacentTile(ox, oy, oz, sizeX, sizeY, tileToRegion);
+                    String departure = dep == null ? "?" : dep[0] + "," + dep[1] + "," + oz;
                     System.out.println(p.getId()
                         + "\t" + p.getVarbitID()
                         + "\t" + Arrays.toString(p.getConfigChangeDest())
@@ -216,29 +132,25 @@ public class SailingAmenityVarbitDumperTest {
             }
             System.out.println();
 
-            // 5. Sailors' Marker dump. Print the marker def's own varbit/varp,
-            //    any multi-loc parent that transforms into it, and every
-            //    world placement of the marker object id.
+            // 5. Sailors' Marker dump. Print each marker's own varbit/varp, any
+            //    multi-loc parent that transforms into it, and every world placement.
             System.out.println();
             System.out.println("=== Sailors' Markers ===");
             System.out.println("id\tname\tvarbitId\tvarpId\ttransforms");
             Set<Integer> markerSet = new HashSet<>();
             for (int id : SAILORS_MARKER_IDS) markerSet.add(id);
-            List<ObjectDefinition> markerParents = new ArrayList<>();
+            // Direct marker definitions (carry their own varbit/varp):
             for (ObjectDefinition def : objectManager.getObjects()) {
-                if (markerSet.contains(def.getId())) {
-                    System.out.println(def.getId()
-                        + "\t" + def.getName()
-                        + "\t" + def.getVarbitID()
-                        + "\t" + def.getVarpID()
-                        + "\t" + Arrays.toString(def.getConfigChangeDest()));
-                }
-                int[] dest = def.getConfigChangeDest();
-                if (dest == null) continue;
-                for (int d : dest) {
-                    if (markerSet.contains(d)) { markerParents.add(def); break; }
-                }
+                if (!markerSet.contains(def.getId())) continue;
+                System.out.println(def.getId()
+                    + "\t" + def.getName()
+                    + "\t" + def.getVarbitID()
+                    + "\t" + def.getVarpID()
+                    + "\t" + Arrays.toString(def.getConfigChangeDest()));
             }
+            // Multi-loc parents that transform into a marker:
+            List<ObjectDefinition> markerParents =
+                CacheUtils.collectMultiLocParents(objectManager, SAILORS_MARKER_IDS);
             System.out.println();
             System.out.println("=== Sailors' Marker parents (multi-loc) ===");
             System.out.println("id\tname\tvarbitId\tvarpId\ttransforms");
@@ -254,12 +166,9 @@ public class SailingAmenityVarbitDumperTest {
             System.out.println("id\tx\ty\tplane");
             Set<Integer> markerPlusParentIds = new HashSet<>(markerSet);
             for (ObjectDefinition p : markerParents) markerPlusParentIds.add(p.getId());
-            for (Region region : regionLoader.getRegions()) {
-                for (Location loc : region.getLocations()) {
-                    if (!markerPlusParentIds.contains(loc.getId())) continue;
-                    Position pos = loc.getPosition();
-                    System.out.println(loc.getId() + "\t" + pos.getX() + "\t" + pos.getY() + "\t" + pos.getZ());
-                }
+            for (Location loc : CacheUtils.collectLocations(regionLoader, markerPlusParentIds)) {
+                Position pos = loc.getPosition();
+                System.out.println(loc.getId() + "\t" + pos.getX() + "\t" + pos.getY() + "\t" + pos.getZ());
             }
 
             // 5. Sailors' amulet item dump. Walk every item named "Sailors' amulet..." and print
@@ -270,15 +179,8 @@ public class SailingAmenityVarbitDumperTest {
             System.out.println("=== Sailors' amulet items ===");
             ItemManager itemManager = new ItemManager(store);
             itemManager.load();
-            List<ItemDefinition> matches = new ArrayList<>();
-            for (ItemDefinition item : itemManager.getItems()) {
-                String name = item.getName();
-                if (name == null) continue;
-                if (name.toLowerCase().contains("sailors' amulet") || name.toLowerCase().contains("sailor's amulet")) {
-                    matches.add(item);
-                }
-            }
-            matches.sort((a, b) -> Integer.compare(a.getId(), b.getId()));
+            List<ItemDefinition> matches =
+                CacheUtils.findItemsByNameSubstring(itemManager, "sailors' amulet", "sailor's amulet");
             for (ItemDefinition item : matches) {
                 System.out.println();
                 System.out.println("-- id=" + item.getId() + " name=\"" + item.getName() + "\" --");
@@ -315,11 +217,4 @@ public class SailingAmenityVarbitDumperTest {
         }
     }
 
-    private static String requiredProperty(String key) {
-        String value = System.getProperty(key);
-        if (value == null || value.isEmpty()) {
-            throw new IllegalStateException("Missing required system property -D" + key + "=...");
-        }
-        return value;
-    }
 }
