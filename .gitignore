@@ -11,3 +11,9 @@ build/
 scripts/__pycache__/
 *.pyc
 *.pyo
+
+bin/
+cache/
+
+*.zip
+keys.json
