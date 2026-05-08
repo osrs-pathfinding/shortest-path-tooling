@@ -59,6 +59,37 @@ tasks.register('dashboard', Test) {
     doLast { logDashboardLocation('dashboard') }
 }
 
+tasks.register('seasonalDashboard', Test) {
+    doNotTrackState('Dashboard always re-runs to pick up the latest dataset and config.')
+    group = 'verification'
+    description = 'Builds the Demonic Pacts League seasonal dashboard. Stubs WorldType.SEASONAL on all scenarios ' +
+            'and tags the bundle so the frontend renders the league regions overlay.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dashboard/DashboardTest.class'
+    ignoreFailures = true
+    reports {
+        junitXml.required = false
+        html.required = false
+    }
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging.showStandardStreams = true
+    systemProperty 'runDashboardVerification', 'true'
+    systemProperty 'dashboard.outputRoot', dashboardOutputRoot.get().asFile.absolutePath
+    systemProperty 'dashboard.bundleName', providers.gradleProperty('dashboardBundle')
+            .orElse('seasonal-briefcase').get()
+    systemProperty 'dashboard.dataset', providers.gradleProperty('dashboardDataset')
+            .orElse('/dashboard/seasonal_briefcase_routes.csv').get()
+    systemProperty 'dashboard.profile', dashboardProfile.get()
+    systemProperty 'dashboard.title', providers.gradleProperty('dashboardTitle')
+            .orElse('Seasonal — Demonic Pacts League').get()
+    systemProperty 'dashboard.subtitle', providers.gradleProperty('dashboardSubtitle')
+            .orElse('Briefcase teleports + region unlock varbits').get()
+    systemProperty 'dashboard.seasonal', 'true'
+    doLast { logDashboardLocation('seasonalDashboard') }
+}
+
 tasks.register('captureExpectedLengths', Test) {
     doNotTrackState('Capture always re-runs to write updated expected lengths.')
     group = 'verification'

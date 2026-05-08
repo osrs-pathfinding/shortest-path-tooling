@@ -16,11 +16,13 @@ import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.EnumSet;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.Skill;
+import net.runelite.api.WorldType;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.VarbitID;
 import ch.qos.logback.classic.Level;
@@ -95,6 +97,7 @@ public class DashboardTest {
         when(client.getTotalLevel()).thenReturn(2277);
         when(client.getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE)).thenReturn(1);
         when(client.getVarbitValue(VarbitID.FAIRY2_QUEENCURE_QUEST)).thenReturn(100);
+        when(client.getWorldType()).thenReturn(EnumSet.noneOf(WorldType.class));
         when(client.getItemContainer(InventoryID.INV)).thenReturn(null);
         when(client.getItemContainer(InventoryID.WORN)).thenReturn(null);
 
@@ -109,6 +112,7 @@ public class DashboardTest {
             when(client.getTotalLevel()).thenReturn(2277);
             when(client.getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE)).thenReturn(1);
             when(client.getVarbitValue(VarbitID.FAIRY2_QUEENCURE_QUEST)).thenReturn(100);
+            when(client.getWorldType()).thenReturn(EnumSet.noneOf(WorldType.class));
             when(client.getItemContainer(InventoryID.INV)).thenReturn(null);
             when(client.getItemContainer(InventoryID.WORN)).thenReturn(null);
         };
@@ -237,6 +241,13 @@ public class DashboardTest {
             runs,
             reportWriter.createTransportLayerPointsAlwaysAvailable());
         report.bankNamesFromData = BankDestinationLabels.uniqueSortedBankNames();
+        // Tag seasonal bundles so the frontend knows to draw the league
+        // region overlay. We treat any bundle whose name starts with
+        // "seasonal" as seasonal; this lets `-PdashboardBundle=seasonal-…`
+        // and the default `seasonal-…` slugs both opt in without an
+        // additional system property.
+        report.seasonal = Boolean.parseBoolean(System.getProperty("dashboard.seasonal", "false"))
+            || (bundleName != null && bundleName.toLowerCase(java.util.Locale.ROOT).startsWith("seasonal"));
 
         bundlePublisher.publishBundle(bundleName, report);
 

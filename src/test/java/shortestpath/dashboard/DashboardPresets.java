@@ -57,6 +57,20 @@ public final class DashboardPresets {
             cfg.setIncludeBankPath(false);
         });
 
+        // Demonic Pacts League seasonal world. Enables seasonal transports
+        // and the full inventory-teleport set so the briefcase (and any
+        // future briefcase-style items added in parallel) is exercised.
+        //
+        // The DashboardScenarioRunner additionally stubs
+        // {@code client.getWorldType()} to {@code {SEASONAL}} for this
+        // preset so {@code LeagueModeState.refresh} flips on.
+        PRESETS.put("SEASONAL", cfg -> {
+            cfg.setUseTeleportationItems(TeleportationItem.INVENTORY);
+            cfg.setIncludeBankPath(false);
+            cfg.setUseSeasonalTransports(true);
+            cfg.setAvoidWilderness(true);
+        });
+
         // Mirrors the PathfinderTest Mockito mock baseline: every ShortestPathConfig boolean
         // method returns false, TeleportationItem returns NONE, and calculationCutoff = 30.
         // Use this preset so that unit-test CSV rows reproduce the exact same PathfinderConfig

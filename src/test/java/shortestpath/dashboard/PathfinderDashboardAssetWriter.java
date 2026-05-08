@@ -14,6 +14,17 @@ public class PathfinderDashboardAssetWriter {
         "/reachability-dashboard/styles.css"
     };
 
+    /**
+     * Plugin-bundled resources that the seasonal dashboard view needs to
+     * fetch at runtime. The map key is the classpath resource path; the
+     * value is the file name written under the dashboard output root.
+     * These are best-effort: a missing resource is logged and skipped so
+     * the rest of the dashboard still publishes.
+     */
+    private static final String[][] OPTIONAL_PLUGIN_ASSETS = {
+        {"/leagues/regions.tsv", "regions.tsv"}
+    };
+
     public void writeAssets(Path outputDirectory) throws IOException {
         Files.createDirectories(outputDirectory);
         for (String asset : ASSETS) {
@@ -23,6 +34,17 @@ public class PathfinderDashboardAssetWriter {
                 }
                 Path destination = outputDirectory.resolve(asset.substring(asset.lastIndexOf('/') + 1));
                 Files.write(destination, Util.readAllBytes(in));
+            }
+        }
+        for (String[] entry : OPTIONAL_PLUGIN_ASSETS) {
+            String resource = entry[0];
+            String filename = entry[1];
+            try (InputStream in = PathfinderDashboardAssetWriter.class.getResourceAsStream(resource)) {
+                if (in == null) {
+                    System.err.println("[dashboard] Optional asset missing: " + resource);
+                    continue;
+                }
+                Files.write(outputDirectory.resolve(filename), Util.readAllBytes(in));
             }
         }
     }

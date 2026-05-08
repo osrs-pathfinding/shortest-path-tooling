@@ -4,12 +4,14 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.Skill;
+import net.runelite.api.WorldType;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.QuestState;
@@ -84,6 +86,20 @@ public final class DashboardScenarioRunner {
         // Step 3: preset-driven Lumbridge diary varbit
         int diaryStub = DashboardPresets.lumbridgeDiaryEliteStub(scenario.getPreset());
         when(client.getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE)).thenReturn(diaryStub);
+
+        // Step 3b: seasonal-world stub. The SEASONAL preset is the league
+        // mode trigger — every other preset reports a vanilla world, which
+        // makes LeagueModeState.refresh skip the league filter entirely.
+        // Mockito stubs are sticky across apply() calls, so reset the area
+        // unlock varbits to 0 here; per-scenario varbits in step 4 then
+        // restore them to the row's chosen picks (or leave them locked).
+        EnumSet<WorldType> worldTypes = "SEASONAL".equalsIgnoreCase(scenario.getPreset())
+            ? EnumSet.of(WorldType.SEASONAL)
+            : EnumSet.noneOf(WorldType.class);
+        when(client.getWorldType()).thenReturn(worldTypes);
+        when(client.getVarbitValue(10052)).thenReturn(0);
+        when(client.getVarbitValue(10053)).thenReturn(0);
+        when(client.getVarbitValue(10054)).thenReturn(0);
 
         // Step 4: per-scenario varbit overrides
         for (Map.Entry<Integer, Integer> entry : scenario.getVarbits().entrySet()) {

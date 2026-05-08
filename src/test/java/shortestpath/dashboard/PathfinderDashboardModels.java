@@ -22,6 +22,12 @@ public final class PathfinderDashboardModels {
         public Summary summary;
         public List<TransportLayerTransport> transportLayers;
         public List<RunRecord> runs;
+        /**
+         * Demonic Pacts League dashboard flag. When true, the frontend
+         * fetches the bundled {@code regions.tsv} and renders the league
+         * region overlay (red tint for Misthalin, distinct hues elsewhere).
+         */
+        public boolean seasonal;
     }
 
     public static class Summary {

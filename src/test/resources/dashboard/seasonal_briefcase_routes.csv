@@ -1,0 +1,12 @@
+name,category,start_x,start_y,start_plane,x,y,plane,preset,inventory,equipment,bank,varbits,skill_levels,config_overrides,expected_length,minimum_length
+Civitas → Hunter Guild (Varlamore walk),walk,1735,3093,0,1542,3039,0,SEASONAL,,,,,,,,
+Civitas → Mor Ul Rek (Karamja unlocked),briefcase,1735,3093,0,2451,5179,0,SEASONAL,30361:1,,,10052=2,,,,
+Civitas → Mor Ul Rek (Karamja LOCKED — should fail),briefcase,1735,3093,0,2451,5179,0,SEASONAL,30361:1,,,,,,,
+Civitas → Falador East (Asgarnia unlocked),briefcase,1735,3093,0,3010,3354,0,SEASONAL,30361:1,,,10052=3,,,,
+Civitas → Catherby (Kandarin unlocked),briefcase,1735,3093,0,2807,3442,0,SEASONAL,30361:1,,,10052=4,,,,
+Civitas → Kourend Castle (Kourend unlocked),briefcase,1735,3093,0,1610,3680,2,SEASONAL,30361:1,,,10052=6,,,,
+Civitas → Prifddinas (Tirannwn unlocked),briefcase,1735,3093,0,3255,6104,0,SEASONAL,30361:1,,,10052=10,,,,
+Civitas → Varrock (Misthalin best-effort detour),briefcase,1735,3093,0,3186,3438,0,SEASONAL,30361:1,,,10052=2;10053=3;10054=6,,,,
+Civitas → Mistrock (Varlamore briefcase deposit box),briefcase,1735,3093,0,1383,2869,0,SEASONAL,30361:1,,,,,,,
+Civitas → Lletya (Tirannwn LOCKED — should fail),briefcase,1735,3093,0,2350,3162,0,SEASONAL,30361:1,,,10052=2;10053=3;10054=6,,,,
+Maxed picks → Lletya (Tirannwn),briefcase,1735,3093,0,2350,3162,0,SEASONAL,30361:1,,,10052=4;10053=6;10054=10,,,,
