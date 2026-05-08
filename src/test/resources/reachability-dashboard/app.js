@@ -218,6 +218,114 @@ window.addMapLayerToggle = function(toggle) {
   transportLayerControl.addToggle(toggle);
 };
 
+// ── Demonic Pacts League — region overlay ─────────────────────────────
+//
+// Rendered only when the loaded bundle has {@code report.seasonal === true}.
+// regions.tsv is published next to index.html by the asset writer, so we
+// fetch it once and cache the parsed layer group.
+const LEAGUE_REGION_COLORS = {
+  MISTHALIN:  "#dc2626",
+  VARLAMORE:  "#22c55e",
+  KARAMJA:    "#f59e0b",
+  ASGARNIA:   "#3b82f6",
+  KANDARIN:   "#a855f7",
+  FREMENNIK:  "#06b6d4",
+  KOUREND:    "#6366f1",
+  WILDERNESS: "#f43f5e",
+  MORYTANIA:  "#737373",
+  DESERT:     "#eab308",
+  TIRANNWN:   "#10b981",
+  NEUTRAL:    "#9ca3af"
+};
+
+const leagueRegionsLayer = L.layerGroup();
+let leagueRegionsToggle = null;
+let leagueRegionsToggleVisible = false;
+let leagueRegionsFetchPromise = null;
+let leagueRegionsLoaded = false;
+
+async function fetchLeagueRegions() {
+  if (leagueRegionsFetchPromise) {
+    return leagueRegionsFetchPromise;
+  }
+  leagueRegionsFetchPromise = (async () => {
+    const resp = await fetch("regions.tsv");
+    if (!resp.ok) {
+      throw new Error("regions.tsv missing — run the seasonalDashboard task to publish it.");
+    }
+    const text = await resp.text();
+    text.split(/\r?\n/).forEach(line => {
+      if (!line || line.startsWith("#")) return;
+      const [idStr, regionName] = line.split("\t");
+      const regionId = parseInt(idStr, 10);
+      if (!Number.isFinite(regionId) || !regionName) return;
+      const region = regionName.trim();
+      const color = LEAGUE_REGION_COLORS[region] || LEAGUE_REGION_COLORS.NEUTRAL;
+      const isBlocked = region === "MISTHALIN";
+      // Region id encodes (chunkX << 8) | chunkY, each chunk is 64 tiles.
+      const minX = (regionId >> 8) * 64;
+      const minY = (regionId & 0xff) * 64;
+      const rect = L.rectangle([
+        [minY, minX],
+        [minY + 64, minX + 64]
+      ], {
+        color,
+        weight: isBlocked ? 1.5 : 0.5,
+        opacity: isBlocked ? 0.7 : 0.4,
+        fillColor: color,
+        fillOpacity: isBlocked ? 0.35 : 0.18,
+        interactive: false
+      });
+      leagueRegionsLayer.addLayer(rect);
+    });
+    leagueRegionsLoaded = true;
+  })();
+  return leagueRegionsFetchPromise;
+}
+
+function ensureLeagueRegionsToggle() {
+  if (leagueRegionsToggle) return;
+  leagueRegionsToggle = {
+    label: "League regions",
+    checked: true,
+    onChange: (visible) => {
+      if (visible && leagueRegionsLoaded && leagueRegionsToggleVisible) {
+        leagueRegionsLayer.addTo(map);
+      } else {
+        map.removeLayer(leagueRegionsLayer);
+      }
+    }
+  };
+  window.addMapLayerToggle(leagueRegionsToggle);
+}
+
+function setLeagueRegionsToggleVisible(visible) {
+  leagueRegionsToggleVisible = visible;
+  if (!leagueRegionsToggle || !leagueRegionsToggle._input) return;
+  // The toggle row is the parent <label> of the checkbox input.
+  const row = leagueRegionsToggle._input.parentElement;
+  if (row) row.style.display = visible ? "" : "none";
+}
+
+async function applyLeagueRegionsOverlay(seasonal) {
+  if (!seasonal) {
+    map.removeLayer(leagueRegionsLayer);
+    setLeagueRegionsToggleVisible(false);
+    return;
+  }
+  ensureLeagueRegionsToggle();
+  setLeagueRegionsToggleVisible(true);
+  try {
+    await fetchLeagueRegions();
+  } catch (err) {
+    console.warn("[league-regions]", err);
+    return;
+  }
+  if (leagueRegionsToggle._input && leagueRegionsToggle._input.checked) {
+    leagueRegionsLayer.addTo(map);
+  }
+}
+
 // ── Coordinate utilities ──────────────────────────────────────────────
 
 function worldToLatLng(point) {
@@ -974,6 +1082,7 @@ function renderReport(report) {
   allRuns = runs;
   selectedRun = null;
   clearLayers();
+  applyLeagueRegionsOverlay(Boolean(report.seasonal));
   const summaryLines = [];
   if (report.title) {
     summaryLines.push(report.title);
