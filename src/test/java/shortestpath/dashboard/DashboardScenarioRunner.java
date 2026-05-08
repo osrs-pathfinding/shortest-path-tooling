@@ -90,16 +90,17 @@ public final class DashboardScenarioRunner {
         // Step 3b: seasonal-world stub. The SEASONAL preset is the league
         // mode trigger — every other preset reports a vanilla world, which
         // makes LeagueModeState.refresh skip the league filter entirely.
-        // Mockito stubs are sticky across apply() calls, so reset the area
-        // unlock varbits to 0 here; per-scenario varbits in step 4 then
-        // restore them to the row's chosen picks (or leave them locked).
+        // Mockito stubs are sticky across apply() calls, so reset all six
+        // LEAGUE_AREA_SELECTION_* varbits (10662-10667) to 0 here; per-
+        // scenario varbits in step 4 then restore them to the row's chosen
+        // picks (or leave them locked).
         EnumSet<WorldType> worldTypes = "SEASONAL".equalsIgnoreCase(scenario.getPreset())
             ? EnumSet.of(WorldType.SEASONAL)
             : EnumSet.noneOf(WorldType.class);
         when(client.getWorldType()).thenReturn(worldTypes);
-        when(client.getVarbitValue(10052)).thenReturn(0);
-        when(client.getVarbitValue(10053)).thenReturn(0);
-        when(client.getVarbitValue(10054)).thenReturn(0);
+        for (int slot = 0; slot < 6; slot++) {
+            when(client.getVarbitValue(10662 + slot)).thenReturn(0);
+        }
 
         // Step 4: per-scenario varbit overrides
         for (Map.Entry<Integer, Integer> entry : scenario.getVarbits().entrySet()) {
