@@ -48,6 +48,11 @@ MISTHALIN	3648	3903	3648	3967
 # Hills (cy 45-46) with KANDARIN — Feldip's Kandarin row gives a 4096
 # overlap there vs this row's 3072, so Kandarin still wins those chunks.
 MISTHALIN	2048	2351	2752	3007
+# Isle of Souls — water/islet buffer east of the main island at the y-band
+# below Feldip Hills (cy 43-44 only, yMax 2879 < Feldip's yMin 2880) so the
+# eastern coast and any small outcrops show up as blocked without stealing
+# Feldip Hills chunks from KANDARIN.
+MISTHALIN	2368	2431	2752	2879
 
 # === Specific overrides (file-order tiebreakers) ===
 # Tirannwn: Lletya peninsula extends slightly into Kandarin's mainland box.
@@ -95,11 +100,18 @@ ASGARNIA	2624	2687	2560	2687
 DESERT	3264	3391	3136	3327
 # Varlamore: Auburnvale + the Auburn Valley north of Civitas illa Fortis.
 # Per the league wiki Varlamore explicitly includes Auburnvale (~1411,
-# 3361) which is north of the Varlamore mainland yMax. cx 16-29, cy 51-53
-# covers Auburnvale, the valley between the Custodia and Hailstorm
-# Mountains, and the eastern mountain pass that previously fell into
-# Kourend. Kourend mainland still wins at cy 54+ (Hosidius latitude).
-VARLAMORE	1024	1919	3264	3455
+# 3361 = cy 52) which is north of the Varlamore mainland yMax 3263.
+# cx 16-29, cy 51-52 covers Auburnvale, Auburn Valley, and the Hailstorm
+# foothills. yMax 3391 stops short of cy 53 so Land's End (1504, 3396 =
+# cy 53) and the Kebos foothills above the Custodia/Hailstorm range fall
+# back to Kourend instead of being mis-classified as Varlamore.
+VARLAMORE	1024	1919	3264	3391
+# Kandarin: NE — Piscatoris Fishing Colony, Piscatoris Falconry, Eagles'
+# Peak, Piscatoris Hunter Area. The Fremennik mainland row otherwise wins
+# everything north of the Kandarin mainland yMax 3519, but the Piscatoris
+# basin (cx 36-37, cy 55-57) sits south of the Rellekka river border and
+# is explicitly listed as Kandarin in the league wiki.
+KANDARIN	2304	2431	3520	3711
 # Morytania: Mos Le'Harmless and the eastern islands (Braindeath, Dragontooth, Harmony).
 MORYTANIA	3520	3839	2752	3071
 # Fremennik: Lunar Isle (west of mainland Fremennik).
@@ -110,18 +122,15 @@ FREMENNIK	2240	2335	4032	4159
 DESERT	2688	2879	5120	5247
 
 # === Wilderness (overlay; takes precedence over Misthalin/Asgarnia at high y) ===
-# xMax 3455 (was 3391) extends Wilderness east to the River Salve so
-# chunks at cx=53 cy=55-61 stay Wilderness instead of dropping to NEUTRAL
-# now that the Misthalin mainland reaches xMax 3455 (at y < 3520) and
-# the Morytania mainland starts at xMin 3456.
-WILDERNESS	2944	3455	3520	3967
-WILDERNESS	2944	3455	9920	10367
+# xMax 3391 stops at the Wilderness's east limit; the cx=53 strip across
+# the River Salve is Mort Myre / Slayer Tower and belongs to MORYTANIA, so
+# letting Wilderness reach 3455 here would steal the Slayer Tower (3417,
+# 3536) chunk from Morytania.
+WILDERNESS	2944	3391	3520	3967
+WILDERNESS	2944	3391	9920	10367
 
 # === Misthalin (always blocked during the season) ===
-# xMax 3455 (was 3391) extends Misthalin east to the River Salve at
-# x=3424-3455 so Mort Myre's western fringe is no longer claimed by
-# the Morytania mainland box that previously started at xMin=3392.
-MISTHALIN	3072	3455	3136	3519
+MISTHALIN	3072	3391	3136	3519
 # Lumbridge swamp caves, Varrock sewers, etc.
 MISTHALIN	3072	3263	9472	9919
 # Dorgesh-Kaan dungeon (under Lumbridge swamp).
@@ -162,11 +171,13 @@ KARAMJA	2304	3007	9024	9471
 # === Morytania ===
 # Mainland — capped below the Fossil Island latitude (the override above
 # already steals chunks 58-59 / 58-61 for MISTHALIN, but capping mainland
-# here makes the intent explicit). xMin 3456 (was 3392) starts Morytania
-# east of the River Salve crossing (Salve at ~x=3424); the strip
-# x=3392-3455 is the Salve corridor + Lumbridge swamp east edge, both
-# Misthalin per the lore and now claimed by the Misthalin mainland box.
-MORYTANIA	3456	3839	3136	3711
+# here makes the intent explicit). xMin 3392 covers the cx=53 strip that
+# straddles the River Salve at x=3424 — the east half of every chunk in
+# that column is Mort Myre / Mort'ton path / Paterdomus / Slayer Tower,
+# all Morytania per the lore. Pathing tiles in those chunks are on the
+# Morytania side; the Misthalin/Lumbridge swamp west bank is unwalkable
+# from the Morytania side anyway.
+MORYTANIA	3392	3839	3136	3711
 # Hallowed Sepulchre (Darkmeyer underground instance).
 MORYTANIA	2304	2559	5888	6143
 
@@ -176,7 +187,11 @@ DESERT	3136	3519	2624	3135
 DESERT	3136	3519	9472	9727
 
 # === Tirannwn ===
-TIRANNWN	2112	2303	3136	3519
+# yMin 3072 (was 3136) reaches Port Tyras dock at (2142, 3122 = cy 48) and
+# the south coast outpost path; the Lletya peninsula override above keeps
+# cx=36 cy=49 with Tirannwn even though Yanille (KANDARIN) shares that
+# x-band.
+TIRANNWN	2112	2303	3072	3519
 # Prifddinas (instance-style high y coords; covers chunkY 94-97).
 TIRANNWN	3200	3327	6016	6271
 # Gauntlet lobby instance.
@@ -185,9 +200,12 @@ TIRANNWN	2944	3071	6080	6271
 TIRANNWN	2176	2303	9536	9663
 
 # === Kourend & Kebos ===
-# yMin 3456 (was 3264) leaves cy 51-53 for the Varlamore Auburn Valley
-# override above; Hosidius (cy 56) and the rest of Kourend stay here.
-KOUREND	1024	1919	3456	3967
+# yMin 3392 (cy 53) starts Kourend at the Custodia/Hailstorm mountain
+# range so Land's End (1504, 3396 = cx 23 cy 53), Mount Quidamortem south
+# slope, and the Kebos lowlands border are all Kourend; the Varlamore
+# Auburn Valley override above caps at yMax 3391 (cy 52) so Auburnvale
+# stays Varlamore without reaching into Zeah.
+KOUREND	1024	1919	3392	3967
 # Kourend underground (Mount Karuulm dungeons, Lovakengj, etc.).
 KOUREND	1024	1919	9920	10367
 # Arceuus rune mine (Temple of the Eye instance).
