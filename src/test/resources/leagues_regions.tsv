@@ -7,8 +7,9 @@
 # shortest-path/src/main/resources/leagues/regions.tsv.
 #
 # Boxes are inclusive on both ends. On overlap the box with the larger
-# overlap area wins; ties are broken by file order (earlier wins).
-# Specific overrides therefore go FIRST, then the broad mainland boxes.
+# overlap area wins; ties are broken by file order (earlier wins). Specific
+# overrides therefore go FIRST, then the broad mainland boxes.
+#
 # Anything not covered by any box defaults to NEUTRAL at runtime
 # (always-unlocked). This is intentional for:
 #   * Sailing-skill content (The Great Conch, The Summer Shore, The Node)
@@ -18,34 +19,58 @@
 #   * POH, Death's office, Zanaris, the Abyssal Area, Tutorial Island,
 #     and other always-accessible niches.
 #
-# Sources cross-checked: Demonic_Pacts_League/Areas wiki page and the
+# Sources cross-checked: Demonic_Pacts_League/Areas wiki page (esp. the
+# "Notable inaccessible content in Misthalin" list which pulls Fossil
+# Island and the Isle of Souls/Soul Wars into MISTHALIN), and the
 # banker's briefcase destinations in
-# src/main/resources/transports/seasonal_transports.tsv.
+# shortest-path/src/main/resources/transports/seasonal_transports.tsv.
 #
 # Format:
 #   region_name<TAB>xMin<TAB>xMax<TAB>yMin<TAB>yMax
+
+# === Always-blocked overrides (file-order tiebreakers, before MORYTANIA) ===
+# Fossil Island sits in the chunks that would otherwise fall into Morytania
+# but the wiki lists it under "Notable inaccessible content in Misthalin"
+# (no boat from Port Phasmatys, no Bone Voyage, no birdhouses, etc.).
+MISTHALIN	3712	3839	3712	3967
+# Isle of Souls and Soul Wars are likewise inaccessible per the wiki. The
+# island sits west of mainland Karamja in chunks (33-35, 43-45).
+MISTHALIN	2112	2303	2752	2943
 
 # === Specific overrides (file-order tiebreakers) ===
 # Tirannwn: Lletya peninsula extends slightly into Kandarin's mainland box.
 TIRANNWN	2304	2367	3136	3199
 # Kandarin: Yanille peninsula juts south of the Karamja-Kandarin strait.
 KANDARIN	2560	2687	3072	3135
-# Kandarin: Ape Atoll and the surrounding Feldip Hills islands.
+# Kandarin: Ape Atoll (chunks 42-44, 42-43).
 KANDARIN	2688	2879	2688	2879
+# Kandarin: Feldip Hills (south of mainland Kandarin, west of Karamja).
+KANDARIN	2304	2687	2880	3071
+# Kandarin: Crash Island (small island west of Karamja's north coast).
+KANDARIN	2880	2975	2688	2783
 # Karamja: Brimhaven north coast extends north of the strait.
 KARAMJA	2752	2879	3136	3199
 # Karamja: Crandor (small island south of Karamja).
 KARAMJA	2816	2879	3200	3263
+# Asgarnia: Warriors' Guild slope on the east side of White Wolf Mountain
+# (just east of Catherby/Kandarin, just west of Burthorpe). Capped at
+# y=3711 so Weiss at (2860, 3935) stays Fremennik.
+ASGARNIA	2816	2879	3520	3711
+# Asgarnia: Burthorpe / Troll Country / Death Plateau / GWD strip
+# (north of mainland Asgarnia, west of the Wilderness border).
+ASGARNIA	2880	2943	3520	3967
+# Asgarnia: Entrana (small island west of Port Sarim).
+ASGARNIA	2752	2879	3328	3391
+# Asgarnia: Pest Control / Void Knights' Outpost (south of Port Sarim).
+ASGARNIA	2624	2687	2560	2687
 # Morytania: Mos Le'Harmless and the eastern islands (Braindeath, Dragontooth, Harmony).
 MORYTANIA	3520	3839	2752	3071
 # Fremennik: Lunar Isle (west of mainland Fremennik).
 FREMENNIK	2048	2175	3840	3967
-# Desert: Sophanem dungeon override (precedes Karamja TzHaar undergrounds).
+# Fremennik: Ungael (north of Fremennik mainland).
+FREMENNIK	2240	2335	4032	4159
+# Desert: Sophanem dungeon (precedes Karamja TzHaar undergrounds).
 DESERT	2688	2879	5120	5247
-# Asgarnia: Entrana (small island west of Port Sarim, covers chunks 43-44).
-ASGARNIA	2752	2879	3328	3391
-# Asgarnia: Pest Control islands (south of Port Sarim).
-ASGARNIA	2624	2687	2560	2687
 
 # === Wilderness (overlay; takes precedence over Misthalin/Asgarnia at high y) ===
 WILDERNESS	2944	3391	3520	3967
@@ -87,9 +112,10 @@ KARAMJA	2304	2687	4992	5247
 KARAMJA	2304	3007	9024	9471
 
 # === Morytania ===
+# Mainland — capped below the Fossil Island latitude (the override above
+# already steals chunks 58-59 / 58-61 for MISTHALIN, but capping mainland
+# here makes the intent explicit).
 MORYTANIA	3392	3839	3136	3711
-# Fossil Island (north Morytania waters).
-MORYTANIA	3712	3839	3712	3839
 # Hallowed Sepulchre (Darkmeyer underground instance).
 MORYTANIA	2304	2559	5888	6143
 
