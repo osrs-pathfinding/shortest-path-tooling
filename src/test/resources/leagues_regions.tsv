@@ -7,8 +7,11 @@
 # shortest-path/src/main/resources/leagues/regions.tsv.
 #
 # Boxes are inclusive on both ends. On overlap the box with the larger
-# overlap area wins; ties are broken by file order (earlier wins). Specific
-# overrides therefore go FIRST, then the broad mainland boxes.
+# overlap area wins; ties broken by file order only when overlap areas are
+# exactly equal — so a huge mainland box can beat a small override unless
+# the override's intersection is strictly larger for that map region chunk.
+# Put tight land-focused boxes before broad ones; use several smaller
+# KARAMJA rectangles instead of one catch-all that swallows adjacent sea.
 #
 # Anything not covered by any box defaults to NEUTRAL at runtime
 # (always-unlocked). This is intentional for:
@@ -32,26 +35,46 @@
 # Fossil Island sits in the chunks that would otherwise fall into Morytania
 # but the wiki lists it under "Notable inaccessible content in Misthalin"
 # (no boat from Port Phasmatys, no Bone Voyage, no birdhouses, etc.).
-MISTHALIN	3712	3839	3712	3967
+# Wider than the literal land tiles: the box covers the Tar Swamp south
+# (down to ~y=3690), the Volcano + Volcanic Mine east (out to ~x=3890),
+# and the Bank Chest island north so all visually adjacent chunks are
+# locked too. yMin 3680 also overrides Morytania mainland (yMax 3711).
+MISTHALIN	3648	3903	3648	3967
 # Isle of Souls and Soul Wars are likewise inaccessible per the wiki. The
-# island sits west of mainland Karamja in chunks (33-35, 43-45).
-MISTHALIN	2112	2303	2752	2943
+# island sits west of Feldip Hills in the Shrouded Ocean. Box widened so
+# the BJP fairy ring on the northern coast (2264, 2976), the dungeon
+# entrance on the east (~x=2295), the eastern beach beyond x=2304, and
+# the western cliffs (~x=2080) are all covered. xMax 2351 keeps Feldip
+# Hills (cy 45-46) with KANDARIN — Feldip's Kandarin row gives a 4096
+# overlap there vs this row's 3072, so Kandarin still wins those chunks.
+MISTHALIN	2048	2351	2752	3007
 
 # === Specific overrides (file-order tiebreakers) ===
 # Tirannwn: Lletya peninsula extends slightly into Kandarin's mainland box.
 TIRANNWN	2304	2367	3136	3199
-# Kandarin: Yanille peninsula juts south of the Karamja-Kandarin strait.
-KANDARIN	2560	2687	3072	3135
-# Kandarin: Ape Atoll (chunks 42-44, 42-43).
-KANDARIN	2688	2879	2688	2879
-# Kandarin: Feldip Hills (south of mainland Kandarin, west of Karamja).
-KANDARIN	2304	2687	2880	3071
-# Kandarin: Crash Island (small island west of Karamja's north coast).
-KANDARIN	2880	2975	2688	2783
-# Karamja: Brimhaven north coast extends north of the strait.
-KARAMJA	2752	2879	3136	3199
+# Karamja: full north coast strip (Brimhaven west, Brimhaven, Karamja
+# Volcano, Musa Point, shipyard). Sits at the same y-band as Kandarin
+# mainland (3136-3519) AND Asgarnia mainland (2880-3071, 3072-3519); on
+# tie this row wins by file order so the strip is consistently Karamja.
+# xMax 3007 stops the strip at Karamja's east coast — chunk cx=47
+# (x=3008-3071) is the Karamja-Port Sarim strait + Port Sarim's
+# southernmost piers (Asgarnia per the wiki), so it falls through to
+# the Asgarnia mainland box instead of being claimed by this strip.
+KARAMJA	2688	3007	3136	3199
 # Karamja: Crandor (small island south of Karamja).
 KARAMJA	2816	2879	3200	3263
+# Kandarin: Yanille / Castle Wars / Port Khazard mudskipper coast.
+# Same x-band as Feldip / Karamja overrides below — must come first so
+# Yanille tile chunks tie-break to Kandarin, not Karamja.
+KANDARIN	2304	2687	3008	3135
+# Kandarin: Ape Atoll (chunks 42-44, 42-43).
+KANDARIN	2688	2879	2688	2879
+# Kandarin: Corsair Cove peninsula (Pirate quest hub, NOT Karamja).
+KANDARIN	2496	2623	2816	2943
+# Kandarin: Crash Island (small island west of Karamja's north coast).
+KANDARIN	2880	2975	2688	2783
+# Kandarin: Feldip Hills (south of Yanille, west of Karamja).
+KANDARIN	2304	2687	2880	3007
 # Asgarnia: Warriors' Guild slope on the east side of White Wolf Mountain
 # (just east of Catherby/Kandarin, just west of Burthorpe). Capped at
 # y=3711 so Weiss at (2860, 3935) stays Fremennik.
@@ -63,6 +86,20 @@ ASGARNIA	2880	2943	3520	3967
 ASGARNIA	2752	2879	3328	3391
 # Asgarnia: Pest Control / Void Knights' Outpost (south of Port Sarim).
 ASGARNIA	2624	2687	2560	2687
+# Desert: Al Kharid town + Al Kharid mine + Emir's Arena.
+# Per the league wiki "Al Kharid is a city in the north of the Kharidian
+# Desert" — without this override Al Kharid falls to the Misthalin
+# mainland box at the same y band. cx 51-52, cy 49-51 covers the town,
+# mine, palace, and arena. yMin 3136 is shared with Misthalin mainland;
+# this row goes first so the desert chunks tie-break correctly.
+DESERT	3264	3391	3136	3327
+# Varlamore: Auburnvale + the Auburn Valley north of Civitas illa Fortis.
+# Per the league wiki Varlamore explicitly includes Auburnvale (~1411,
+# 3361) which is north of the Varlamore mainland yMax. cx 16-29, cy 51-53
+# covers Auburnvale, the valley between the Custodia and Hailstorm
+# Mountains, and the eastern mountain pass that previously fell into
+# Kourend. Kourend mainland still wins at cy 54+ (Hosidius latitude).
+VARLAMORE	1024	1919	3264	3455
 # Morytania: Mos Le'Harmless and the eastern islands (Braindeath, Dragontooth, Harmony).
 MORYTANIA	3520	3839	2752	3071
 # Fremennik: Lunar Isle (west of mainland Fremennik).
@@ -73,11 +110,18 @@ FREMENNIK	2240	2335	4032	4159
 DESERT	2688	2879	5120	5247
 
 # === Wilderness (overlay; takes precedence over Misthalin/Asgarnia at high y) ===
-WILDERNESS	2944	3391	3520	3967
-WILDERNESS	2944	3391	9920	10367
+# xMax 3455 (was 3391) extends Wilderness east to the River Salve so
+# chunks at cx=53 cy=55-61 stay Wilderness instead of dropping to NEUTRAL
+# now that the Misthalin mainland reaches xMax 3455 (at y < 3520) and
+# the Morytania mainland starts at xMin 3456.
+WILDERNESS	2944	3455	3520	3967
+WILDERNESS	2944	3455	9920	10367
 
 # === Misthalin (always blocked during the season) ===
-MISTHALIN	3072	3391	3136	3519
+# xMax 3455 (was 3391) extends Misthalin east to the River Salve at
+# x=3424-3455 so Mort Myre's western fringe is no longer claimed by
+# the Morytania mainland box that previously started at xMin=3392.
+MISTHALIN	3072	3455	3136	3519
 # Lumbridge swamp caves, Varrock sewers, etc.
 MISTHALIN	3072	3263	9472	9919
 # Dorgesh-Kaan dungeon (under Lumbridge swamp).
@@ -105,7 +149,11 @@ FREMENNIK	2752	2879	10176	10367
 FREMENNIK	1920	2047	4928	5055
 
 # === Karamja (mainland) ===
-KARAMJA	2304	3007	2496	3135
+# Tight box around the actual island (Brimhaven, Volcano, Musa, Shilo,
+# Cairn Isle, Tai Bwo Wannai, shipyard). Excludes the open water of the
+# Feldip-Karamja strait at xMin < 2752 — those chunks fall through to
+# NEUTRAL because there is no walkable path across them anyway.
+KARAMJA	2752	3071	2816	3199
 # TzHaar / Mor Ul Rek underground (narrowed away from Sophanem dungeon).
 KARAMJA	2304	2687	4992	5247
 # Karamja cave dungeons (Brimhaven dungeon, etc.).
@@ -114,8 +162,11 @@ KARAMJA	2304	3007	9024	9471
 # === Morytania ===
 # Mainland — capped below the Fossil Island latitude (the override above
 # already steals chunks 58-59 / 58-61 for MISTHALIN, but capping mainland
-# here makes the intent explicit).
-MORYTANIA	3392	3839	3136	3711
+# here makes the intent explicit). xMin 3456 (was 3392) starts Morytania
+# east of the River Salve crossing (Salve at ~x=3424); the strip
+# x=3392-3455 is the Salve corridor + Lumbridge swamp east edge, both
+# Misthalin per the lore and now claimed by the Misthalin mainland box.
+MORYTANIA	3456	3839	3136	3711
 # Hallowed Sepulchre (Darkmeyer underground instance).
 MORYTANIA	2304	2559	5888	6143
 
@@ -134,7 +185,9 @@ TIRANNWN	2944	3071	6080	6271
 TIRANNWN	2176	2303	9536	9663
 
 # === Kourend & Kebos ===
-KOUREND	1024	1919	3264	3967
+# yMin 3456 (was 3264) leaves cy 51-53 for the Varlamore Auburn Valley
+# override above; Hosidius (cy 56) and the rest of Kourend stay here.
+KOUREND	1024	1919	3456	3967
 # Kourend underground (Mount Karuulm dungeons, Lovakengj, etc.).
 KOUREND	1024	1919	9920	10367
 # Arceuus rune mine (Temple of the Eye instance).

@@ -32,7 +32,8 @@ import org.junit.Test;
  * {@code src/test/resources/leagues_regions.tsv}, walks every loaded map
  * region (64x64 chunk) in the supplied OSRS cache, and assigns each
  * region id to the league region whose bounding boxes it falls inside.
- * Earlier rows in the source file take precedence on overlap; anything
+ * On overlap the box with greater intersection area wins; when multiple
+ * boxes tie, the earliest row in the source file wins. Anything
  * uncovered defaults to NEUTRAL and is omitted from the output (the
  * runtime checker already returns NEUTRAL for unmapped regions).
  * </p>
