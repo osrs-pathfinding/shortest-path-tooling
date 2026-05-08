@@ -1,0 +1,122 @@
+# Demonic Pacts League: bounding boxes per league region, source-of-truth.
+#
+# Each row is a rectangular world-coordinate bounding box assigned to a
+# LeagueRegion. The dumper (LeagueRegionDumperTest) intersects these boxes
+# with every loaded OSRS map region (64x64 chunk) and emits the result as a
+# regionId -> LeagueRegion TSV consumed by
+# shortest-path/src/main/resources/leagues/regions.tsv.
+#
+# Boxes are inclusive on both ends. On overlap the box with the larger
+# overlap area wins; ties are broken by file order (earlier wins).
+# Specific overrides therefore go FIRST, then the broad mainland boxes.
+# Anything not covered by any box defaults to NEUTRAL at runtime
+# (always-unlocked). This is intentional for:
+#   * Sailing-skill content (The Great Conch, The Summer Shore, The Node)
+#     — Sailing is too new to be in this league, so its destinations are
+#     simply unreachable rather than gated.
+#   * Instances and dynamic regions without a stable region id.
+#   * POH, Death's office, Zanaris, the Abyssal Area, Tutorial Island,
+#     and other always-accessible niches.
+#
+# Sources cross-checked: Demonic_Pacts_League/Areas wiki page and the
+# banker's briefcase destinations in
+# src/main/resources/transports/seasonal_transports.tsv.
+#
+# Format:
+#   region_name<TAB>xMin<TAB>xMax<TAB>yMin<TAB>yMax
+
+# === Specific overrides (file-order tiebreakers) ===
+# Tirannwn: Lletya peninsula extends slightly into Kandarin's mainland box.
+TIRANNWN	2304	2367	3136	3199
+# Kandarin: Yanille peninsula juts south of the Karamja-Kandarin strait.
+KANDARIN	2560	2687	3072	3135
+# Kandarin: Ape Atoll and the surrounding Feldip Hills islands.
+KANDARIN	2688	2879	2688	2879
+# Karamja: Brimhaven north coast extends north of the strait.
+KARAMJA	2752	2879	3136	3199
+# Karamja: Crandor (small island south of Karamja).
+KARAMJA	2816	2879	3200	3263
+# Morytania: Mos Le'Harmless and the eastern islands (Braindeath, Dragontooth, Harmony).
+MORYTANIA	3520	3839	2752	3071
+# Fremennik: Lunar Isle (west of mainland Fremennik).
+FREMENNIK	2048	2175	3840	3967
+# Desert: Sophanem dungeon override (precedes Karamja TzHaar undergrounds).
+DESERT	2688	2879	5120	5247
+# Asgarnia: Entrana (small island west of Port Sarim, covers chunks 43-44).
+ASGARNIA	2752	2879	3328	3391
+# Asgarnia: Pest Control islands (south of Port Sarim).
+ASGARNIA	2624	2687	2560	2687
+
+# === Wilderness (overlay; takes precedence over Misthalin/Asgarnia at high y) ===
+WILDERNESS	2944	3391	3520	3967
+WILDERNESS	2944	3391	9920	10367
+
+# === Misthalin (always blocked during the season) ===
+MISTHALIN	3072	3391	3136	3519
+# Lumbridge swamp caves, Varrock sewers, etc.
+MISTHALIN	3072	3263	9472	9919
+# Dorgesh-Kaan dungeon (under Lumbridge swamp).
+MISTHALIN	2688	2751	5312	5375
+
+# === Asgarnia ===
+ASGARNIA	2880	3071	3072	3519
+# Mining Guild / Falador sewers / Motherlode Mine ground level.
+ASGARNIA	2944	3071	9472	9919
+# Motherlode Mine instance.
+ASGARNIA	3712	3839	5632	5759
+# Ruins of Camdozaal (Asgarnia underground).
+ASGARNIA	2944	3071	5760	5887
+# Rogues' Den (Burthorpe underground).
+ASGARNIA	3008	3071	4928	4991
+
+# === Kandarin (mainland) ===
+KANDARIN	2304	2879	3136	3519
+
+# === Fremennik ===
+FREMENNIK	2304	2879	3520	3967
+# Keldagrim underground.
+FREMENNIK	2752	2879	10176	10367
+# Blast Furnace instance.
+FREMENNIK	1920	2047	4928	5055
+
+# === Karamja (mainland) ===
+KARAMJA	2304	3007	2496	3135
+# TzHaar / Mor Ul Rek underground (narrowed away from Sophanem dungeon).
+KARAMJA	2304	2687	4992	5247
+# Karamja cave dungeons (Brimhaven dungeon, etc.).
+KARAMJA	2304	3007	9024	9471
+
+# === Morytania ===
+MORYTANIA	3392	3839	3136	3711
+# Fossil Island (north Morytania waters).
+MORYTANIA	3712	3839	3712	3839
+# Hallowed Sepulchre (Darkmeyer underground instance).
+MORYTANIA	2304	2559	5888	6143
+
+# === Desert ===
+DESERT	3136	3519	2624	3135
+# Sophanem / Tomb of the Pharoahs / Smoke Dungeon underground.
+DESERT	3136	3519	9472	9727
+
+# === Tirannwn ===
+TIRANNWN	2112	2303	3136	3519
+# Prifddinas (instance-style high y coords; covers chunkY 94-97).
+TIRANNWN	3200	3327	6016	6271
+# Gauntlet lobby instance.
+TIRANNWN	2944	3071	6080	6271
+# Underground Pass instance.
+TIRANNWN	2176	2303	9536	9663
+
+# === Kourend & Kebos ===
+KOUREND	1024	1919	3264	3967
+# Kourend underground (Mount Karuulm dungeons, Lovakengj, etc.).
+KOUREND	1024	1919	9920	10367
+# Arceuus rune mine (Temple of the Eye instance).
+KOUREND	3520	3711	9472	9727
+
+# === Varlamore ===
+VARLAMORE	1024	1983	2624	3263
+# Varlamore underground (Cam Torum, Alchemical Society, Quetzacalli, etc.).
+VARLAMORE	1024	1919	9216	9919
+# Fortis Colosseum instance.
+VARLAMORE	1664	1919	9472	9663

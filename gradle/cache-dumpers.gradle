@@ -75,3 +75,84 @@ tasks.register('sailingAmenityVarbitDump', Test) {
     }
 }
 
+// Generates the regionId -> LeagueRegion mapping consumed by the runtime
+// LeagueRegionChecker. Reads the curated bounding-box source-of-truth at
+// src/test/resources/leagues_regions.tsv, walks every loaded map region in
+// the cache, and emits the result as a TSV. Copy the output over
+// shortest-path/src/main/resources/leagues/regions.tsv after a successful
+// run.
+//
+// Usage:
+//   shortest-path/collision-map-update/download-latest-cache.sh
+//   sed -i '' 's/mapsquare/region/g; s/key/keys/g' keys.json
+//   ./gradlew leagueRegionDump \
+//     -PleagueRegionsCacheDir=$PWD/cache \
+//     -PleagueRegionsXteaPath=$PWD/keys.json
+//   cp build/league-regions/regions.tsv \
+//     shortest-path/src/main/resources/leagues/regions.tsv
+def leagueRegionsCacheDir = providers.gradleProperty('leagueRegionsCacheDir').orElse('')
+def leagueRegionsXteaPath = providers.gradleProperty('leagueRegionsXteaPath').orElse('')
+def leagueRegionsOutput = providers.gradleProperty('leagueRegionsOutput')
+        .orElse(layout.buildDirectory.file('league-regions/regions.tsv').get().asFile.absolutePath)
+
+tasks.register('leagueRegionDump', Test) {
+    group = 'cache dumpers'
+    description = 'Generates regions.tsv (regionId -> LeagueRegion) for the Demonic Pacts League. ' +
+            'Required: -PleagueRegionsCacheDir=<cache dir>, -PleagueRegionsXteaPath=<keys.json>. ' +
+            'Optional: -PleagueRegionsOutput=<tsv path>.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/LeagueRegionDumperTest.class'
+    systemProperty 'league.regions.dump', 'true'
+    systemProperty 'league.regions.cacheDir', leagueRegionsCacheDir.get()
+    systemProperty 'league.regions.xteaPath', leagueRegionsXteaPath.get()
+    systemProperty 'league.regions.output', leagueRegionsOutput.get()
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging {
+        showStandardStreams = true
+    }
+    doFirst {
+        if (leagueRegionsCacheDir.get().isEmpty() || leagueRegionsXteaPath.get().isEmpty()) {
+            throw new GradleException("leagueRegionDump requires -PleagueRegionsCacheDir " +
+                    "and -PleagueRegionsXteaPath. Run shortest-path/collision-map-update/" +
+                    "download-latest-cache.sh first to produce ./cache and ./keys.json, then patch " +
+                    "keys.json (mapsquare->region, key->keys).")
+        }
+    }
+    doLast {
+        logger.lifecycle("")
+        logger.lifecycle("League region mapping written to ${leagueRegionsOutput.get()}")
+        logger.lifecycle("Copy into the plugin with:")
+        logger.lifecycle("  cp ${leagueRegionsOutput.get()} shortest-path/src/main/resources/leagues/regions.tsv")
+    }
+}
+
+// One-off probe that prints league-related item IDs (Banker's Briefcase, etc.)
+// from the cache to stdout. Useful when refreshing the hard-coded numeric IDs
+// in shortest-path/src/main/resources/transports/seasonal_transports.tsv.
+def leagueIdCacheDir = providers.gradleProperty('leagueIdCacheDir').orElse('')
+def leagueIdXteaPath = providers.gradleProperty('leagueIdXteaPath').orElse('')
+
+tasks.register('leagueIdProbe', Test) {
+    group = 'cache dumpers'
+    description = 'Prints Banker\'s Briefcase and other league item IDs from an OSRS cache. ' +
+            'Required: -PleagueIdCacheDir=<cache dir>, -PleagueIdXteaPath=<keys.json>.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/LeagueIdProbeTest.class'
+    systemProperty 'league.id.probe', 'true'
+    systemProperty 'league.id.cacheDir', leagueIdCacheDir.get()
+    systemProperty 'league.id.xteaPath', leagueIdXteaPath.get()
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging {
+        showStandardStreams = true
+    }
+    doFirst {
+        if (leagueIdCacheDir.get().isEmpty() || leagueIdXteaPath.get().isEmpty()) {
+            throw new GradleException("leagueIdProbe requires -PleagueIdCacheDir and -PleagueIdXteaPath.")
+        }
+    }
+}
+
