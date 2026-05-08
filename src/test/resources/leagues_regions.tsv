@@ -74,8 +74,12 @@ KARAMJA	2816	2879	3200	3263
 KANDARIN	2304	2687	3008	3135
 # Kandarin: Ape Atoll (chunks 42-44, 42-43).
 KANDARIN	2688	2879	2688	2879
-# Kandarin: Corsair Cove peninsula (Pirate quest hub, NOT Karamja).
-KANDARIN	2496	2623	2816	2943
+# Kandarin: Corsair Cove peninsula + Myths' Guild (Pirate quest hub, NOT
+# Karamja). xMin 2432 (was 2496) covers the Myths' Guild chunk at
+# (2453, 2845 = cx 38 cy 44) — the league wiki lists Myths' Guild under
+# Kandarin's Feldip Hills, and without this row the chunk falls through
+# to NEUTRAL because Feldip Hills proper starts at yMin 2880 (cy 45).
+KANDARIN	2432	2623	2816	2943
 # Kandarin: Crash Island (small island west of Karamja's north coast).
 KANDARIN	2880	2975	2688	2783
 # Kandarin: Feldip Hills (south of Yanille, west of Karamja).
@@ -107,11 +111,26 @@ DESERT	3264	3391	3136	3327
 # back to Kourend instead of being mis-classified as Varlamore.
 VARLAMORE	1024	1919	3264	3391
 # Kandarin: NE — Piscatoris Fishing Colony, Piscatoris Falconry, Eagles'
-# Peak, Piscatoris Hunter Area. The Fremennik mainland row otherwise wins
-# everything north of the Kandarin mainland yMax 3519, but the Piscatoris
-# basin (cx 36-37, cy 55-57) sits south of the Rellekka river border and
-# is explicitly listed as Kandarin in the league wiki.
-KANDARIN	2304	2431	3520	3711
+# Peak summit and west slope, Piscatoris Hunter Area. The Fremennik
+# mainland row otherwise wins everything north of the Kandarin mainland
+# yMax 3519, but the Piscatoris basin (cx 35-37, cy 55-57) sits south
+# of the Rellekka river border and is explicitly listed as Kandarin in
+# the league wiki. xMin 2240 (cx 35) covers the Eagles' Peak west slope
+# / Falconry approach tiles the user reported as "missing" west of
+# Piscatoris.
+KANDARIN	2240	2431	3520	3711
+# Kandarin: broad cy 55 (y 3520-3583) override north of the Kandarin
+# mainland (yMax 3519). Per the Fremennik wiki the southern border is
+# the river south of Rellekka with the Lighthouse INCLUDED; so:
+#   * cy 55 (y < 3584) is south of the river -> KANDARIN, including
+#     Barbarian Outpost (2540, 3565 = cx 39 cy 55), the Tree Gnome
+#     Stronghold north edge (cx 38 cy 55), Sinclair Mansion approach
+#     (cx 42 cy 55), and Eagles' Peak NE / Hunter Area (cx 35-37 cy 55).
+#   * cy 56-57 stay FREMENNIK (river + Lighthouse + Rellekka), except
+#     Piscatoris which the override above explicitly carves out.
+# xMax 2815 stops at the Catherby/White Wolf Mountain east border so
+# the Warriors' Guild Asgarnia override (xMin 2816) wins its chunk.
+KANDARIN	2240	2815	3520	3583
 # Morytania: Mos Le'Harmless and the eastern islands (Braindeath, Dragontooth, Harmony).
 MORYTANIA	3520	3839	2752	3071
 # Fremennik: Lunar Isle (west of mainland Fremennik).
