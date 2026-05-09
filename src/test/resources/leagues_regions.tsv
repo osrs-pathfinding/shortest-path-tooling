@@ -70,17 +70,18 @@ TIRANNWN	2304	2367	3136	3199
 # southernmost piers (Asgarnia per the wiki), so it falls through to
 # the Asgarnia mainland box instead of being claimed by this strip.
 KARAMJA	2688	3007	3136	3199
-# Karamja: Crandor (small island south of Karamja).
-KARAMJA	2816	2879	3200	3263
-# Karamja: NE coast (Karamja shipyard north dock + Volcano east extension).
-# The mainland row stops at yMax 3199 (cy 49) but the actual Karamja island
-# extends slightly into cy 50 around the shipyard at (2960, 3145) — without
-# this row the chunks at cx 45-46 cy 50 fall to ASGARNIA mainland (Port
-# Sarim south) and the dashboard renders the NE Karamja tip as light-blue
-# Asgarnia instead of orange Karamja. xMax 3007 stops at the strait so
-# cx 47 (Port Sarim's southernmost piers, Asgarnia per the wiki) is
-# unaffected.
-KARAMJA	2880	3007	3200	3263
+# Karamja: Crandor (small island south of Karamja, spans cy 50-51 — the
+# volcano landmass extends into both chunks). yMax 3327 covers the
+# southern shore of the island around (2840, 3290) which would
+# otherwise fall to NEUTRAL.
+KARAMJA	2816	2879	3200	3327
+# Karamja: NW of the shipyard / SW of Musa Point (cx 45 cy 48). At this
+# chunk both KARAMJA mainland and ASGARNIA mainland tie at 4096 area;
+# ASGARNIA wins by file order despite the chunk being clearly Karamja
+# island land (the path north of the volcano leading to Musa Point and
+# the Karamja shipyard, plus the DKP fairy ring landing tile). This
+# tiny override flips the tile to KARAMJA orange.
+KARAMJA	2880	2943	3072	3135
 # Kandarin: Yanille / Castle Wars / Port Khazard mudskipper coast.
 # Same x-band as Feldip / Karamja overrides below — must come first so
 # Yanille tile chunks tie-break to Kandarin, not Karamja.
