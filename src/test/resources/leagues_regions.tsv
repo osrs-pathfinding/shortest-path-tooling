@@ -132,16 +132,15 @@ DESERT	3392	3455	3136	3199
 # cy 53) and the Kebos foothills above the Custodia/Hailstorm range fall
 # back to Kourend instead of being mis-classified as Varlamore.
 VARLAMORE	1024	1919	3264	3391
-# Varlamore: Custodia Heights (Hailstorm/Custodia mountain south slopes
-# + Stranglewood north temple). Per the user "Custodia and Stranglewood
-# + temple should be Varlamore. Land's End should be Kourend." cx 20-22
-# cy 53-54 covers the Custodia south face (1280-1471, 3392-3519) — the
-# white-stone temple ruins visible in the dashboard sit on this 2x3
-# block. xMax 1471 stops EAST of cx 23 so Land's End (1504, 3396 =
-# cx 23 cy 53) is unaffected and stays KOUREND. Tie-break: 4096 area
-# matches KOUREND main, file order wins (this row sits before the
-# Kourend block below).
-VARLAMORE	1280	1471	3392	3519
+# Varlamore: Custodia Heights mountain ridge — a 5-tile LINE (not a
+# box) along cy 53 from cx 17 to cx 21 (1088-1407, 3392-3455). Per the
+# user this is "the mountain" west of Land's End on the south face of
+# the Custodia/Hailstorm range; the line stops at cx 21 so cx 22-23
+# (Custodia east + Land's End at 1504, 3396) stay KOUREND, and cy 54
+# (the north slope into the Kebos lowlands) is also unaffected.
+# Tie-break: 4096 area matches KOUREND main, file order wins (this row
+# sits before the Kourend block below).
+VARLAMORE	1088	1407	3392	3455
 # Kandarin: NE — Piscatoris Fishing Colony, Piscatoris Falconry, Eagles'
 # Peak summit and west slope, Piscatoris Hunter Area. The Fremennik
 # mainland row otherwise wins everything north of the Kandarin mainland
