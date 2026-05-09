@@ -50,6 +50,38 @@ public class LeagueIdProbeTest {
             for (ItemDefinition item : relics) {
                 System.out.println("  id=" + item.getId() + "\tname=\"" + item.getName() + "\"");
             }
+
+            System.out.println();
+            System.out.println("=== Evil Eye candidates ===");
+            List<ItemDefinition> evilEye = CacheUtils.findItemsByNameSubstring(
+                itemManager, "evil eye");
+            for (ItemDefinition item : evilEye) {
+                System.out.println("  id=" + item.getId() + "\tname=\"" + item.getName() + "\"");
+            }
+
+            System.out.println();
+            System.out.println("=== Map of Alacrity candidates ===");
+            List<ItemDefinition> mapOfAlacrity = CacheUtils.findItemsByNameSubstring(
+                itemManager, "map of alacrity", "alacrity");
+            for (ItemDefinition item : mapOfAlacrity) {
+                System.out.println("  id=" + item.getId() + "\tname=\"" + item.getName() + "\"");
+            }
+
+            System.out.println();
+            System.out.println("=== Clue Contract candidates ===");
+            List<ItemDefinition> clueContract = CacheUtils.findItemsByNameSubstring(
+                itemManager, "clue contract");
+            for (ItemDefinition item : clueContract) {
+                System.out.println("  id=" + item.getId() + "\tname=\"" + item.getName() + "\"");
+            }
+
+            System.out.println();
+            System.out.println("=== Fairy Mushroom candidates ===");
+            List<ItemDefinition> fairyMushroom = CacheUtils.findItemsByNameSubstring(
+                itemManager, "fairy mushroom");
+            for (ItemDefinition item : fairyMushroom) {
+                System.out.println("  id=" + item.getId() + "\tname=\"" + item.getName() + "\"");
+            }
         }
     }
 }
