@@ -44,10 +44,14 @@ MISTHALIN	3648	3903	3648	3967
 # island sits west of Feldip Hills in the Shrouded Ocean. Box widened so
 # the BJP fairy ring on the northern coast (2264, 2976), the dungeon
 # entrance on the east (~x=2295), the eastern beach beyond x=2304, and
-# the western cliffs (~x=2080) are all covered. xMax 2351 keeps Feldip
-# Hills (cy 45-46) with KANDARIN — Feldip's Kandarin row gives a 4096
-# overlap there vs this row's 3072, so Kandarin still wins those chunks.
-MISTHALIN	2048	2351	2752	3007
+# the western cliffs (~x=2080) are all covered. xMax 2367 (was 2351) now
+# covers ALL of cx=36 — the user reported "two tiles of soul island
+# should also extend east", and these are (36, 45) and (36, 46) where
+# the icy Isle of Souls landmass extends just past x=2351 into the
+# eastern half of cx=36. With xMax 2367 this row now ties Feldip Hills
+# (KANDARIN, also 4096 at those chunks) and wins by file order, so the
+# eastern Isle of Souls coast is correctly MISTHALIN red.
+MISTHALIN	2048	2367	2752	3007
 # Isle of Souls — water/islet buffer east of the main island at the y-band
 # below Feldip Hills (cy 43-44 only, yMax 2879 < Feldip's yMin 2880) so the
 # eastern coast and any small outcrops show up as blocked without stealing
@@ -68,6 +72,15 @@ TIRANNWN	2304	2367	3136	3199
 KARAMJA	2688	3007	3136	3199
 # Karamja: Crandor (small island south of Karamja).
 KARAMJA	2816	2879	3200	3263
+# Karamja: NE coast (Karamja shipyard north dock + Volcano east extension).
+# The mainland row stops at yMax 3199 (cy 49) but the actual Karamja island
+# extends slightly into cy 50 around the shipyard at (2960, 3145) — without
+# this row the chunks at cx 45-46 cy 50 fall to ASGARNIA mainland (Port
+# Sarim south) and the dashboard renders the NE Karamja tip as light-blue
+# Asgarnia instead of orange Karamja. xMax 3007 stops at the strait so
+# cx 47 (Port Sarim's southernmost piers, Asgarnia per the wiki) is
+# unaffected.
+KARAMJA	2880	3007	3200	3263
 # Kandarin: Yanille / Castle Wars / Port Khazard mudskipper coast.
 # Same x-band as Feldip / Karamja overrides below — must come first so
 # Yanille tile chunks tie-break to Kandarin, not Karamja.
@@ -102,6 +115,15 @@ ASGARNIA	2624	2687	2560	2687
 # mine, palace, and arena. yMin 3136 is shared with Misthalin mainland;
 # this row goes first so the desert chunks tie-break correctly.
 DESERT	3264	3391	3136	3327
+# Desert: NE strip between Al Kharid and Burgh de Rott (cx 53, cy 49).
+# At Al Kharid's height (cy 49), one chunk south of Burgh (cy 50), this
+# is the desert/Mort'ton west transition (3392-3455, 3136-3199) — sandy
+# terrain west of the Salve that the user reported as MORYTANIA gray
+# when it should be DESERT yellow. Without this row the MORYTANIA
+# mainland box (3392-3839, 3136-3711) wins by 4096 area; this targeted
+# override ties (4096) and wins by file order. Stops at xMax 3455 so
+# (54, 49) Burgh approach stays MORYTANIA per the wiki.
+DESERT	3392	3455	3136	3199
 # Varlamore: Auburnvale + the Auburn Valley north of Civitas illa Fortis.
 # Per the league wiki Varlamore explicitly includes Auburnvale (~1411,
 # 3361 = cy 52) which is north of the Varlamore mainland yMax 3263.
@@ -110,6 +132,16 @@ DESERT	3264	3391	3136	3327
 # cy 53) and the Kebos foothills above the Custodia/Hailstorm range fall
 # back to Kourend instead of being mis-classified as Varlamore.
 VARLAMORE	1024	1919	3264	3391
+# Varlamore: Custodia Heights (Hailstorm/Custodia mountain south slopes
+# + Stranglewood north temple). Per the user "Custodia and Stranglewood
+# + temple should be Varlamore. Land's End should be Kourend." cx 20-22
+# cy 53-54 covers the Custodia south face (1280-1471, 3392-3519) — the
+# white-stone temple ruins visible in the dashboard sit on this 2x3
+# block. xMax 1471 stops EAST of cx 23 so Land's End (1504, 3396 =
+# cx 23 cy 53) is unaffected and stays KOUREND. Tie-break: 4096 area
+# matches KOUREND main, file order wins (this row sits before the
+# Kourend block below).
+VARLAMORE	1280	1471	3392	3519
 # Kandarin: NE — Piscatoris Fishing Colony, Piscatoris Falconry, Eagles'
 # Peak summit and west slope, Piscatoris Hunter Area. The Fremennik
 # mainland row otherwise wins everything north of the Kandarin mainland
@@ -206,11 +238,15 @@ DESERT	3136	3519	2624	3135
 DESERT	3136	3519	9472	9727
 
 # === Tirannwn ===
-# yMin 3072 (was 3136) reaches Port Tyras dock at (2142, 3122 = cy 48) and
-# the south coast outpost path; the Lletya peninsula override above keeps
-# cx=36 cy=49 with Tirannwn even though Yanille (KANDARIN) shares that
-# x-band.
-TIRANNWN	2112	2303	3072	3519
+# yMin 3008 (was 3072) closes the visual gap between Tirannwn's south
+# coast and the Isle of Souls (MISTHALIN, yMax 3007) so the dashboard no
+# longer renders a NEUTRAL band at cy=47 between the two locked regions.
+# Geographically cy=47 (y 3008-3071) is the Tirannwn south coast +
+# Mournings End shoreline that fronts Soul Wars across the Shrouded
+# Ocean — Tirannwn proper per the league wiki. The Lletya peninsula
+# override above keeps cx=36 cy=49 with Tirannwn even though Yanille
+# (KANDARIN) shares that x-band.
+TIRANNWN	2112	2303	3008	3519
 # Prifddinas (instance-style high y coords; covers chunkY 94-97).
 TIRANNWN	3200	3327	6016	6271
 # Gauntlet lobby instance.
