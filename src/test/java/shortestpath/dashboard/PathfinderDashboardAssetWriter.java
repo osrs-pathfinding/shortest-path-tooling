@@ -11,6 +11,7 @@ public class PathfinderDashboardAssetWriter {
         "/reachability-dashboard/index.html",
         "/reachability-dashboard/app.js",
         "/reachability-dashboard/profiler.js",
+        "/reachability-dashboard/collision-overlay.js",
         "/reachability-dashboard/styles.css"
     };
 
@@ -22,7 +23,8 @@ public class PathfinderDashboardAssetWriter {
      * the rest of the dashboard still publishes.
      */
     private static final String[][] OPTIONAL_PLUGIN_ASSETS = {
-        {"/leagues/regions.tsv", "regions.tsv"}
+        {"/leagues/regions.tsv", "regions.tsv"},
+        {"/collision-map.zip", "collision-map.zip"}
     };
 
     public void writeAssets(Path outputDirectory) throws IOException {

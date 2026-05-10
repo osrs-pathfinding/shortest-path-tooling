@@ -754,6 +754,7 @@ function renderPickupsFor(container, events) {
 function flyAndFlash(point) {
   currentPlane = point.plane;
   baseLayer.redraw();
+  map.fire("planechange");
   map.flyTo(worldToLatLng(point), Math.max(map.getZoom(), 2), { duration: 0.4 });
   renderHoveredTile(point);
 }
@@ -1028,6 +1029,7 @@ function renderRun(run) {
   clearLayers();
   currentPlane = run.target.plane;
   baseLayer.redraw();
+  map.fire("planechange");
 
   const pathSegments = buildPathSegments(run.path || []);
   if (pathSegments.length > 0) {
@@ -1117,6 +1119,7 @@ function renderReport(report) {
 
   currentPlane = runs[0].target.plane;
   baseLayer.redraw();
+  map.fire("planechange");
   selectRun(runs[0]);
 }
 
