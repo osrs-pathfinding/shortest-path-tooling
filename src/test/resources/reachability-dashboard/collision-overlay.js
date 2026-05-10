@@ -1,8 +1,8 @@
 /**
  * Collision-map overlay
  * ---------------------
- * Draws blocked tile edges (NORTH / EAST flags) from the runtime
- * collision-map.zip on top of the Leaflet map.
+ * Renders fully-blocked tiles (all four edges impassable) on the current
+ * plane as solid filled squares.
  *
  * Default: off. Mirrors the transport-layers toggle pattern via the
  * shared window.addMapLayerToggle({label, checked, onChange}) registry.
@@ -11,18 +11,25 @@
  * plugin (/collision-map.zip in plugin resources, copied next to the
  * dashboard's index.html by PathfinderDashboardAssetWriter). Each zip
  * entry is named "<regionX>_<regionY>" and contains the raw byte payload
- * of a Java BitSet (little-endian, byte-aligned) encoding two flags per
- * tile per plane:
+ * of a Java BitSet (little-endian, byte-aligned) encoding two edge flags
+ * per tile per plane:
  *
- *   flag 0 (FLAG_NORTH) — edge blocked between (x, y) and (x, y+1)
- *   flag 1 (FLAG_EAST)  — edge blocked between (x, y) and (x+1, y)
+ *   flag 0 (FLAG_NORTH) — edge between (x, y) and (x, y+1) is walkable
+ *   flag 1 (FLAG_EAST)  — edge between (x, y) and (x+1, y) is walkable
  *
  *   index = (z * 64 * 64 + (y - minY) * 64 + (x - minX)) * 2 + flag
  *
  *   planeCount = bytes.length * 8 / (64 * 64 * 2)   (rounded up)
  *
- * Plane changes are signalled by a custom "planechange" map event fired
- * from app.js whenever currentPlane is reassigned.
+ * A tile is considered "blocked" (filled) when none of its four incident
+ * edges are walkable on the current plane:
+ *   N: flag(x,   y,   N),  S: flag(x,   y-1, N),
+ *   E: flag(x,   y,   E),  W: flag(x-1, y,   E).
+ * Walkable corridors such as bridges, doorways and roads remain visible
+ * as gaps in the fill.
+ *
+ * The overlay is locked to plane 0 because the dashboard base map only
+ * ever renders plane 0 tiles.
  */
 (function () {
   "use strict";
@@ -30,10 +37,10 @@
   const REGION_SIZE = 64;
   const FLAG_NORTH = 0;
   const FLAG_EAST = 1;
-  const EDGE_COLOR = "#dc2626";
+  const FILL_COLOR = "rgba(220, 38, 38, 0.45)";
 
-  // Minimum on-screen pixels per world tile before any edges are drawn;
-  // below this the overlay would be visual noise.
+  // Minimum on-screen pixels per world tile before tiles are drawn;
+  // below this the overlay would be a meaningless wash of colour.
   const MIN_PX_PER_TILE = 2;
 
   let enabled = false;
@@ -155,60 +162,43 @@
           return canvas;
         }
 
-        const plane = (typeof currentPlane === "number") ? currentPlane : 0;
+        // The base map only ever renders plane 0, so anchor the overlay
+        // to plane 0 as well rather than tracking currentPlane.
+        const plane = 0;
         const ctx = canvas.getContext("2d");
-        ctx.strokeStyle = EDGE_COLOR;
-        ctx.lineWidth = Math.max(1, Math.min(2, pxPerTileX / 6));
-        ctx.lineCap = "butt";
+        ctx.fillStyle = FILL_COLOR;
 
         const x0 = Math.floor(wxMin) - 1;
         const x1 = Math.ceil(wxMax);
         const y0 = Math.floor(wyMin) - 1;
         const y1 = Math.ceil(wyMax);
 
-        const rxMin = Math.floor(x0 / REGION_SIZE);
-        const rxMax = Math.floor(x1 / REGION_SIZE);
-        const ryMin = Math.floor(y0 / REGION_SIZE);
-        const ryMax = Math.floor(y1 / REGION_SIZE);
+        // Look up the flag bit for (x, y, z, flag); transparently spans
+        // region boundaries by fetching the right region cache entry.
+        const edge = (x, y, flag) => {
+          const rx = Math.floor(x / REGION_SIZE);
+          const ry = Math.floor(y / REGION_SIZE);
+          const bytes = getRegion(rx, ry);
+          if (!bytes) return false;
+          const pc = planeCount(bytes);
+          if (plane < 0 || plane >= pc) return false;
+          return flagBit(bytes, rx * REGION_SIZE, ry * REGION_SIZE, x, y, plane, flag);
+        };
 
-        ctx.beginPath();
-        for (let rx = rxMin; rx <= rxMax; rx++) {
-          for (let ry = ryMin; ry <= ryMax; ry++) {
-            const bytes = getRegion(rx, ry);
-            if (!bytes) continue;
-            const pc = planeCount(bytes);
-            if (plane < 0 || plane >= pc) continue;
+        for (let x = x0; x <= x1; x++) {
+          for (let y = y0; y <= y1; y++) {
+            // Flag bits encode passability (set = walkable edge), so a tile
+            // is fully blocked iff none of its four incident edges are set.
+            if (edge(x, y, FLAG_NORTH)) continue;
+            if (edge(x, y, FLAG_EAST)) continue;
+            if (edge(x, y - 1, FLAG_NORTH)) continue;
+            if (edge(x - 1, y, FLAG_EAST)) continue;
 
-            const minX = rx * REGION_SIZE;
-            const minY = ry * REGION_SIZE;
-            const ax = Math.max(x0, minX);
-            const bx = Math.min(x1, minX + REGION_SIZE - 1);
-            const ay = Math.max(y0, minY);
-            const by = Math.min(y1, minY + REGION_SIZE - 1);
-
-            for (let x = ax; x <= bx; x++) {
-              for (let y = ay; y <= by; y++) {
-                if (flagBit(bytes, minX, minY, x, y, plane, FLAG_NORTH)) {
-                  // edge between (x,y) and (x,y+1) — runs west→east at lat y+1
-                  const px0 = (x - wxMin) * pxPerTileX;
-                  const px1 = (x + 1 - wxMin) * pxPerTileX;
-                  const py = (wyMax - (y + 1)) * pxPerTileY;
-                  ctx.moveTo(px0, py);
-                  ctx.lineTo(px1, py);
-                }
-                if (flagBit(bytes, minX, minY, x, y, plane, FLAG_EAST)) {
-                  // edge between (x,y) and (x+1,y) — runs south→north at lng x+1
-                  const px = (x + 1 - wxMin) * pxPerTileX;
-                  const py0 = (wyMax - y) * pxPerTileY;
-                  const py1 = (wyMax - (y + 1)) * pxPerTileY;
-                  ctx.moveTo(px, py0);
-                  ctx.lineTo(px, py1);
-                }
-              }
-            }
+            const px = (x - wxMin) * pxPerTileX;
+            const py = (wyMax - (y + 1)) * pxPerTileY;
+            ctx.fillRect(px, py, pxPerTileX, pxPerTileY);
           }
         }
-        ctx.stroke();
 
         return canvas;
       }
@@ -234,11 +224,8 @@
   // Plane changes are imperative in app.js; the helper there now fires
   // a "planechange" event on the map after baseLayer.redraw().
   function attachPlaneListener() {
-    const map = window._dashboardMap;
-    if (!map) return;
-    map.on("planechange", () => {
-      if (layer && enabled) layer.redraw();
-    });
+    // No-op: the overlay is locked to plane 0 because the base map tiles
+    // are only ever rendered for plane 0.
   }
 
   function init() {
