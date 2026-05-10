@@ -59,7 +59,7 @@ git push
 The cache dumpers require a local OSRS cache. Download one first:
 
 ```bash
-shortest-path/collision-map-update/download-latest-cache.sh
+collision-map-update/download-latest-cache.sh
 sed -i '' 's/mapsquare/region/g; s/key/keys/g' keys.json
 ```
 
