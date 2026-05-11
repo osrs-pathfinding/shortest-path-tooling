@@ -145,13 +145,20 @@
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
+    // Read themed colors at draw time so re-draws after theme switch are correct
+    const cs = getComputedStyle(document.documentElement);
+    const textColor = cs.getPropertyValue('--color-text').trim();
+    const mutedColor = cs.getPropertyValue('--color-muted').trim();
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)';
+    const crosshairColor = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.3)';
     canvas.width = w * dpr;
     canvas.height = h * dpr;
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
 
     if (!samples || samples.length === 0) {
-      ctx.fillStyle = "#999";
+      ctx.fillStyle = mutedColor;
       ctx.font = "13px sans-serif";
       ctx.fillText("No time series data", 10, h / 2);
       return;
@@ -170,7 +177,7 @@
     function yScale(val) { return margin.top + chartH - (val / maxSize) * chartH; }
 
     // Grid lines
-    ctx.strokeStyle = "rgba(0,0,0,0.08)";
+    ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       const y = margin.top + (chartH / 4) * i;
@@ -197,7 +204,7 @@
     drawLine("pendingSize", TIMESERIES_COLORS.pending);
 
     // Axis labels
-    ctx.fillStyle = "#555";
+    ctx.fillStyle = mutedColor;
     ctx.font = "11px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("Iteration", margin.left + chartW / 2, h - 6);
@@ -217,7 +224,7 @@
       const x = margin.left + i * 140;
       ctx.fillStyle = item.color;
       ctx.fillRect(x, legendY - 8, 12, 12);
-      ctx.fillStyle = "#333";
+      ctx.fillStyle = textColor;
       ctx.fillText(item.label, x + 16, legendY + 2);
     });
 
@@ -267,7 +274,7 @@
       }
 
       const sx = xScale(nearest.iteration);
-      oCtx.strokeStyle = "rgba(0,0,0,0.3)";
+      oCtx.strokeStyle = crosshairColor;
       oCtx.lineWidth = 1;
       oCtx.setLineDash([4, 3]);
       oCtx.beginPath();
@@ -503,9 +510,9 @@
       legendControl = null;
     }
     const Legend = L.Control.extend({
-      options: { position: "topright" },
+      options: { position: "bottomleft" },
       onAdd() {
-        const div = L.DomUtil.create("div", "heatmap-legend leaflet-control");
+        const div = L.DomUtil.create("div", "heatmap-legend leaflet-control heatmap-visit-legend-card");
         // Gradient bar 1–HEATMAP_MAX
         const bar = document.createElement("canvas");
         bar.width = 200;

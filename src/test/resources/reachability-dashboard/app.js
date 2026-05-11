@@ -99,6 +99,11 @@ const map = L.map("map", {
 });
 window._dashboardMap = map;
 
+// Chunk grid pane sits below the default overlayPane (z:400) so that
+// league region borders always render on top of chunk borders.
+map.createPane('chunkGridPane');
+map.getPane('chunkGridPane').style.zIndex = 350;
+
 map.attributionControl.addAttribution('&copy; <a href="https://runescape.wiki/">RuneScape Wiki</a>');
 
 const baseLayer = new WikiTileLayer("", {
@@ -182,9 +187,9 @@ map.addControl(transportLayerControl);
 
 // ── Path colour legend (mounted only when a run actually has a bank leg) ─
 const PathLegendControl = L.Control.extend({
-  options: { position: "topright" },
+  options: { position: "bottomleft" },
   onAdd() {
-    const div = L.DomUtil.create("div", "heatmap-legend leaflet-control");
+    const div = L.DomUtil.create("div", "heatmap-legend leaflet-control path-legend-card");
     const title = L.DomUtil.create("div", "heatmap-legend-title", div);
     title.textContent = "Path";
     [
@@ -210,6 +215,43 @@ function setPathLegendVisible(visible) {
   } else if (!visible && pathLegendMounted) {
     map.removeControl(pathLegendControl);
     pathLegendMounted = false;
+  }
+}
+
+// ── League Region colour legend ───────────────────────────────────────
+const LeagueRegionLegendControl = L.Control.extend({
+  options: { position: "bottomleft" },
+  onAdd() {
+    const div = L.DomUtil.create("div", "heatmap-legend leaflet-control league-region-legend-card");
+    const title = L.DomUtil.create("div", "heatmap-legend-title", div);
+    title.textContent = "League Regions";
+    Object.entries(LEAGUE_REGION_COLORS)
+      .filter(([name]) => name !== "NEUTRAL")
+      .forEach(([name, color]) => {
+        const row = L.DomUtil.create("div", "path-legend-entry", div);
+        const swatch = L.DomUtil.create("span", "path-legend-swatch", row);
+        swatch.style.background = color;
+        swatch.style.height = "12px";
+        swatch.style.width = "12px";
+        swatch.style.borderRadius = "2px";
+        const text = L.DomUtil.create("span", "", row);
+        text.textContent = name === "MISTHALIN"
+          ? "Misthalin (Blocked)"
+          : name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+      });
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  }
+});
+const leagueRegionLegendControl = new LeagueRegionLegendControl();
+let leagueRegionLegendMounted = false;
+function setLeagueRegionLegendVisible(visible) {
+  if (visible && !leagueRegionLegendMounted) {
+    leagueRegionLegendControl.addTo(map);
+    leagueRegionLegendMounted = true;
+  } else if (!visible && leagueRegionLegendMounted) {
+    map.removeControl(leagueRegionLegendControl);
+    leagueRegionLegendMounted = false;
   }
 }
 
@@ -295,6 +337,7 @@ function ensureLeagueRegionsToggle() {
       } else {
         map.removeLayer(leagueRegionsLayer);
       }
+      setLeagueRegionLegendVisible(visible && leagueRegionsToggleVisible);
     }
   };
   window.addMapLayerToggle(leagueRegionsToggle);
@@ -312,6 +355,7 @@ async function applyLeagueRegionsOverlay(seasonal) {
   if (!seasonal) {
     map.removeLayer(leagueRegionsLayer);
     setLeagueRegionsToggleVisible(false);
+    setLeagueRegionLegendVisible(false);
     return;
   }
   ensureLeagueRegionsToggle();
@@ -322,10 +366,82 @@ async function applyLeagueRegionsOverlay(seasonal) {
     console.warn("[league-regions]", err);
     return;
   }
-  if (leagueRegionsToggle._input && leagueRegionsToggle._input.checked) {
+  const checked = leagueRegionsToggle._input && leagueRegionsToggle._input.checked;
+  if (checked) {
     leagueRegionsLayer.addTo(map);
   }
+  setLeagueRegionLegendVisible(Boolean(checked));
 }
+
+// ── Chunk coordinate labels overlay ──────────────────────────────────
+//
+// Shows "cx, cy" at the centre of every 64×64 map region.
+// cx = regionId >> 8, cy = regionId & 0xFF (same encoding as regions.tsv).
+// Labels are rebuilt from the current viewport on every moveend so the
+// layer stays light even at high zoom; hidden below zoom 2 where each
+// region would be too small to read.
+
+const chunkCoordsLayer = L.layerGroup();
+const chunkGridLayer = L.layerGroup();
+let chunkCoordsMounted = false;
+
+function buildChunkCoordsLabels() {
+  chunkCoordsLayer.clearLayers();
+  chunkGridLayer.clearLayers();
+  if (map.getZoom() < 2) return;
+  const bounds = map.getBounds();
+  const minCx = Math.max(0,   Math.floor(bounds.getWest()  / 64));
+  const maxCx = Math.min(255, Math.floor(bounds.getEast()  / 64));
+  const minCy = Math.max(0,   Math.floor(bounds.getSouth() / 64));
+  const maxCy = Math.min(255, Math.floor(bounds.getNorth() / 64));
+
+  // Chunk border grid lines — styled for current theme
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const gridColor = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.22)';
+  const polyOpts = { color: gridColor, weight: 1, opacity: 1, interactive: false, pane: 'chunkGridPane' };
+  for (let cx = minCx; cx <= maxCx + 1; cx++) {
+    L.polyline([[minCy * 64, cx * 64], [(maxCy + 1) * 64, cx * 64]], polyOpts).addTo(chunkGridLayer);
+  }
+  for (let cy = minCy; cy <= maxCy + 1; cy++) {
+    L.polyline([[cy * 64, minCx * 64], [cy * 64, (maxCx + 1) * 64]], polyOpts).addTo(chunkGridLayer);
+  }
+
+  for (let cx = minCx; cx <= maxCx; cx++) {
+    for (let cy = minCy; cy <= maxCy; cy++) {
+      L.marker([cy * 64 + 32, cx * 64 + 32], {
+        icon: L.divIcon({
+          className: "",
+          html: `<div class="chunk-coord-label">x:${cx}, y:${cy}</div>`,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0]
+        }),
+        interactive: false,
+        zIndexOffset: -1000
+      }).addTo(chunkCoordsLayer);
+    }
+  }
+}
+
+map.on("moveend", () => { if (chunkCoordsMounted) buildChunkCoordsLabels(); });
+
+window.addMapLayerToggle({
+  label: "Chunk coords",
+  checked: false,
+  onChange(visible) {
+    if (visible) {
+      buildChunkCoordsLabels();
+      chunkGridLayer.addTo(map);
+      chunkCoordsLayer.addTo(map);
+      chunkCoordsMounted = true;
+    } else {
+      map.removeLayer(chunkGridLayer);
+      map.removeLayer(chunkCoordsLayer);
+      chunkGridLayer.clearLayers();
+      chunkCoordsLayer.clearLayers();
+      chunkCoordsMounted = false;
+    }
+  }
+});
 
 // ── Coordinate utilities ──────────────────────────────────────────────
 
@@ -1222,6 +1338,26 @@ async function initDashboard() {
 initDashboard().catch(error => {
   summaryEl.textContent = error.message;
 });
+
+// ── Theme toggle ──────────────────────────────────────────────────────
+(function () {
+  const SUN_ICON  = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+  const MOON_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+  const html = document.documentElement;
+  const btn  = document.getElementById("theme-toggle");
+  const saved = (() => { try { return localStorage.getItem("theme"); } catch { return null; } })();
+  const theme = saved || "dark";
+  html.setAttribute("data-theme", theme);
+  btn.innerHTML = theme === "dark" ? SUN_ICON : MOON_ICON;
+  btn.title = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  btn.addEventListener("click", () => {
+    const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    html.setAttribute("data-theme", next);
+    btn.innerHTML = next === "dark" ? SUN_ICON : MOON_ICON;
+    btn.title = next === "dark" ? "Switch to light mode" : "Switch to dark mode";
+    try { localStorage.setItem("theme", next); } catch {}
+  });
+})();
 
 // ── Event listeners ───────────────────────────────────────────────────
 

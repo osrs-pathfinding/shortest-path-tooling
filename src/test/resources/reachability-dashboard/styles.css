@@ -28,6 +28,47 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
+
+  --body-bg: linear-gradient(180deg, #f5f0e8 0%, #e5dccf 100%);
+  /* Elevated surface (run-info panel, coord display) — adapts with theme */
+  --elevated-bg: rgba(255, 250, 244, 0.97);
+  --elevated-text: #1d1b19;
+  --elevated-muted: rgba(29, 27, 25, 0.5);
+  --elevated-border: rgba(29, 27, 25, 0.12);
+  --elevated-surface: rgba(0, 0, 0, 0.04);
+  --elevated-surface-hover: rgba(0, 0, 0, 0.09);
+}
+
+/* ── Dark mode ──────────────────────────────────────────────────────── */
+
+[data-theme="dark"] {
+  --color-text: #dedad3;
+  --color-muted: #9b968e;
+  --color-light: #f0ece4;
+  --color-selected-border: #c87830;
+  --color-selected-bg: rgba(160, 90, 20, 0.28);
+
+  --bg-primary: #1e2333;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-panel: rgba(27, 32, 47, 0.97);
+  --bg-panel-light: rgba(22, 28, 42, 0.95);
+  --bg-dark: rgba(15, 19, 28, 0.97);
+
+  --border-color: rgba(255, 255, 255, 0.11);
+  --border-color-subtle: rgba(255, 255, 255, 0.07);
+  --border-color-light: rgba(255, 255, 255, 0.09);
+
+  --shadow-panel: 0 10px 28px rgba(0, 0, 0, 0.45);
+  --shadow-dark: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-map: 0 18px 50px rgba(0, 0, 0, 0.5);
+
+  --body-bg: linear-gradient(180deg, #161b26 0%, #0d1019 100%);
+  --elevated-bg: rgba(18, 22, 33, 0.97);
+  --elevated-text: #dedad3;
+  --elevated-muted: rgba(222, 218, 211, 0.5);
+  --elevated-border: rgba(255, 255, 255, 0.12);
+  --elevated-surface: rgba(255, 255, 255, 0.05);
+  --elevated-surface-hover: rgba(255, 255, 255, 0.11);
 }
 
 /* ── Base ───────────────────────────────────────────────────────────── */
@@ -36,9 +77,12 @@ html, body {
   height: 100%;
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background: linear-gradient(180deg, #f5f0e8 0%, #e5dccf 100%);
+  background: var(--body-bg);
   color: var(--color-text);
 }
+
+/* Buttons don't inherit color in all browsers by default */
+button { color: inherit; }
 
 /* ── Layout ────────────────────────────────────────────────────────── */
 
@@ -110,7 +154,7 @@ html, body {
   border: none;
   background: transparent;
   cursor: pointer;
-  color: #888;
+  color: var(--color-muted);
   font-size: 11px;
   padding: 0;
   user-select: none;
@@ -119,8 +163,44 @@ html, body {
 }
 
 .sidebar-handle:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--elevated-surface);
   color: var(--color-muted);
+}
+
+/* ── Sidebar header (title + theme toggle) ─────────────────────────── */
+
+.sidebar-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sidebar-header h1 {
+  margin: 0;
+}
+
+.theme-toggle {
+  flex-shrink: 0;
+  margin-top: 3px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  cursor: pointer;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  color: var(--color-text);
+}
+
+.theme-toggle:hover {
+  background: var(--bg-hover);
 }
 
 /* ── Bundle selector ───────────────────────────────────────────────── */
@@ -132,6 +212,7 @@ html, body {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   background: var(--bg-primary);
+  color: var(--color-text);
   font-size: 13px;
   font-family: inherit;
 }
@@ -159,6 +240,7 @@ html, body {
   box-sizing: border-box;
   border: 1px solid var(--border-color);
   background: var(--bg-primary);
+  color: var(--color-text);
   border-radius: var(--radius-md);
   padding: 10px 12px;
   font: inherit;
@@ -206,7 +288,7 @@ html, body {
 .nav-buttons button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-  background: #f5efe4;
+  background: var(--bg-hover);
 }
 
 /* ── Run list ──────────────────────────────────────────────────────── */
@@ -274,8 +356,8 @@ html, body {
   bottom: 68px;
   z-index: 500;
   pointer-events: none;
-  background: rgba(31, 36, 48, 0.88);
-  color: var(--color-light);
+  background: var(--elevated-bg);
+  color: var(--elevated-text);
   padding: 8px 10px;
   border-radius: var(--radius-md);
   font: 12px/1.3 var(--font-mono);
@@ -300,11 +382,34 @@ html, body {
 
 /* ── Transport layer control ───────────────────────────────────────── */
 
+/* Push the bottomleft legend stack above the map-coordinates display.
+   52 = coord_top_from_map_bottom(52) - inter-legend-gap(10) matches Leaflet's
+   own 10px control margin so the gap equals the spacing between legend cards. */
+.leaflet-bottom.leaflet-left {
+  margin-bottom: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Align legend card left edge with #map-coordinates (left: 32px from .map-panel) */
+.leaflet-bottom.leaflet-left .leaflet-control {
+  margin-left: 20px;
+}
+
+/* Fixed visual order: Path (top) → League Regions → Heatmap (bottom) */
+.path-legend-card         { order: 1; }
+.league-region-legend-card { order: 2; }
+.heatmap-visit-legend-card { order: 3; }
+
 .leaflet-control.transport-layer-control {
   background: var(--bg-panel);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-panel);
   padding: 10px 12px;
+  /* Override Leaflet's .leaflet-container font shorthand and color: #333 */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--color-text);
 }
 
 .transport-layer-control fieldset {
@@ -313,9 +418,11 @@ html, body {
   padding: 0;
 }
 
+/* <legend> can resist color inheritance in some browsers */
 .transport-layer-control legend {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
+  color: var(--color-text);
   margin: 0 0 8px;
 }
 
@@ -323,7 +430,9 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-text);
   margin: 0 0 6px;
   white-space: nowrap;
 }
@@ -365,8 +474,8 @@ html, body {
   writing-mode: vertical-lr;
   text-orientation: mixed;
   border: none;
-  background: var(--bg-dark);
-  color: var(--color-light);
+  background: var(--elevated-bg);
+  color: var(--elevated-text);
   cursor: pointer;
   font-weight: 600;
   font-size: 12px;
@@ -375,20 +484,21 @@ html, body {
   letter-spacing: 0.5px;
   user-select: none;
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  border-right: 1px solid var(--elevated-border);
 }
 
 .run-info-toggle:hover {
-  background: rgba(31, 36, 48, 1);
+  background: var(--bg-hover);
 }
 
 .run-info-body {
-  background: var(--bg-dark);
+  background: var(--elevated-bg);
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   font-size: 11px;
-  color: var(--color-light);
+  color: var(--elevated-text);
   border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   min-width: 0;
   flex: 1;
@@ -404,7 +514,7 @@ html, body {
   font: 11px/1.5 var(--font-mono);
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--color-light);
+  color: var(--elevated-text);
 }
 
 /* ── Run info tabs ─────────────────────────────────────────────────── */
@@ -413,7 +523,7 @@ html, body {
   display: flex;
   gap: 2px;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--elevated-surface);
   border-radius: var(--radius-sm);
   padding: 2px;
 }
@@ -422,7 +532,7 @@ html, body {
   flex: 1;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--elevated-muted);
   padding: 5px 6px;
   font: inherit;
   font-size: 11px;
@@ -433,12 +543,12 @@ html, body {
 }
 
 .run-info-tab:hover {
-  color: var(--color-light);
+  color: var(--elevated-text);
 }
 
 .run-info-tab.active {
-  background: rgba(255, 255, 255, 0.14);
-  color: var(--color-light);
+  background: var(--elevated-surface-hover);
+  color: var(--elevated-text);
 }
 
 .run-info-tab-pane {
@@ -459,7 +569,7 @@ html, body {
 .run-info-name {
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-light);
+  color: var(--elevated-text);
   word-break: break-word;
   line-height: 1.35;
 }
@@ -485,12 +595,12 @@ html, body {
 }
 
 .run-info-kv dt {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--elevated-muted);
   margin: 0;
 }
 
 .run-info-kv dd {
-  color: var(--color-light);
+  color: var(--elevated-text);
   margin: 0;
   word-break: break-word;
 }
@@ -500,7 +610,7 @@ html, body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--elevated-muted);
   margin: 2px 0 0;
 }
 
@@ -516,9 +626,9 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--color-light);
+  border: 1px solid var(--elevated-border);
+  background: var(--elevated-surface);
+  color: var(--elevated-text);
   border-radius: 999px;
   padding: 3px 8px;
   font: 11px/1.2 var(--font-mono);
@@ -527,8 +637,8 @@ html, body {
 }
 
 .run-info-chip:hover {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: var(--elevated-surface-hover);
+  border-color: var(--elevated-border);
 }
 
 .run-info-chip .chip-dot {
@@ -551,11 +661,11 @@ html, body {
 }
 
 .run-info-chip-step {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--elevated-muted);
 }
 
 .run-info-empty {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--elevated-muted);
   font-style: italic;
   font-size: 11px;
 }
@@ -573,20 +683,20 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--elevated-text);
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
 .run-info-pickups-label {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--elevated-muted);
 }
 
 .run-info-pickups-list {
   margin: 0;
   padding-left: 16px;
   list-style: disc;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--elevated-text);
 }
 
 .run-info-pickups-list li {
@@ -594,33 +704,33 @@ html, body {
 }
 
 .pickup-label {
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--elevated-text);
 }
 
 .pickup-equivalents {
   margin-top: 1px;
   margin-left: 2px;
   font-size: 10.5px;
-  color: rgba(255, 255, 255, 0.52);
+  color: var(--elevated-muted);
   line-height: 1.35;
 }
 
 .pickup-equivalents-note {
   font-style: italic;
-  color: rgba(255, 255, 255, 0.42);
+  color: var(--elevated-muted);
 }
 
 .pickup-equivalents-list {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--elevated-muted);
 }
 
 .run-info-body #center-target {
   width: 100%;
   flex-shrink: 0;
   margin: 0;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--color-light);
+  border: 1px solid var(--elevated-border);
+  background: var(--elevated-surface);
+  color: var(--elevated-text);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   cursor: pointer;
@@ -629,7 +739,7 @@ html, body {
 }
 
 .run-info-body #center-target:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--elevated-surface-hover);
 }
 
 /* ── Profiler drawer ───────────────────────────────────────────────── */
@@ -640,9 +750,9 @@ html, body {
   left: 0;
   right: 0;
   z-index: 1100;
-  background: rgba(255, 250, 244, 0.97);
+  background: var(--bg-panel);
   border-radius: 12px 12px 0 0;
-  box-shadow: 0 -4px 24px rgba(43, 36, 29, 0.18);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
   max-height: 50vh;
@@ -668,12 +778,12 @@ html, body {
   font-size: 13px;
   line-height: 1;
   color: var(--color-muted);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid var(--border-color-subtle);
   user-select: none;
 }
 
 .profiler-drawer-handle:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--elevated-surface);
 }
 
 .profiler-drawer.collapsed .profiler-drawer-handle {
@@ -695,7 +805,7 @@ html, body {
 /* ── Profiler panels ───────────────────────────────────────────────── */
 
 .profiler-panel {
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--bg-primary);
   border: 1px solid var(--border-color-subtle);
   border-radius: var(--radius-lg);
   padding: 16px;
@@ -740,7 +850,7 @@ html, body {
   margin: 0 0 8px;
   font-size: 11px;
   line-height: 1.5;
-  color: #888;
+  color: var(--color-muted);
 }
 
 /* ── Interactive bar chart ─────────────────────────────────────────── */
@@ -752,7 +862,7 @@ html, body {
 }
 
 .bar-chart-empty {
-  color: #999;
+  color: var(--color-muted);
   font-size: 13px;
   padding: 8px 0;
 }
@@ -770,21 +880,21 @@ html, body {
 }
 
 .bar-row:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--elevated-surface);
 }
 
 .bar-label {
   font-weight: 500;
   font-size: 12px;
   line-height: 1;
-  color: #333;
+  color: var(--color-text);
   text-align: right;
   white-space: nowrap;
 }
 
 .bar-track {
   height: 20px;
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--elevated-surface);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -798,7 +908,7 @@ html, body {
 
 .bar-value {
   font: 11px/1 var(--font-mono);
-  color: #555;
+  color: var(--color-muted);
   white-space: nowrap;
 }
 
@@ -807,13 +917,13 @@ html, body {
 .floating-tip {
   position: fixed;
   pointer-events: none;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 6px 8px;
   font: 11px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  color: #555;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: var(--color-muted);
+  box-shadow: var(--shadow-dark);
   display: none;
   white-space: normal;
   z-index: 9999;
@@ -830,13 +940,13 @@ html, body {
 .crosshair-tooltip {
   position: absolute;
   pointer-events: none;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 6px 8px;
   font: 11px/1.5 var(--font-mono);
-  color: #333;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: var(--color-text);
+  box-shadow: var(--shadow-dark);
   display: none;
   white-space: nowrap;
   z-index: 10;
@@ -873,7 +983,7 @@ html, body {
   display: flex;
   justify-content: space-between;
   font: 11px/1 var(--font-mono);
-  color: #666;
+  color: var(--color-muted);
   margin-top: 4px;
 }
 
@@ -884,7 +994,7 @@ html, body {
   margin-top: 8px;
   font-size: 11px;
   font-family: var(--font-mono);
-  color: #666;
+  color: var(--color-muted);
 }
 
 .heatmap-legend-error-swatch {
@@ -904,7 +1014,7 @@ html, body {
   margin-top: 6px;
   font-size: 11px;
   font-family: var(--font-mono);
-  color: #666;
+  color: var(--color-muted);
 }
 
 .path-legend-swatch {
@@ -913,4 +1023,21 @@ html, body {
   width: 20px;
   height: 4px;
   border-radius: 2px;
+}
+
+/* ── Chunk coordinate divIcon labels ─────────────────────────────────── */
+
+.chunk-coord-label {
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  font-family: var(--font-mono);
+  text-align: center;
+  text-shadow:
+    0 1px 2px #000,
+    0  0  4px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  display: inline-block;
 }
