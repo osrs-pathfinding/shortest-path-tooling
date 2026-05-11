@@ -2,6 +2,7 @@ package shortestpath.dashboard;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -106,6 +107,7 @@ public class DashboardTest {
 
         // Capture current stub state as the per-scenario baseline Runnable
         clientBaseline = () -> {
+            reset(client);
             when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
             when(client.getClientThread()).thenReturn(Thread.currentThread());
             when(client.getBoostedSkillLevel(any(Skill.class))).thenReturn(99);
