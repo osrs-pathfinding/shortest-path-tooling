@@ -57,6 +57,13 @@ MISTHALIN	2048	2367	2752	3007
 # eastern coast and any small outcrops show up as blocked without stealing
 # Feldip Hills chunks from KANDARIN.
 MISTHALIN	2368	2431	2752	2879
+# Soul Wars minigame instance — same footprint as the surface Isle of Souls
+# (5 chunks wide × 4 chunks tall = 320×256 tiles, cx=29..33, cy=91..94).
+# Covers regions 7515-7518, 7771-7774, 8027-8030, 8283-8286, 8539-8542.
+# The Minigame Teleport lands at (2018, 5929, 0) = region 8028. Without
+# this box the pathfinder treats the instance as NEUTRAL and routes through
+# it to access the Soul Wars bank chest.
+MISTHALIN	1856	2175	5824	6079
 
 # === Specific overrides (file-order tiebreakers) ===
 # Tirannwn: Lletya peninsula extends slightly into Kandarin's mainland box.
