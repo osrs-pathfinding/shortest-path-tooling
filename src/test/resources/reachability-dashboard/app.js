@@ -67,6 +67,7 @@ window.currentBundleBase = currentBundleBase;
 let currentPlane = 0;
 let selectedRun = null;
 let allRuns = [];
+let loadedBundles = [];
 let reportTransportLayers = [];
 let selectedTransportOverlay = null;
 let hoveredTileOverlay = null;
@@ -1065,9 +1066,30 @@ function renderRun(run) {
   window.dashboardExtensions.forEach(ext => ext.renderRun(run));
 }
 
+function updateUrl() {
+  const params = new URLSearchParams();
+  const bundle = loadedBundles.find(b => b.reportPath === bundleSelectEl.value);
+  if (bundle) {
+    params.set("bundle", bundle.name);
+  }
+  if (selectedRun) {
+    const idx = allRuns.indexOf(selectedRun);
+    if (idx !== -1) {
+      params.set("route", idx);
+    }
+  }
+  const center = map.getCenter();
+  const point = latLngToWorldPoint(center);
+  params.set("x", point.x);
+  params.set("y", point.y);
+  params.set("zoom", map.getZoom());
+  history.replaceState(null, "", `${window.location.pathname}?${params}`);
+}
+
 function selectRun(run) {
   renderRun(run);
   renderRunList();
+  updateUrl();
 }
 
 function navigateRun(delta) {
@@ -1144,6 +1166,8 @@ async function initDashboard() {
     throw new Error("No bundles registered in index.json.");
   }
 
+  loadedBundles = index.bundles;
+
   // Populate bundle selector
   bundleSelectEl.innerHTML = "";
   for (const bundle of index.bundles) {
@@ -1155,10 +1179,13 @@ async function initDashboard() {
   if (index.bundles.length > 1) {
     bundleSelectEl.hidden = false;
   }
-  bundleSelectEl.addEventListener("change", () => {
-    loadReport("bundles/" + bundleSelectEl.value).catch(error => {
+  bundleSelectEl.addEventListener("change", async () => {
+    try {
+      await loadReport("bundles/" + bundleSelectEl.value);
+    } catch (error) {
       summaryEl.textContent = error.message;
-    });
+    }
+    updateUrl();
   });
 
   const params = new URLSearchParams(window.location.search);
@@ -1166,6 +1193,30 @@ async function initDashboard() {
   const initial = (requested && index.bundles.find(b => b.name === requested)) || index.bundles[0];
   bundleSelectEl.value = initial.reportPath;
   await loadReport("bundles/" + initial.reportPath);
+
+  // Auto-select route by index (?route=<index>)
+  const routeParam = params.get("route");
+  if (routeParam !== null) {
+    const routeIndex = parseInt(routeParam, 10);
+    if (Number.isFinite(routeIndex) && routeIndex >= 0 && routeIndex < allRuns.length) {
+      selectRun(allRuns[routeIndex]);
+    }
+  }
+
+  // Auto-position map (?x=<x>&y=<y>&zoom=<zoom>)
+  const xParam = params.get("x");
+  const yParam = params.get("y");
+  if (xParam !== null && yParam !== null) {
+    const x = parseFloat(xParam);
+    const y = parseFloat(yParam);
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      const zoomParam = params.get("zoom");
+      const zoom = (zoomParam !== null && Number.isFinite(parseFloat(zoomParam)))
+        ? parseFloat(zoomParam)
+        : 2;
+      map.setView(worldToLatLng({ x, y }), zoom, { animate: false });
+    }
+  }
 }
 
 initDashboard().catch(error => {
@@ -1233,6 +1284,8 @@ centerTargetEl.addEventListener("click", () => {
 
 prevRunEl.addEventListener("click", () => navigateRun(-1));
 nextRunEl.addEventListener("click", () => navigateRun(1));
+
+map.on("moveend", updateUrl);
 
 map.on("mousemove", event => {
   const point = latLngToWorldPoint(event.latlng);
