@@ -15,9 +15,11 @@
 #
 # Anything not covered by any box defaults to NEUTRAL at runtime
 # (always-unlocked). This is intentional for:
-#   * Sailing-skill content (The Great Conch, The Summer Shore, The Node)
-#     — Sailing is too new to be in this league, so its destinations are
-#     simply unreachable rather than gated.
+#   * Sailing-skill content (The Summer Shore, The Node) — Sailing is too
+#     new to be in this league, so those destinations are simply unreachable.
+#   * The Great Conch has two Banker's Briefcase destinations; those regions
+#     are explicitly blocked as MISTHALIN below so the pathfinder cannot
+#     route through them (see seasonal_transports.tsv lines 93-94).
 #   * Instances and dynamic regions without a stable region id.
 #   * POH, Death's office, Zanaris, the Abyssal Area, Tutorial Island,
 #     and other always-accessible niches.
@@ -64,6 +66,10 @@ MISTHALIN	2368	2431	2752	2879
 # this box the pathfinder treats the instance as NEUTRAL and routes through
 # it to access the Soul Wars bank chest.
 MISTHALIN	1856	2175	5824	6079
+# The Great Conch (Sailing skill island). Blocked as MISTHALIN because the
+# Banker's Briefcase lists teleport destinations there, but the island is
+# not part of the league. Box is 4×4 chunks (cx=48-51, cy=36-39).
+MISTHALIN	3072	3327	2304	2559
 
 # === Specific overrides (file-order tiebreakers) ===
 # Tirannwn: Lletya peninsula extends slightly into Kandarin's mainland box.
@@ -210,8 +216,8 @@ KANDARIN	2304	2879	3136	3519
 
 # === Fremennik ===
 FREMENNIK	2304	2879	3520	3967
-# Keldagrim underground.
-FREMENNIK	2752	2879	10176	10367
+# Keldagrim underground (cx=43-46, cy=158-161 — full settlement width + one row south).
+FREMENNIK	2752	3007	10112	10367
 # Blast Furnace instance.
 FREMENNIK	1920	2047	4928	5055
 
