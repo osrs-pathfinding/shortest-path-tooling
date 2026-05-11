@@ -156,3 +156,221 @@ tasks.register('leagueIdProbe', Test) {
     }
 }
 
+
+// Scans every cache enum for known Banker's Briefcase destination strings to
+// surface the authoritative cache-side destination list.
+def briefcaseEnumCacheDir = providers.gradleProperty('briefcaseEnumCacheDir').orElse('')
+def briefcaseEnumXteaPath = providers.gradleProperty('briefcaseEnumXteaPath').orElse('')
+
+tasks.register('briefcaseEnumProbe', Test) {
+    group = 'cache dumpers'
+    description = "Scans cache enums for Banker's Briefcase destinations. " +
+            'Required: -PbriefcaseEnumCacheDir=<cache dir>, -PbriefcaseEnumXteaPath=<keys.json>.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/BriefcaseEnumProbeTest.class'
+    systemProperty 'briefcase.enum.probe', 'true'
+    systemProperty 'briefcase.enum.cacheDir', briefcaseEnumCacheDir.get()
+    systemProperty 'briefcase.enum.xteaPath', briefcaseEnumXteaPath.get()
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging { showStandardStreams = true }
+    doFirst {
+        if (briefcaseEnumCacheDir.get().isEmpty() || briefcaseEnumXteaPath.get().isEmpty()) {
+            throw new GradleException("briefcaseEnumProbe requires -PbriefcaseEnumCacheDir and -PbriefcaseEnumXteaPath.")
+        }
+    }
+}
+
+
+// Dumps every league/relic teleport-bearing item's params, subops, and
+// interface options (sailing-dumper-style) to map menu indices to destinations.
+def leagueTeleportItemCacheDir = providers.gradleProperty('leagueTeleportItemCacheDir').orElse('')
+def leagueTeleportItemXteaPath = providers.gradleProperty('leagueTeleportItemXteaPath').orElse('')
+
+tasks.register('leagueTeleportItemDump', Test) {
+    group = 'cache dumpers'
+    description = 'Dumps params/subops for all league teleport items (briefcase, relics, etc).'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/LeagueTeleportItemDumperTest.class'
+    systemProperty 'league.teleport.item.dump', 'true'
+    systemProperty 'league.teleport.item.cacheDir', leagueTeleportItemCacheDir.get()
+    systemProperty 'league.teleport.item.xteaPath', leagueTeleportItemXteaPath.get()
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging { showStandardStreams = true }
+    doFirst {
+        if (leagueTeleportItemCacheDir.get().isEmpty() || leagueTeleportItemXteaPath.get().isEmpty()) {
+            throw new GradleException("leagueTeleportItemDump requires -PleagueTeleportItemCacheDir and -PleagueTeleportItemXteaPath.")
+        }
+    }
+}
+
+
+// Scans every struct for league/region descriptor strings (e.g. "area covers...").
+def leagueAreaStructCacheDir = providers.gradleProperty('leagueAreaStructCacheDir').orElse('')
+def leagueAreaStructXteaPath = providers.gradleProperty('leagueAreaStructXteaPath').orElse('')
+
+tasks.register('leagueAreaStructDump', Test) {
+    group = 'cache dumpers'
+    description = 'Dumps all structs whose param strings reference league areas / region definitions.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/LeagueAreaStructDumperTest.class'
+    systemProperty 'league.area.struct.dump', 'true'
+    systemProperty 'league.area.struct.cacheDir', leagueAreaStructCacheDir.get()
+    systemProperty 'league.area.struct.xteaPath', leagueAreaStructXteaPath.get()
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging { showStandardStreams = true }
+    doFirst {
+        if (leagueAreaStructCacheDir.get().isEmpty() || leagueAreaStructXteaPath.get().isEmpty()) {
+            throw new GradleException("leagueAreaStructDump requires -PleagueAreaStructCacheDir and -PleagueAreaStructXteaPath.")
+        }
+    }
+}
+
+
+// Scans all CLIENTSCRIPT archives for league relic teleport dispatch scripts.
+def leagueScriptCacheDir = providers.gradleProperty('leagueScriptCacheDir').orElse('')
+def leagueScriptXteaPath = providers.gradleProperty('leagueScriptXteaPath').orElse('')
+
+tasks.register('leagueScriptScan', Test) {
+    group = 'cache dumpers'
+    description = 'Scans all cs2 client scripts for league teleport destinations.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/LeagueScriptScannerTest.class'
+    systemProperty 'league.script.scan', 'true'
+    systemProperty 'league.script.cacheDir', leagueScriptCacheDir.get()
+    systemProperty 'league.script.xteaPath', leagueScriptXteaPath.get()
+    systemProperty 'league.script.outPath', "${buildDir}/league-scripts.txt"
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging { showStandardStreams = true }
+    doFirst {
+        if (leagueScriptCacheDir.get().isEmpty() || leagueScriptXteaPath.get().isEmpty()) {
+            throw new GradleException("leagueScriptScan requires -PleagueScriptCacheDir and -PleagueScriptXteaPath.")
+        }
+    }
+}
+
+
+// Scans all enums for overlap with a canonical destination-name list (one per line).
+def briefcaseDestCacheDir = providers.gradleProperty('briefcaseDestCacheDir').orElse('')
+def briefcaseDestXteaPath = providers.gradleProperty('briefcaseDestXteaPath').orElse('')
+def briefcaseDestNamesFile = providers.gradleProperty('briefcaseDestNamesFile').orElse('')
+
+tasks.register('briefcaseDestOverlapScan', Test) {
+    group = 'cache dumpers'
+    description = 'Finds enums whose string values overlap with the canonical briefcase destination list.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/BriefcaseDestOverlapScanTest.class'
+    systemProperty 'briefcase.dest.scan', 'true'
+    systemProperty 'briefcase.dest.cacheDir', briefcaseDestCacheDir.get()
+    systemProperty 'briefcase.dest.xteaPath', briefcaseDestXteaPath.get()
+    systemProperty 'briefcase.dest.namesFile', briefcaseDestNamesFile.get()
+    systemProperty 'briefcase.dest.outPath', "${buildDir}/briefcase-dest-overlap.txt"
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging { showStandardStreams = true }
+    doFirst {
+        if (briefcaseDestCacheDir.get().isEmpty() || briefcaseDestXteaPath.get().isEmpty() || briefcaseDestNamesFile.get().isEmpty()) {
+            throw new GradleException("briefcaseDestOverlapScan requires -PbriefcaseDestCacheDir, -PbriefcaseDestXteaPath, -PbriefcaseDestNamesFile.")
+        }
+    }
+}
+
+
+def briefcaseStructCacheDir = providers.gradleProperty('briefcaseStructCacheDir').orElse('')
+def briefcaseStructNamesFile = providers.gradleProperty('briefcaseStructNamesFile').orElse('')
+
+tasks.register('briefcaseStructHunt', Test) {
+    group = 'cache dumpers'
+    description = 'Finds structs containing both a canonical destination name and a WorldPoint-shaped int.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/BriefcaseStructHuntTest.class'
+    systemProperty 'briefcase.struct.hunt', 'true'
+    systemProperty 'briefcase.struct.cacheDir', briefcaseStructCacheDir.get()
+    systemProperty 'briefcase.struct.namesFile', briefcaseStructNamesFile.get()
+    systemProperty 'briefcase.struct.outPath', "${buildDir}/briefcase-struct-hunt.txt"
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging { showStandardStreams = true }
+    doFirst {
+        if (briefcaseStructCacheDir.get().isEmpty() || briefcaseStructNamesFile.get().isEmpty()) {
+            throw new GradleException("briefcaseStructHunt requires -PbriefcaseStructCacheDir and -PbriefcaseStructNamesFile.")
+        }
+    }
+}
+
+
+def briefcaseParamCacheDir = providers.gradleProperty('briefcaseParamCacheDir').orElse('')
+def briefcaseParamXteaPath = providers.gradleProperty('briefcaseParamXteaPath').orElse('')
+
+tasks.register('briefcaseParamScriptScan', Test) {
+    group = 'cache dumpers'
+    description = 'Finds cs2 scripts that reference briefcase param ids (661, 2074..2138).'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/BriefcaseParamScriptScanTest.class'
+    systemProperty 'briefcase.param.scan', 'true'
+    systemProperty 'briefcase.param.cacheDir', briefcaseParamCacheDir.get()
+    systemProperty 'briefcase.param.xteaPath', briefcaseParamXteaPath.get()
+    systemProperty 'briefcase.param.outPath', "${buildDir}/briefcase-param-scripts.txt"
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging { showStandardStreams = true }
+    doFirst {
+        if (briefcaseParamCacheDir.get().isEmpty() || briefcaseParamXteaPath.get().isEmpty()) {
+            throw new GradleException("requires -PbriefcaseParamCacheDir -PbriefcaseParamXteaPath")
+        }
+    }
+}
+
+
+def briefcaseDbCacheDir = providers.gradleProperty('briefcaseDbCacheDir').orElse('')
+def briefcaseDbNamesFile = providers.gradleProperty('briefcaseDbNamesFile').orElse('')
+
+tasks.register('briefcaseDbRowScan', Test) {
+    group = 'cache dumpers'
+    description = 'Scans DBRows for canonical briefcase destination strings.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/BriefcaseDbRowScanTest.class'
+    systemProperty 'briefcase.db.scan', 'true'
+    systemProperty 'briefcase.db.cacheDir', briefcaseDbCacheDir.get()
+    systemProperty 'briefcase.db.namesFile', briefcaseDbNamesFile.get()
+    systemProperty 'briefcase.db.outPath', "${buildDir}/briefcase-dbrow.txt"
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging { showStandardStreams = true }
+    doFirst {
+        if (briefcaseDbCacheDir.get().isEmpty() || briefcaseDbNamesFile.get().isEmpty()) {
+            throw new GradleException("requires -PbriefcaseDbCacheDir -PbriefcaseDbNamesFile")
+        }
+    }
+}
+
+def briefcaseTtCacheDir = providers.gradleProperty('briefcaseTtCacheDir').orElse('')
+tasks.register('briefcaseTeleportTables', Test) {
+    group = 'cache dumpers'
+    description = 'Enumerates DBTables with COORDGRID+STRING (candidate briefcase tables).'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/BriefcaseTeleportTablesTest.class'
+    systemProperty 'briefcase.tt.scan', 'true'
+    systemProperty 'briefcase.tt.cacheDir', briefcaseTtCacheDir.get()
+    systemProperty 'briefcase.tt.outPath', "${buildDir}/briefcase-teleport-tables.txt"
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging { showStandardStreams = true }
+    doFirst {
+        if (briefcaseTtCacheDir.get().isEmpty()) {
+            throw new GradleException("requires -PbriefcaseTtCacheDir")
+        }
+    }
+}
