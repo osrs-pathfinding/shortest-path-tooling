@@ -303,9 +303,9 @@ public class ProfilingPathfinder {
         subStart = System.nanoTime();
 
         AbstractNodeKind kind = AbstractNodeKind.fromWildernessLevel(wildernessLevel);
-        if (!visited.isAbstractVisited(kind, pathBankVisited))
-        {
-            neighbors.add(Node.abstractNode(kind, node, pathBankVisited));
+        Node globalTeleports = Node.abstractNode(kind, node, pathBankVisited);
+        if (!visited.get(globalTeleports)) {
+            neighbors.add(globalTeleports);
             profile.abstractNodesExpanded++;
         }
 
@@ -314,55 +314,15 @@ public class ProfilingPathfinder {
         // ── Collision check sub-phase ──
         subStart = System.nanoTime();
 
-        // Mirror CollisionMap.getTileNeighbors: cache the current region's FlagMap
-        // and use 5×5 bulk flag fetch from raw long[] (C5).
-        FlagMap fm = map.getFlagMap(x, y);
-        int regionX = x >>> 6;
-        int regionY = y >>> 6;
-        final boolean sameRegion = ((x - 2) >>> 6) == regionX && ((x + 2) >>> 6) == regionX
-            && ((y - 2) >>> 6) == regionY && ((y + 2) >>> 6) == regionY;
-        int nMask, eMask;
-        if (fm != null && sameRegion)
-        {
-            long bulk = fm.bulkFlags5x5(x - 2, y - 2, z);
-            nMask = (int) bulk;
-            eMask = (int) (bulk >>> 32);
-        }
-        else
-        {
-            nMask = 0;
-            eMask = 0;
-            for (int row = 0; row < 5; row++)
-            {
-                int ty = y - 2 + row;
-                for (int col = 0; col < 5; col++)
-                {
-                    int tx = x - 2 + col;
-                    int pair = map.getPair(fm, regionX, regionY, tx, ty, z);
-                    int bit = row * 5 + col;
-                    nMask |= ((pair & 1) << bit);
-                    eMask |= (((pair >>> 1) & 1) << bit);
-                }
-            }
-        }
-        // Bit position = row*5+col. Centre tile (x,y) at row 2, col 2 = bit 12.
-        final int bitCurN = 1 << 12;
-        final int bitCurE = 1 << 12;
-        final int bitS_N  = 1 << 7;
-        final int bitW_E  = 1 << 11;
-
-        if ((nMask & (bitCurN | bitS_N)) == 0 && (eMask & (bitCurE | bitW_E)) == 0)
-        {
-            // Blocked branch — use 5×5 masks for isBlocked checks.
-            // blockedInMask: is tile at (row,col) blocked? S-edge = N(row-1,col), W-edge = E(row,col-1)
-            boolean westBlocked      = ((nMask & ((1 << 11) | (1 << 6))) == 0 && (eMask & ((1 << 11) | (1 << 10))) == 0);
-            boolean eastBlocked      = ((nMask & ((1 << 13) | (1 << 8))) == 0 && (eMask & ((1 << 13) | (1 << 12))) == 0);
-            boolean southBlocked     = ((nMask & ((1 << 7)  | (1 << 2))) == 0 && (eMask & ((1 << 7)  | (1 << 6)))  == 0);
-            boolean northBlocked     = ((nMask & ((1 << 17) | (1 << 12)))== 0 && (eMask & ((1 << 17) | (1 << 16))) == 0);
-            boolean southWestBlocked = ((nMask & ((1 << 6)  | (1 << 1))) == 0 && (eMask & ((1 << 6)  | (1 << 5)))  == 0);
-            boolean southEastBlocked = ((nMask & ((1 << 8)  | (1 << 3))) == 0 && (eMask & ((1 << 8)  | (1 << 7)))  == 0);
-            boolean northWestBlocked = ((nMask & ((1 << 16) | (1 << 11)))== 0 && (eMask & ((1 << 16) | (1 << 15))) == 0);
-            boolean northEastBlocked = ((nMask & ((1 << 18) | (1 << 13)))== 0 && (eMask & ((1 << 18) | (1 << 17))) == 0);
+        if (map.isBlocked(x, y, z)) {
+            boolean westBlocked = map.isBlocked(x - 1, y, z);
+            boolean eastBlocked = map.isBlocked(x + 1, y, z);
+            boolean southBlocked = map.isBlocked(x, y - 1, z);
+            boolean northBlocked = map.isBlocked(x, y + 1, z);
+            boolean southWestBlocked = map.isBlocked(x - 1, y - 1, z);
+            boolean southEastBlocked = map.isBlocked(x + 1, y - 1, z);
+            boolean northWestBlocked = map.isBlocked(x - 1, y + 1, z);
+            boolean northEastBlocked = map.isBlocked(x + 1, y + 1, z);
             traversable[0] = !westBlocked;
             traversable[1] = !eastBlocked;
             traversable[2] = !southBlocked;
@@ -371,35 +331,15 @@ public class ProfilingPathfinder {
             traversable[5] = !southEastBlocked && !eastBlocked && !southBlocked;
             traversable[6] = !northWestBlocked && !westBlocked && !northBlocked;
             traversable[7] = !northEastBlocked && !eastBlocked && !northBlocked;
-        }
-        else
-        {
-            // Unblocked branch — all direction checks from the 5×5 masks.
-            traversable[0] = (eMask & bitW_E) != 0;
-            traversable[1] = (eMask & bitCurE) != 0;
-            traversable[2] = (nMask & bitS_N) != 0;
-            traversable[3] = (nMask & bitCurN) != 0;
-
-            boolean canS = traversable[2];
-            boolean canN = traversable[3];
-            boolean canW = traversable[0];
-            boolean canE = traversable[1];
-
-            // SW: canS && canW && W(x,y-1) && S(x-1,y) — both at bit 6
-            traversable[4] = canS && canW
-                && (eMask & (1 << 6)) != 0 && (nMask & (1 << 6)) != 0;
-
-            // SE: canS && canE && E(x,y-1)=bit7 && S(x+1,y)=N(x+1,y-1)=bit8
-            traversable[5] = canS && canE
-                && (eMask & (1 << 7)) != 0 && (nMask & (1 << 8)) != 0;
-
-            // NW: canN && canW && W(x,y+1)=E(x-1,y+1)=bit16 && N(x-1,y)=bit11
-            traversable[6] = canN && canW
-                && (eMask & (1 << 16)) != 0 && (nMask & (1 << 11)) != 0;
-
-            // NE: canN && canE && E(x,y+1)=bit17 && N(x+1,y)=bit13
-            traversable[7] = canN && canE
-                && (eMask & (1 << 17)) != 0 && (nMask & (1 << 13)) != 0;
+        } else {
+            traversable[0] = map.w(x, y, z);
+            traversable[1] = map.e(x, y, z);
+            traversable[2] = map.s(x, y, z);
+            traversable[3] = map.n(x, y, z);
+            traversable[4] = map.s(x, y, z) && map.w(x, y - 1, z) && map.w(x, y, z) && map.s(x - 1, y, z);
+            traversable[5] = map.s(x, y, z) && map.e(x, y - 1, z) && map.e(x, y, z) && map.s(x + 1, y, z);
+            traversable[6] = map.n(x, y, z) && map.w(x, y + 1, z) && map.w(x, y, z) && map.n(x - 1, y, z);
+            traversable[7] = map.n(x, y, z) && map.e(x, y + 1, z) && map.e(x, y, z) && map.n(x + 1, y, z);
         }
 
         profile.collisionCheckNanos += System.nanoTime() - subStart;
