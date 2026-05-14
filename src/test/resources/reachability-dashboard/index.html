@@ -63,7 +63,7 @@
       <div class="profiler-panel profiler-panel-merged"><div class="profiler-col"><h2>Overview</h2><pre id="run-overview"></pre></div><div class="profiler-col"><h2>Counters</h2><pre id="counters-view"></pre></div></div>
       <div class="profiler-panel"><h2>Time Series</h2><canvas id="timeseries-chart"></canvas></div>
       <div class="profiler-panel"><h2>Phase Breakdown</h2><div id="phase-chart" class="bar-chart-container"></div></div>
-      <div class="profiler-panel"><h2>Sub-Phase Breakdown</h2><p class="subphase-explainer">Breakdown of the "Add neighbors" phase — where time is spent expanding tile and transport neighbors each iteration.</p><div id="subphase-chart" class="bar-chart-container"></div></div>
+      <div class="profiler-panel"><h2>Sub-Phase Breakdown</h2><p class="subphase-explainer">Breakdown of the "Add neighbors" phase — where time is spent expanding tile and transport neighbors each iteration. "Enqueue" covers the post-expansion filter (wilderness/league-region) and queue insertion loop.</p><div id="subphase-chart" class="bar-chart-container"></div></div>
     </div>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>

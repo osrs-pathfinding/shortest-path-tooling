@@ -31,7 +31,7 @@
   // ── Color palettes ──────────────────────────────────────────────────
 
   const PHASE_COLORS = ["#4682b4", "#e8a838", "#6aaa64", "#c9534b", "#8b5cf6", "#f59e0b", "#999"];
-  const SUBPHASE_COLORS = ["#4682b4", "#e8a838", "#6aaa64", "#c9534b", "#8b5cf6", "#f59e0b"];
+  const SUBPHASE_COLORS = ["#4682b4", "#e8a838", "#6aaa64", "#c9534b", "#8b5cf6", "#f59e0b", "#20b2aa", "#9e9e9e"];
   const TIMESERIES_COLORS = { boundary: "#4682b4", pending: "#e8a838" };
 
   const CHUNK_SIZE = 64;
@@ -57,7 +57,9 @@
     "Collision check": "Reading the collision map to determine which cardinal and diagonal moves are walkable.",
     "Walkable tile": "Iterating traversable directions and creating neighbor nodes for walkable tiles.",
     "Blocked transport": "Fallback for blocked adjacent tiles — checking if a transport origin can bypass the obstacle.",
-    "Abstract node": "Expanding abstract (teleport) nodes that provide global connectivity at each wilderness level."
+    "Abstract node": "Expanding abstract (teleport) nodes that provide global connectivity at each wilderness level.",
+    "Enqueue": "Filtering neighbors by wilderness/league-region rules, marking visited, and pushing into boundary or pending queue.",
+    "Overhead": "Unattributed time within addNeighbors: per-tile setup (unpack, clear) and the System.nanoTime() start calls between sub-phases."
   };
 
   // ── Helpers ─────────────────────────────────────────────────────────
@@ -660,7 +662,9 @@
           { label: "Collision check", value: sp.collisionCheckNanos },
           { label: "Walkable tile", value: sp.walkableTileNanos },
           { label: "Blocked transport", value: sp.blockedTileTransportNanos },
-          { label: "Abstract node", value: sp.abstractNodeNanos }
+          { label: "Abstract node", value: sp.abstractNodeNanos },
+          { label: "Enqueue", value: sp.enqueueNanos || 0 },
+          { label: "Overhead", value: sp.otherNanos || 0 }
         ],
         SUBPHASE_COLORS,
         SUBPHASE_DESCRIPTIONS
