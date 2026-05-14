@@ -12,7 +12,7 @@
   - `perf/optimise-pathfinder`: `e28d7a751880636df2f5ef4b2868e6ddc2319f4d`
 - shortest-path-tooling commit used for the run harness/doc: `master` + local comparison/doc changes.
 
-## Baseline Table (Master vs Perf)
+## Baseline Table (Master vs Perf, Raw Elapsed Time)
 
 | Dataset | Scenarios | Master (ms) | Perf (ms) | Delta (ms) | Delta % |
 |---|---:|---:|---:|---:|---:|
@@ -24,6 +24,37 @@
 | `clue_locations_full.csv` | 866 | 207132 | **157314** | **-49818** | **-24.05%** |
 | **All combined** | **977** | **223484** | **173213** | **-50271** | **-22.49%** |
 
+## Normalized Breakdown (Less Biased Than Total ms)
+
+The total-ms line is still useful, but it heavily weights the largest dataset.
+To reduce that bias, the metrics below normalize by scenario count and by dataset.
+
+### Per-Scenario Time
+
+| Dataset | Master (ms/scenario) | Perf (ms/scenario) | Delta (ms/scenario) | Delta % |
+|---|---:|---:|---:|---:|
+| `routes.csv` | 183.83 | **169.90** | **-13.93** | **-7.58%** |
+| `unit-tests.csv` | 170.44 | **165.07** | **-5.37** | **-3.15%** |
+| `quetzal_whistle_routes.csv` | **108.13** | 108.60 | +0.47 | +0.43% |
+| `collision-map-issues.csv` | 106.71 | **105.21** | **-1.50** | **-1.41%** |
+| `seasonal_briefcase_routes.csv` | **127.04** | 131.27 | +4.23 | +3.33% |
+| `clue_locations_full.csv` | 239.18 | **181.66** | **-57.53** | **-24.05%** |
+| **All combined** | 228.75 | **177.29** | **-51.46** | **-22.49%** |
+
+### Category Summary
+
+| Category | Scenarios | Master (ms) | Perf (ms) | Delta (ms) | Delta % |
+|---|---:|---:|---:|---:|---:|
+| Core suite (all datasets except clue) | 111 | 16352 | **15899** | **-453** | **-2.77%** |
+| Clue suite only | 866 | 207132 | **157314** | **-49818** | **-24.05%** |
+
+### Dataset-Level Balance (Unweighted)
+
+- Mean dataset delta (simple average across 6 datasets): **-5.41%**.
+- Median dataset delta: **-2.28%**.
+- Improved datasets: **4/6**.
+- Regressed datasets: **2/6** (`quetzal_whistle_routes.csv`, `seasonal_briefcase_routes.csv`).
+
 ## Test Parity (Both Branches)
 
 - `./gradlew test --tests "shortestpath.pathfinder.*"` on `master`: **BUILD SUCCESSFUL**
@@ -31,20 +62,20 @@
 
 ## Implemented Changes (Current Branch, Short Form)
 
-- `ec9918e`: avoid per-tile abstract node allocation in hot path.
-- `30ac7f5`: sample cutoff timer every N iterations.
-- `eaeef77`: `FlagMap` bit access fast path (`BitSet` removal + index simplification).
-- `964db06`: collision read improvements (pair-read + region cache).
-- `0da7183`: small hot-loop cleanups (cardinal table + transport map hoist).
-- `bc03cfa0`: packed-point neighbor arithmetic + wilderness area check speedup.
-- `6975bf5b`: wilderness update short-circuiting + cached target array iteration.
-- `31e13053`: visited lookup optimization in tile neighbor loop.
-- `1ea22841`: bulk-mask collision rewrite (C5) with correctness guards.
-- `f7a85086`: producer-side tile enqueue/visited integration (3.3).
-- `e28d7a75`: completed C9/3.5/3.7 follow-up:
-  - 3.5: array-backed transport iteration in hot path (`Transport[]` views for packed lookup/teleports).
-  - 3.7: reduced transient allocations by directly enqueuing blocked-tile transport origins.
-  - C9: verified coordinate-based visited checks remain correct after integration.
+- `ec9918e`: stopped creating abstract-node objects on every tile expansion.
+- `30ac7f5`: reduced cutoff clock checks from every loop to sampled checks.
+- `eaeef77`: replaced slower `BitSet` collision bit reads with direct packed-word access.
+- `964db06`: reduced collision lookup overhead by reading north/east flag pairs and reusing region lookups.
+- `0da7183`: removed small hot-loop overheads (cardinal-direction checks and transport map re-fetches).
+- `bc03cfa0`: replaced unpack/repack neighbor math with direct packed-coordinate addition; simplified wilderness area checks.
+- `6975bf5b`: short-circuited wilderness-level updates and cached targets for unreachable-path comparison.
+- `31e13053`: used coordinate-based visited checks directly in tile neighbor expansion.
+- `1ea22841`: rewrote collision neighborhood checks to bulk-mask reads with safety fallbacks.
+- `f7a85086`: moved tile visited/enqueue work into neighbor production to avoid duplicate passes.
+- `e28d7a75`: finalized transport and allocation optimizations:
+  - switched hot-path transport iteration to array-backed lookups;
+  - directly enqueued blocked-tile transport origins to reduce transient objects;
+  - revalidated visited-check integration with full pathfinder tests.
 
 ## Remaining Work
 
@@ -99,9 +130,11 @@
 
 ## Delta Reconciliation
 
-- The earlier “promised” improvement came from intermediate profiling snapshots and a narrower benchmark slice.
-- The current table is from a fresh same-condition rerun against `master` with all six datasets, including `clue_locations_full.csv`.
-- With C9/3.5/3.7 now integrated and validated, the refreshed combined delta is **-22.49%** (223484 ms -> 173213 ms).
+- The earlier “promised” improvement came from intermediate snapshots and narrower slices.
+- The current numbers are from a fresh same-condition rerun against `master` across all six datasets.
+- Combined total is **-22.49%** (223484 ms -> 173213 ms), but this is dominated by clue routes.
+- On the non-clue core suite alone, improvement is **-2.77%** (16352 ms -> 15899 ms).
+- Two datasets still regress slightly, which explains why the result may look weaker than expected depending on which category you care about.
 
 ## Notes
 
