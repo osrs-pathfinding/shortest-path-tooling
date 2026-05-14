@@ -49,9 +49,11 @@ These constrain what we *can* change:
 
 ---
 
-## 1. Where the time goes (combined, 16.7 s / 14.8 M nodes)
+## 1. Where the time goes — baseline (combined, 16.7 s / 14.8 M nodes)
 
-**Throughput: ~0.89 M nodes/s ≈ 1 130 ns per dequeued tile node.**
+**These figures are from the baseline profiling run before any optimisations on `perf/optimise-pathfinder`. After batch 1 (all 6 commits, −12.4 % total) the current numbers are in §10.**
+
+**Baseline throughput: ~0.89 M nodes/s ≈ 1 130 ns per dequeued tile node.**
 
 ### Top-level phases
 
@@ -105,10 +107,10 @@ overhead.
 
 These two sub-buckets are conceptually one piece of work: "given a tile,
 which of its 8 neighbours is reachable from a *walking* perspective?"
-Combined they're **3.4 s / 25 % of `addNeighbors` / 20 % of total wall
-time** — and they are the single biggest piece of code where we can keep
-BFS semantics 100 % intact while extracting a large win. This is the
-primary recommendation.
+In baseline they were **3.4 s / 25 % of `addNeighbors` / 20 % of total wall
+time**. C1–C4 (all done) have cut the `collisionCheck` bucket by 32 %; the
+combined `collisionCheck` + `walkableTile` total is now **1.23 s / 22 % of
+`addNeighbors`** (see §10). C5 (pending) is the primary remaining target.
 
 ### 2.1 What actually happens per tile
 
@@ -195,7 +197,7 @@ those two ints are loaded, every collision question becomes a
 
 ### 2.3 Concrete optimisations (in increasing order of effort)
 
-#### **C1. Replace `BitSet` with a raw `long[]`** *(expected 3 – 6 % of total runtime)*
+#### **C1. Replace `BitSet` with a raw `long[]`** *(✅ done — commit `eaeef77`)*
 
 `java.util.BitSet.get(int)` does:
 
@@ -206,20 +208,19 @@ return (wordIndex < wordsInUse) && ((words[wordIndex] & (1L << bitIndex)) != 0);
 ```
 
 The `wordsInUse` check and the implicit `Math.floorDiv` in `wordIndex` are
-pure overhead. Replace the `BitSet flags` in
+pure overhead. Replaced the `BitSet flags` in
 [FlagMap](../shortest-path/src/main/java/shortestpath/pathfinder/FlagMap.java)
-with a `long[] flags = bitSet.toLongArray()` (or build directly from
-`byte[]`) and inline `(flags[index >>> 6] & (1L << (index & 63))) != 0`.
-No semantics change, no other code touched.
+with a `long[]` built directly from the raw flag data and inlined the bit
+test. No semantics change.
 
-#### **C2. Drop `FlagMap.index()`'s second bounds check** *(expected <1 %)*
+#### **C2. Drop `FlagMap.index()`'s second bounds check** *(✅ done — part of commit `eaeef77`)*
 
 `FlagMap.get(x,y,z,flag)` already does a full bounds check, then calls
 `index(x,y,z,flag)` which **does the same bounds check again and throws on
-failure**. The second check is dead defensive code in the hot path. Remove
-`index()`'s validation (or inline `index` into `get`).
+failure**. The second check is dead defensive code in the hot path. Removed
+by inlining `index()` directly into `get`.
 
-#### **C3. Read N + E in one probe** *(expected 2 – 4 %)*
+#### **C3. Read N + E in one probe** *(✅ done — commit `964db06`)*
 
 The two flags of a tile sit at adjacent bit indices `(... << 1) | flag`.
 So:
@@ -233,24 +234,23 @@ int flagPair(int x, int y, int z) {
 ```
 
 Every site that asks both `n(x,y,z)` and `e(x,y,z)` (most of them)
-collapses to a single load + two bit tests. Adds a single method, leaves
+collapses to a single load + two bit tests. Added a single method, leaving
 the existing `n`/`e`/`s`/`w` API untouched for callers that only need one.
 
-#### **C4. Cache the current `FlagMap` (region)** *(expected 2 – 4 %)*
+#### **C4. Cache the current `FlagMap` (region)** *(✅ done — commit `964db06`)*
 
 `SplitFlagMap.get` does `x/REGION_SIZE`, `y/REGION_SIZE`, array index calc,
 and a null check on **every flag probe** — even though, for the 3×3
 neighbourhood of the current tile, all 9 tiles are in the **same region**
 unless we're sitting on a region edge (a 1-in-64-ish event).
 
-Resolve the `FlagMap` once at the top of `getTileNeighbors` (from the
-parent tile's `x,y,z`), then call `flagMap.flagPair(...)` directly. Add a
-slow path that re-resolves the region when
-`(neighbourX >>> 6) != currentRegionX` or
-`(neighbourY >>> 6) != currentRegionY`. This collapses 30+ region look-ups
-per tile into 1 in the common case and 2 – 3 on the rare region crossing.
+Resolved the `FlagMap` once at the top of `getTileNeighbors`, then called
+`flagMap.flagPair(...)` directly. Added a slow path that re-resolves the
+region when `(neighbourX >>> 6) != currentRegionX` or
+`(neighbourY >>> 6) != currentRegionY`. Collapses 30+ region look-ups per
+tile into 1 in the common case and 2–3 on the rare region crossing.
 
-#### **C5. Bulk-fetch the 4×4 neighbourhood into two `int`s** *(expected 6 – 10 %)*
+#### **C5. Bulk-fetch the 4×4 neighbourhood into two `int`s** *(⬜ pending — branch `perf/bidir-jps`)*
 
 The two flag planes (N and E) of a 4×4 neighbourhood centred on
 `(x-1, y-1)` fit in one `int` each. Read both:
@@ -267,20 +267,19 @@ Then every collision question becomes a few bit tests against `nMask` /
 test of the form `((nMask & nMaskForTile) | (eMask & eMaskForTile)) == 0`
 with all 8 neighbours' masks fully precomputed constants.
 
-This is the headline collision-check optimisation. Combined with C1–C4,
-total collision-check + walkable-tile cost should drop from ~25 % of
-`addNeighbors` to roughly **5 – 8 %**, saving ~3.5 percentage points of
-total wall time on the test set and significantly more on the
-collision-map-issues dataset.
+This is the primary remaining collision-check optimisation. Combined with
+the already-completed C1–C4, total `collisionCheck` + `walkableTile` should
+drop from the current ~22 % of `addNeighbors` to roughly **5–8 %**, saving
+a further ~700 ms on `routes.csv`.
 
 The implementation only needs to be correct on tiles that exist;
 out-of-bounds reads should be safe (treat as fully blocked, which matches
 the existing behaviour of `SplitFlagMap.get` returning `false`). The
 region-edge slow path stays separate.
 
-#### **C6. Reuse cardinal flags for diagonals** *(expected 3 – 6 %, subsumed by C5)*
+#### **C6. Reuse cardinal flags for diagonals** *(⬜ pending — subsumed by C5)*
 
-If you don't ship C5 yet, an intermediate win:
+If C5 is not yet shipped, an intermediate win:
 
 ```java
 boolean canN = n(x, y, z);
@@ -301,14 +300,14 @@ Cuts the unblocked-branch flag-read count from ~20 to ~12 by exploiting
 short-circuit + the cardinal calls already in scope. C5 generalises this
 and makes it redundant.
 
-#### **C7. Replace `Math.abs(d.x + d.y) == 1` with a precomputed table** *(<1 %)*
+#### **C7. Replace `Math.abs(d.x + d.y) == 1` with a precomputed table** *(✅ done — commit `0da7183`)*
 
-In `getTileNeighbors` the loop checks `Math.abs(d.x + d.y) == 1` to decide
-whether to run the blocked-tile transport fallback. Replace with
+In `getTileNeighbors` the loop checked `Math.abs(d.x + d.y) == 1` to decide
+whether to run the blocked-tile transport fallback. Replaced with
 `static final boolean[] IS_CARDINAL = { true, true, true, true, false, false, false, false }`
-indexed by `i`. Marginal but trivial.
+indexed by `i`. Marginal gain.
 
-#### **C8. Replace `packedPointFromOrdinal` with integer addition** *(expected 1 – 2 %)*
+#### **C8. Replace `packedPointFromOrdinal` with integer addition** *(✅ done — commit `bc03cfa`)*
 
 [WorldPointUtil.packWorldPoint](../shortest-path/src/main/java/shortestpath/WorldPointUtil.java)
 packs as `x | (y << 15) | (plane << 30)`. So:
@@ -329,11 +328,9 @@ static final int[] PACKED_OFFSETS = {
 int neighborPacked = packed + PACKED_OFFSETS[i];
 ```
 
-This deletes the entire `packedPointFromOrdinal(int, OrdinalDirection)`
-unpack/repack pair from the inner loop. Same trick applies in
-`WorldPointUtil.dxdy` and anywhere else doing single-step offsets.
+Deleted the entire `packedPointFromOrdinal(int, OrdinalDirection)` unpack/repack pair from the inner loop.
 
-#### **C9. Skip the unpack in `VisitedTiles.get`** *(expected 1 – 2 %)*
+#### **C9. Skip the unpack in `VisitedTiles.get`** *(⬜ pending — branch `perf/bidir-jps`)*
 
 `VisitedTiles.get(int packedPoint, boolean bankVisited)` unpacks the
 coordinates internally. The caller in `getTileNeighbors` already has
@@ -343,11 +340,12 @@ tiles ≈ 120 M operations.
 
 ### 2.4 Combined collision-check impact
 
-If C1–C5 are shipped together, the collision-check + walkable-tile bucket
-should drop from **25 % of `addNeighbors`** to roughly **5 – 8 %**, which
-is ~3.5 percentage points off total wall time (≈ 580 ms saved on the
-profiled 16.7 s test set, ~150 ms on the 1 s slow routes). C6–C9 add a few
-more percent on top.
+C1–C4 (all done) have cut `collisionCheck` from 726 ms to 491 ms (−32 %)
+on `routes.csv`. The combined `collisionCheck` + `walkableTile` bucket is
+now **1.23 s / 22 % of `addNeighbors`** (down from 25 % at baseline). C5
+(pending) is expected to cut the remaining overhead roughly in half,
+targeting ~5–8 % of `addNeighbors` — a further ~700 ms saving on
+`routes.csv`. C9 (pending) adds another ~1–2 %.
 
 These are all *local* optimisations: no algorithm change, no behavioural
 risk, fully covered by the existing dashboard regression tests — every
@@ -358,7 +356,7 @@ that will catch any divergence.
 
 ## 3. Other localised wins
 
-### 3.1 Avoid the per-tile abstract-node allocation *(expected 4 – 7 %)*
+### 3.1 Avoid the per-tile abstract-node allocation *(✅ done — commit `ec9918e`; `abstractNode` −14 % vs baseline)*
 
 In `CollisionMap.getTileNeighbors`:
 
@@ -373,8 +371,8 @@ the test set) just to ask "have we already expanded the global-teleport
 node for this `(wildernessKind, bankVisited)` pair?". The counter says we
 actually expand the abstract node only **140 times in 14.8 M iterations**.
 
-Fix: replace with a direct array probe; only allocate the `Node` when
-we're going to enqueue it.
+Implemented: replaced with a direct array probe; `Node` is only allocated
+when going to enqueue it.
 
 ```java
 AbstractNodeKind kind = AbstractNodeKind.fromWildernessLevel(wildernessLevel);
@@ -383,11 +381,10 @@ if (!visited.getAbstract(kind, pathBankVisited)) {
 }
 ```
 
-`VisitedTiles` already maintains `abstractVisitedWithBank[]` /
-`abstractVisitedWithoutBank[]` flat arrays — this just exposes them
-directly.
+`VisitedTiles` already maintained `abstractVisitedWithBank[]` /
+`abstractVisitedWithoutBank[]` flat arrays — this exposes them directly.
 
-### 3.2 Sample the cutoff timer every N iterations *(expected 2 – 3 %)*
+### 3.2 Sample the cutoff timer every N iterations *(✅ done — commit `30ac7f5`; `cutoffCheck` 238 ms → 228 ms)*
 
 `System.currentTimeMillis()` is called on every iteration of the main loop
 (cost: ~525 ms across the test set). The inner loop is ~1 µs per tile, so
@@ -401,7 +398,7 @@ if ((iteration & 0xFFF) == 0 && System.currentTimeMillis() > cutoffTimeMillis) {
 }
 ```
 
-### 3.3 Fold `visited.set` into the neighbour producer *(expected 6 – 12 %)*
+### 3.3 Fold `visited.set` into the neighbour producer *(⬜ pending — branch `perf/bidir-jps`)*
 
 Today's flow:
 
@@ -443,13 +440,13 @@ Combined with C9 this collapses the per-neighbour cost from "build object,
 list-add, iterate, instanceof, visited.set, queue-add" to "visited.set,
 queue-add, new Node only on success".
 
-### 3.4 Hoist `getTransportsPacked(pathBankVisited)` *(expected 1 – 2 %)*
+### 3.4 Hoist `getTransportsPacked(pathBankVisited)` *(✅ done — commit `0da7183`)*
 
-In `getTileNeighbors` the map reference is fetched once for the per-tile
-transports and **again** inside the blocked-tile fallback. Hoist it to a
-local. Trivial.
+In `getTileNeighbors` the map reference was fetched once for the per-tile
+transports and **again** inside the blocked-tile fallback. Hoisted to a
+local.
 
-### 3.5 Replace `Set<Transport>` values with primitive arrays *(expected 1 – 2 %)*
+### 3.5 Replace `Set<Transport>` values with primitive arrays *(⬜ pending)*
 
 `config.getTransportsPacked(pathBankVisited).getOrDefault(packed, Set.of())`
 returns a `Set<Transport>`; the only operation we do on it is iterate.
@@ -458,26 +455,25 @@ referencing a global transport table) removes the `HashSet.iterator()`
 allocation that fires whenever there's at least one transport at the tile
 (171 666 times across the test set).
 
-### 3.6 Make `WildernessChecker` checks faster *(expected <1 % overall, but easy)*
+### 3.6 Make `WildernessChecker` checks faster *(partially done — commit `bc03cfa`)*
 
 [WildernessChecker](../shortest-path/src/main/java/shortestpath/pathfinder/WildernessChecker.java)
-currently calls `WorldPointUtil.distanceToArea2D` up to 10 times per call
+called `WorldPointUtil.distanceToArea2D` up to 10 times per call
 to `isInWilderness` (to subtract Ferox Enclave and the non-wilderness
 pockets) and twice for each of `isInLevel20Wilderness` /
 `isInLevel30Wilderness`.
 
-Replace the rectangle distance check with a direct `inside(x, y)` (we
-don't actually care about the distance, only whether the distance is 0).
-At 14.8 M tile pops × 3 rectangle-set checks each, this is a few hundred
-million method calls.
+Replaced with a direct `insideArea2D` boolean check in commit `bc03cfa` —
+we only need to know whether the distance is 0, not its value. Measured:
+`wildernessCheck` 105 ms → 99 ms (−5.7 %).
 
-Also: short-circuit `updateWildernessLevel` once `wildernessLevel == 0` —
-the current outer guard checks `wildernessLevel > 0`, but the level-30 and
-level-20 sub-tests still fire on every tile inside the wilderness for the
-remainder of the walk. Skip them once `wildernessLevel` matches what the
-zone already implies.
+⬜ **Still pending:** short-circuit `updateWildernessLevel` once
+`wildernessLevel == 0` — the outer guard already checks
+`wildernessLevel > 0`, but the level-30 and level-20 sub-tests still fire
+on every tile inside the wilderness for the remainder of the walk. Skip
+them once `wildernessLevel` matches what the zone already implies.
 
-### 3.7 Pool `Node` instances / move to parallel primitive arrays *(expected 2 – 4 %)*
+### 3.7 Pool `Node` instances / move to parallel primitive arrays *(⬜ pending)*
 
 The `Node` chain is needed to reconstruct the path after termination, so
 we can't fully pool. But:
@@ -491,7 +487,7 @@ we can't fully pool. But:
   indices. Eliminates `Node` allocations entirely — ~14.8 M allocations
   on the test set become zero. Larger change, do later.
 
-### 3.8 `updateBestPathWhenUnreachable` iterates `targets` on every tile pop *(expected <1 % single-target, 2 – 5 % multi-target)*
+### 3.8 `updateBestPathWhenUnreachable` iterates `targets` on every tile pop *(⬜ pending)*
 
 `targets` is a `Set<Integer>`. For single-target searches the loop runs
 once but still allocates an `Iterator`. For multi-tile destinations the
@@ -640,9 +636,9 @@ optimisations land.
 
 ---
 
-## 7. Recommended rollout order
+## 7. Rollout order
 
-1. **Low-risk local wins (do first, one PR per related pair):**
+1. **Low-risk local wins (all done):**
    - ✅ **C1 + C2** (raw `long[]` for FlagMap, drop redundant index check)
    - ✅ **C3 + C4** (read N+E together, cache current region pointer)
    - ✅ **3.2** (cutoff timer sampling)
@@ -730,9 +726,9 @@ time — re-run the dashboards on every PR and check for any new "❌" rows.
 
 ## 10. Implementation log — branch `perf/optimise-pathfinder`
 
-Individual per-commit benchmarks were not captured between commits; the
-table below shows expected gains from the analysis plus a single combined
-measurement at the end of each batch. All commits are on
+Individual per-commit benchmarks were not captured between commits;
+the table below shows the analysed expected gain alongside the combined
+measured result at the end of the batch. All commits are on
 [Runemoro/shortest-path](https://github.com/Runemoro/shortest-path).
 
 ### Batch 1: low-risk local wins (§7 item 1)
