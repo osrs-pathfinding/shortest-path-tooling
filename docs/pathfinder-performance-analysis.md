@@ -645,15 +645,16 @@ optimisations land.
    - ✅ **3.1** (avoid per-tile abstract-node alloc)
    - ✅ **3.4** (transport-lookup hoist) + ✅ **C7** (precomputed cardinal table)
    - ✅ **C8** (integer-offset packed-point arithmetic)
-   - ✅ **3.6** (WildernessChecker `insideArea2D`)
-   - **3.5** (transport array-backed values) — ~1–2 %, still pending.
+   - ✅ **3.6** (WildernessChecker `insideArea2D`) + ✅ **3.6b** (short-circuit wilderness if-else chain)
+   - ✅ **3.8** (pre-cache targets as `int[]`)
+   - ✅ **C9** (skip unpack in visited check, defer packed offset math)
+   - ⬜ **3.5** (transport array-backed values) — ~1–2 %, skipped (caused test regression).
    - Measured combined on `routes.csv` (29 scenarios, 6.75 M nodes):
-     **7 734 ms → 6 778 ms (−12.4 %)** (see §10 for per-commit breakdown).
+     **7 734 ms → 6 649 ms (−14.0 %)** (see §10 for per-commit breakdown).
 
-2. **The collision-check rewrite** (branch: `perf/bidir-jps`):
-   - **C5 + C9** (bulk 4×4 fetch, pre-unpacked `visited` API). The
-     dominant remaining collision-check gain (~10 % off total wall time
-     on top of C1 – C4).
+2. **The collision-check rewrite:**
+   - ✅ **C5** (bulk 5×5 neighbourhood flag fetch with direct `long[]` bit-masking).
+     Measured: **6 982 ms → 6 649 ms (−4.8 %)** on top of batch 1.
 
 3. **The neighbour-producer rewrite** (branch: `perf/bidir-jps`):
    - **3.3** (fold `visited.set` into producer, drop intermediate list).
@@ -765,9 +766,39 @@ drops are from the transport-map hoist. The `enqueue` improvement includes
 gains from both the `IS_CARDINAL` hoist and the `PACKED_OFFSETS` table
 (eliminating the unpack/repack on every neighbour candidate).
 
-Note: the `abstractNode` sub-phase shows a small apparent regression
-(+10 %) vs baseline in batch-1a (first 5 commits) because the profiler
-bucket wraps the actual abstract-node *expansion* loop, not the allocation
-guard. The allocation guard savings manifest as a reduction in overall
-`addNeighbors` time rather than the sub-phase counter. By end of batch 1
-`abstractNode` recovers to 138 ms (−14 % vs baseline 161 ms).
+### Batch 2: further local wins + collision-check rewrite (§7 items 1–2)
+
+| Commit | What changed |
+|---|---|
+| `6975bf5` | Short-circuit wilderness level check into if-else chain (3.6b); pre-cache targets as `int[]` (3.8) |
+| `31e1305` | Skip unpack in visited check, use `nx,ny,z` directly (C9); defer packed offset math |
+| `bb2cf79` | Expose `getPair` and `getFlagMap` for profiler access |
+| `bf194a9` | First cut: bulk 4×4 neighbourhood fetch with per-tile getPair fallback |
+| `cbb7877` | Make accessors public for cross-project profiler use |
+| `1ea2284` | **C5 final:** bulk 5×5 neighbourhood fetch from raw `long[]` with bit-masking per row; region-crossing guard; `blockedInMask` helper eliminates `isBlocked` calls in blocked branch |
+
+#### C5 measurement — `routes.csv` (29 scenarios, 6 749 845 nodes)
+
+| Phase | Pre-C5 (batch-1 profiler, updated) | After C5 | Δ |
+|---|---:|---:|---:|
+| **Total profiled** | **6 982 ms** | **6 649 ms** | **−333 ms (−4.8 %)** |
+| `addNeighbors` | 5 774 ms | 5 446 ms | −328 ms (−5.7 %) |
+| `blockedTileTransport` (sub) | 322 ms | 155 ms | −167 ms (−51.9 %) |
+| `walkableTile` (sub) | 768 ms | 713 ms | −55 ms (−7.2 %) |
+| `transportLookup` (sub) | 363 ms | 281 ms | −82 ms (−22.6 %) |
+| `collisionCheck` (sub) | 373 ms | 368 ms | −5 ms (−1.3 %) |
+
+Pre-C5 bundle: `routes-profiled` (re-run 2026-05-14 with updated profiler). Post-C5 bundle: `routes-after-c5`.
+
+The biggest C5 win is in `blockedTileTransport` (−52 %): the `blockedInMask`
+helper replaces 8 `isBlocked` calls (32 flag reads via `SplitFlagMap`) with
+bit tests against the already-read 5×5 masks. `walkableTile` also drops
+(−7.2 %) from simplified diagonal checks. The `transportLookup` drop is
+incidental (likely a measurement artefact of the profiler interacting
+differently with the restructured code).
+
+#### Cumulative: baseline → batch 1 + C5
+
+| Phase | Baseline | After all | Δ |
+|---|---:|---:|---:|
+| **Total profiled** | **7 734 ms** | **6 649 ms** | **−1 085 ms (−14.0 %)** |
