@@ -202,16 +202,18 @@ public class ProfilingPathfinder {
 
     private void addNeighbors(Node node) {
         List<Node> nodes;
+        int boundaryBefore = boundary.size();
         if (node.isTile()) {
             nodes = getTileNeighbors(node);
         } else {
             // ── Abstract node expansion sub-phase ──
-            // getAbstractNodeNeighbors iterates all usable teleports; accumulate into
-            // abstractNodeNanos alongside the creation cost tracked in getTileNeighbors.
             long abstractExpansionStart = System.nanoTime();
             nodes = getAbstractNodeNeighbors(node);
             profile.abstractNodeNanos += System.nanoTime() - abstractExpansionStart;
+            boundaryBefore = boundary.size(); // abstract nodes don't push to boundary
         }
+        profile.tileNeighborsAdded += boundary.size() - boundaryBefore;
+        nodesChecked += boundary.size() - boundaryBefore;
 
         // ── Enqueue sub-phase ──
         long enqueueStart = System.nanoTime();
@@ -227,8 +229,6 @@ public class ProfilingPathfinder {
                 continue;
             }
 
-            // For delayed-visit nodes (shared destinations), don't mark as visited on enqueue.
-            // They will be checked and marked when dequeued from pending.
             if (!(neighbor instanceof TransportNode && ((TransportNode) neighbor).delayedVisit)) {
                 visited.set(neighbor);
             } else {
@@ -413,14 +413,19 @@ public class ProfilingPathfinder {
             final int ny = y + d.y;
             if (visited.get(nx, ny, z, pathBankVisited)) continue;
 
-            int neighborPacked = node.packedPosition + PACKED_OFFSETS[i];
             if (traversable[i]) {
-                neighbors.add(new Node(neighborPacked, node, Node.cost(neighborPacked, node), pathBankVisited));
+                int neighborPacked = node.packedPosition + PACKED_OFFSETS[i];
+                if (!config.avoidWilderness(node.packedPosition, neighborPacked, targetInWilderness)
+                    && !config.avoidBlockedRegion(node.packedPosition, neighborPacked, targetInBlockedRegion)) {
+                    visited.set(nx, ny, z, pathBankVisited);
+                    boundary.addLast(new Node(neighborPacked, node, Node.cost(neighborPacked, node), pathBankVisited));
+                }
             } else if (IS_CARDINAL[i] && map.isBlocked(nx, ny, z)) {
                 // Blocked-tile transport fallback
                 profile.walkableTileNanos += System.nanoTime() - subStart;
                 subStart = System.nanoTime();
 
+                int neighborPacked = node.packedPosition + PACKED_OFFSETS[i];
                 Set<Transport> neighborTransports = config.getTransportsPacked(pathBankVisited).getOrDefault(neighborPacked, Set.of());
                 for (Transport transport : neighborTransports) {
                     profile.blockedTileTransportChecks++;
