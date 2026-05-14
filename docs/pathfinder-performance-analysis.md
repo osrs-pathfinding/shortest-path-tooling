@@ -650,16 +650,17 @@ optimisations land.
    - ✅ **C9** (skip unpack in visited check, defer packed offset math)
    - ⬜ **3.5** (transport array-backed values) — ~1–2 %, skipped (caused test regression).
    - Measured combined on `routes.csv` (29 scenarios, 6.75 M nodes):
-     **7 734 ms → 6 649 ms (−14.0 %)** (see §10 for per-commit breakdown).
+     **7 734 ms → 6 640 ms (−14.1 %)** (see §10 for per-commit breakdown).
 
 2. **The collision-check rewrite:**
    - ✅ **C5** (bulk 5×5 neighbourhood flag fetch with direct `long[]` bit-masking).
      Measured: **6 982 ms → 6 649 ms (−4.8 %)** on top of batch 1.
 
-3. **The neighbour-producer rewrite** (branch: `perf/bidir-jps`):
-   - **3.3** (fold `visited.set` into producer, drop intermediate list).
-     Larger change to `CollisionMap.getTileNeighbors` /
-     `Pathfinder.addNeighbors` contracts but unblocks further work.
+3. **The neighbour-producer rewrite:**
+   - ✅ **3.3** (fold `visited.set` into producer, push tiles directly to boundary).
+     Tile neighbours bypass the intermediate list and are pushed directly.
+     Measured: negligible CPU change (within noise), benefit is reduced GC
+     pressure from eliminating the per-tile Neighbour list allocation.
 
 4. **Allocation cleanup:**
    - **3.7** (Node freelist or parallel-array search graph). Larger
@@ -776,6 +777,7 @@ gains from both the `IS_CARDINAL` hoist and the `PACKED_OFFSETS` table
 | `bf194a9` | First cut: bulk 4×4 neighbourhood fetch with per-tile getPair fallback |
 | `cbb7877` | Make accessors public for cross-project profiler use |
 | `1ea2284` | **C5 final:** bulk 5×5 neighbourhood fetch from raw `long[]` with bit-masking per row; region-crossing guard; `blockedInMask` helper eliminates `isBlocked` calls in blocked branch |
+| `f7a8508` | **3.3:** fold visited.set + wildy/blocked checks into tile neighbour producer, push tiles directly to boundary |
 
 #### C5 measurement — `routes.csv` (29 scenarios, 6 749 845 nodes)
 
@@ -797,8 +799,8 @@ bit tests against the already-read 5×5 masks. `walkableTile` also drops
 incidental (likely a measurement artefact of the profiler interacting
 differently with the restructured code).
 
-#### Cumulative: baseline → batch 1 + C5
+#### Cumulative: baseline → batch 1 + C5 + 3.3
 
 | Phase | Baseline | After all | Δ |
 |---|---:|---:|---:|
-| **Total profiled** | **7 734 ms** | **6 649 ms** | **−1 085 ms (−14.0 %)** |
+| **Total profiled** | **7 734 ms** | **6 640 ms** | **−1 094 ms (−14.1 %)** |
