@@ -281,17 +281,25 @@ public class CollisionMapRegressionTest
 	// otherwise treats them as passable doors. All variants are excluded so
 	// the railings around the Dwarf Cannon camp block ordinary movement;
 	// the quest itself crosses them via an inspect action, not pathfinding.
+	// The camp's south and west fences each have a 2-tile gate opening that
+	// stays passable — only the railing tiles either side of the gate are
+	// asserted as blocked here.
 	@Test
 	public void issue203DwarfCannonRailingsBlock()
 	{
-		// North-facing railings along the camp's southern fence.
+		// South fence: railings at x=2566 and x=2569..2570 (gate at x=2567..2568).
 		assertFalse("(2566,3455,0) N should be blocked", map.n(2566, 3455, 0));
-		assertFalse("(2567,3455,0) N should be blocked", map.n(2567, 3455, 0));
-		assertFalse("(2568,3455,0) N should be blocked", map.n(2568, 3455, 0));
 		assertFalse("(2569,3455,0) N should be blocked", map.n(2569, 3455, 0));
-		// East-facing railings along the camp's western fence.
+		assertFalse("(2570,3455,0) N should be blocked", map.n(2570, 3455, 0));
+		// West fence: railings at y=3472..3473 and y=3476..3477 (gate at y=3474..3475).
+		assertFalse("(2554,3472,0) E should be blocked", map.e(2554, 3472, 0));
 		assertFalse("(2554,3473,0) E should be blocked", map.e(2554, 3473, 0));
-		assertFalse("(2554,3474,0) E should be blocked", map.e(2554, 3474, 0));
-		assertFalse("(2554,3475,0) E should be blocked", map.e(2554, 3475, 0));
+		assertFalse("(2554,3476,0) E should be blocked", map.e(2554, 3476, 0));
+		assertFalse("(2554,3477,0) E should be blocked", map.e(2554, 3477, 0));
+		// Gate tiles themselves stay walkable so the camp remains reachable.
+		assertTrue("(2567,3455,0) N gate should be open", map.n(2567, 3455, 0));
+		assertTrue("(2568,3455,0) N gate should be open", map.n(2568, 3455, 0));
+		assertTrue("(2554,3474,0) E gate should be open", map.e(2554, 3474, 0));
+		assertTrue("(2554,3475,0) E gate should be open", map.e(2554, 3475, 0));
 	}
 }
