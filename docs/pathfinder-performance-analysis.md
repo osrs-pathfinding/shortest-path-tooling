@@ -21,7 +21,8 @@
 | `quetzal_whistle_routes.csv` | 15 | **1615** | 1636 | +21 | +1.30% |
 | `collision-map-issues.csv` | 14 | 1508 | **1459** | **-49** | **-3.25%** |
 | `seasonal_briefcase_routes.csv` | 26 | 3324 | **3321** | **-3** | **-0.09%** |
-| **All combined** | **111** | **16110** | **15793** | **-317** | **-1.97%** |
+| `clue_locations_full.csv` | 866 | 206419 | **182868** | **-23551** | **-11.41%** |
+| **All combined** | **977** | **222529** | **198661** | **-23868** | **-10.73%** |
 
 ## Test Parity (Both Branches)
 
