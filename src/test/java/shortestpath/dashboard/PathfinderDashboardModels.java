@@ -184,6 +184,8 @@ public final class PathfinderDashboardModels {
         public long walkableTileNanos;
         public long blockedTileTransportNanos;
         public long abstractNodeNanos;
+        public long enqueueNanos;
+        public long otherNanos;
     }
 
     public static class ProfilerCounters {

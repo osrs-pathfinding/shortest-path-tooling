@@ -47,6 +47,12 @@ public final class DashboardPresets {
             cfg.setUseTeleportationMinigames(false);
         });
 
+        PRESETS.put("BANK_PERM", cfg -> {
+            cfg.setUseTeleportationItems(TeleportationItem.INVENTORY_AND_BANK_NON_CONSUMABLE);
+            cfg.setIncludeBankPath(true);
+            cfg.setUseTeleportationMinigames(false);
+        });
+
         PRESETS.put("INVENTORY", cfg -> {
             cfg.setUseTeleportationItems(TeleportationItem.INVENTORY);
             cfg.setIncludeBankPath(false);
@@ -125,9 +131,9 @@ public final class DashboardPresets {
      */
     public static int lumbridgeDiaryEliteStub(String presetName) {
         String key = presetName == null ? "NONE" : presetName.toUpperCase(Locale.ROOT);
-        // BANK and UNIT_TEST both stub diary=0 (not complete), matching their respective baselines:
-        // BANK matches legacy BankMode; UNIT_TEST matches Mockito's default int return of 0.
-        if ("BANK".equals(key) || "UNIT_TEST".equals(key)) {
+        // BANK, BANK_PERM and UNIT_TEST both stub diary=0 (not complete), matching their respective baselines:
+        // BANK/BANK_PERM match legacy BankMode; UNIT_TEST matches Mockito's default int return of 0.
+        if ("BANK".equals(key) || "BANK_PERM".equals(key) || "UNIT_TEST".equals(key)) {
             return DIARY_DISABLED;
         }
         return DIARY_ENABLED;

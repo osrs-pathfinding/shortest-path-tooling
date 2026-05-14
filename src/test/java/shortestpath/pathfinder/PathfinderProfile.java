@@ -27,6 +27,7 @@ public class PathfinderProfile {
     long walkableTileNanos;
     long blockedTileTransportNanos;
     long abstractNodeNanos;
+    long enqueueNanos;
 
     // ── Counters ────────────────────────────────────────────────────────
     int tileNeighborsAdded;
@@ -91,6 +92,7 @@ public class PathfinderProfile {
     public long getWalkableTileNanos() { return walkableTileNanos; }
     public long getBlockedTileTransportNanos() { return blockedTileTransportNanos; }
     public long getAbstractNodeNanos() { return abstractNodeNanos; }
+    public long getEnqueueNanos() { return enqueueNanos; }
     public int getTileNeighborsAdded() { return tileNeighborsAdded; }
     public int getTransportNeighborsAdded() { return transportNeighborsAdded; }
     public int getVisitedSkipped() { return visitedSkipped; }

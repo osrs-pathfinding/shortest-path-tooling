@@ -36,6 +36,15 @@ public class ProfilerReportWriter extends PathfinderDashboardReportWriter {
         run.subPhases.walkableTileNanos = profile.getWalkableTileNanos();
         run.subPhases.blockedTileTransportNanos = profile.getBlockedTileTransportNanos();
         run.subPhases.abstractNodeNanos = profile.getAbstractNodeNanos();
+        run.subPhases.enqueueNanos = profile.getEnqueueNanos();
+        long accountedSubPhaseNanos = profile.getBankCheckNanos()
+            + profile.getTransportLookupNanos()
+            + profile.getCollisionCheckNanos()
+            + profile.getWalkableTileNanos()
+            + profile.getBlockedTileTransportNanos()
+            + profile.getAbstractNodeNanos()
+            + profile.getEnqueueNanos();
+        run.subPhases.otherNanos = Math.max(0, profile.getAddNeighborsNanos() - accountedSubPhaseNanos);
 
         // Counters
         run.counters = new PathfinderDashboardModels.ProfilerCounters();

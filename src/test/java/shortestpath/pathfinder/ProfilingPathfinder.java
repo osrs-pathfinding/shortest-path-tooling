@@ -9,6 +9,7 @@ import java.util.Queue;
 import java.util.Set;
 
 import shortestpath.WorldPointUtil;
+import shortestpath.leagues.LeagueModeState;
 import shortestpath.transport.Transport;
 
 /**
@@ -26,6 +27,7 @@ public class ProfilingPathfinder {
     private final int start;
     private final Set<Integer> targets;
     private final boolean targetInWilderness;
+    private final boolean targetInBlockedRegion;
 
     private final Deque<Node> boundary = new ArrayDeque<>(4096);
     private final Queue<TransportNode> pending = new PriorityQueue<>(256);
@@ -51,6 +53,18 @@ public class ProfilingPathfinder {
     private final boolean[] traversable = new boolean[8];
     private static final OrdinalDirection[] ORDINAL_VALUES = OrdinalDirection.values();
 
+    private static boolean anyInBlockedRegion(LeagueModeState league, Set<Integer> packed) {
+        if (!league.isSeasonal() || packed == null || packed.isEmpty()) {
+            return false;
+        }
+        for (Integer point : packed) {
+            if (league.isInBlockedRegion(point)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public ProfilingPathfinder(PathfinderConfig config, int start, Set<Integer> targets) {
         this.config = config;
         this.map = config.getMap();
@@ -58,6 +72,7 @@ public class ProfilingPathfinder {
         this.targets = targets;
         this.visited = new VisitedTiles(map);
         this.targetInWilderness = WildernessChecker.isInWilderness(targets);
+        this.targetInBlockedRegion = anyInBlockedRegion(config.getLeagueModeState(), targets);
         this.wildernessLevel = 31;
         this.profile = new PathfinderProfile();
     }
@@ -96,6 +111,10 @@ public class ProfilingPathfinder {
                 }
             } else {
                 node = boundary.removeFirst();
+            }
+            if (node == null) {
+                profile.queueSelectionNanos += System.nanoTime() - phaseStart;
+                continue;
             }
 
             profile.queueSelectionNanos += System.nanoTime() - phaseStart;
@@ -180,12 +199,25 @@ public class ProfilingPathfinder {
         if (node.isTile()) {
             nodes = getTileNeighbors(node);
         } else {
+            // ── Abstract node expansion sub-phase ──
+            // getAbstractNodeNeighbors iterates all usable teleports; accumulate into
+            // abstractNodeNanos alongside the creation cost tracked in getTileNeighbors.
+            long abstractExpansionStart = System.nanoTime();
             nodes = getAbstractNodeNeighbors(node);
+            profile.abstractNodeNanos += System.nanoTime() - abstractExpansionStart;
         }
+
+        // ── Enqueue sub-phase ──
+        long enqueueStart = System.nanoTime();
 
         for (Node neighbor : nodes) {
             if (node.isTile() && neighbor.isTile()
                 && config.avoidWilderness(node.packedPosition, neighbor.packedPosition, targetInWilderness)) {
+                continue;
+            }
+
+            if (node.isTile() && neighbor.isTile()
+                && config.avoidBlockedRegion(node.packedPosition, neighbor.packedPosition, targetInBlockedRegion)) {
                 continue;
             }
 
@@ -211,6 +243,8 @@ public class ProfilingPathfinder {
         if (node.isTile()) {
             profile.incrementTileVisit(node.packedPosition);
         }
+
+        profile.enqueueNanos += System.nanoTime() - enqueueStart;
     }
 
     // ── getTileNeighbors: matches CollisionMap.getTileNeighbors ─────────
