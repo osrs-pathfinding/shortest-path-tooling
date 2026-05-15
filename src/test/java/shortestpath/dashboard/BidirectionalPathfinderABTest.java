@@ -20,6 +20,7 @@ import org.junit.Before;
 import org.junit.Test;
 import shortestpath.WorldPointUtil;
 import shortestpath.pathfinder.BidirectionalPathfinder;
+import shortestpath.pathfinder.JpsPathfinder;
 import shortestpath.pathfinder.Pathfinder;
 import shortestpath.pathfinder.PathfinderResult;
 
@@ -98,7 +99,15 @@ public class BidirectionalPathfinderABTest
 			bpf.run();
 			long bpfElapsed = System.nanoTime() - bpfStart;
 			PathfinderResult bpfResult = bpf.getResult();
-			if (pfResult == null || bpfResult == null) {
+
+			// JPS pathfinder.
+			JpsPathfinder jpf = new JpsPathfinder(applied.pathfinderConfig, start, Set.of(end));
+			long jpfStart = System.nanoTime();
+			jpf.run();
+			long jpfElapsed = System.nanoTime() - jpfStart;
+			PathfinderResult jpfResult = jpf.getResult();
+
+			if (pfResult == null || bpfResult == null || jpfResult == null) {
 				System.out.printf("[%2d/%-2d] %s %s  NO_RESULT%n", results.size()+1, scenarios.size(), "?", scenario.getName());
 				continue;
 			}
@@ -106,30 +115,32 @@ public class BidirectionalPathfinderABTest
 			boolean bothReached = pfResult.isReached() && bpfResult.isReached();
 			boolean neitherReached = !pfResult.isReached() && !bpfResult.isReached();
 
+			double pfMs = pfElapsed / 1_000_000.0;
+			double bpfMs = bpfElapsed / 1_000_000.0;
+			double jpfMs = jpfElapsed / 1_000_000.0;
+
+			System.out.printf("[%2d/%-2d] %s %s  pf=%.1fms  bidir=%.1fms  jps=%.1fms  pfNodes=%d  jpsNodes=%d  pfLen=%d  jpsLen=%d%n",
+				results.size()+1, scenarios.size(),
+				pfResult.isReached() ? (jpfResult.isReached() ? "\u2714" : "!") : "\u2716",
+				scenario.getName(),
+				pfMs, bpfMs, jpfMs,
+				pfResult.getNodesChecked() + pfResult.getTransportsChecked(),
+				jpfResult.getNodesChecked() + jpfResult.getTransportsChecked(),
+				pfResult.getPathSteps().size(),
+				jpfResult.getPathSteps().size());
+
 			results.add(new ABResult(
 				scenario.getName(),
 				pfResult.isReached(),
-				bpfResult.isReached(),
+				jpfResult.isReached(),
 				pfElapsed,
-				bpfElapsed,
+				jpfElapsed,
 				pfResult.getNodesChecked() + pfResult.getTransportsChecked(),
-				bpfResult.getNodesChecked() + bpfResult.getTransportsChecked(),
+				jpfResult.getNodesChecked() + jpfResult.getTransportsChecked(),
 				pfResult.getPathSteps().size(),
-				bpfResult.getPathSteps().size(),
-				bothReached,
-				neitherReached));
-
-			char marker = bothReached ? '\u2714' : (neitherReached ? '\u2716' : '!');
-			double pfMs = pfElapsed / 1_000_000.0;
-			double bpfMs = bpfElapsed / 1_000_000.0;
-			double deltaPct = pfMs > 0 ? ((bpfMs - pfMs) / pfMs * 100.0) : 0;
-			System.out.printf("[%2d/%-2d] %s %s  pf=%.1fms  bidir=%.1fms  (%+.1f%%)  pfNodes=%d  bidirNodes=%d  pfLen=%d  bidirLen=%d%n",
-				results.size(), scenarios.size(), marker, scenario.getName(),
-				pfMs, bpfMs, deltaPct,
-				pfResult.getNodesChecked() + pfResult.getTransportsChecked(),
-				bpfResult.getNodesChecked() + bpfResult.getTransportsChecked(),
-				pfResult.getPathSteps().size(),
-				bpfResult.getPathSteps().size());
+				jpfResult.getPathSteps().size(),
+				pfResult.isReached() && jpfResult.isReached(),
+				!pfResult.isReached() && !jpfResult.isReached()));
 		}
 
 		printSummary(results);
@@ -173,9 +184,9 @@ public class BidirectionalPathfinderABTest
 		System.out.println("=== A/B Summary ===");
 		System.out.printf("Scenarios: %d  (bothReached=%d  neitherReached=%d  disagree=%d)%n",
 			results.size(), bothReached, neitherReached, disagree);
-		System.out.printf("Total time:  Pathfinder=%.1fms  Bidir=%.1fms  (%.1f%%)%n",
+		System.out.printf("Total time:  Pathfinder=%.1fms  JPS=%.1fms  (%.1f%%)%n",
 			totalPfMs, totalBpfMs, (totalBpfMs - totalPfMs) / totalPfMs * 100.0);
-		System.out.printf("Total nodes: Pathfinder=%d  Bidir=%d  (%.1f%%)%n",
+		System.out.printf("Total nodes: Pathfinder=%d  JPS=%d  (%.1f%%)%n",
 			totalPfNodes, totalBpfNodes, totalPfNodes > 0 ? (totalBpfNodes - totalPfNodes) * 100.0 / totalPfNodes : 0);
 		System.out.printf("Per-run time mean delta: %+.1f%%  median: %+.1f%%%n", meanPct, medianPct);
 	}
