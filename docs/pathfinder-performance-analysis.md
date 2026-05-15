@@ -172,17 +172,17 @@ The tables below use profile-enabled dashboard runs and compare the same phase/s
 
 ## Bidirectional BFS Status (2026-05-14)
 
-- First implementation committed on `perf/bidir-jps` (`91d6226d`).
-- Approach: hybrid forward (full production search) + rate-limited reverse (walking-only, targets-only seed) for dead-end detection.
-- A/B test harness available: `./gradlew bidirAB -PdashboardDataset=/dashboard/routes.csv`
-- Results on `routes.csv` (29 scenarios):
-  - Total time: 1186ms → 1162ms (-2.1%)
-  - Total nodes: 6.76M → 5.98M (-11.5%)
-  - Unreachable routes: near-instant (Brimhaven→Port Khazard: 195ms→0.1ms, White Knight 2F: 145ms→1.6ms)
-  - 22/29 routes agree on reachability; 3 disagree on path length (bidir finds shorter paths in some edge cases)
-  - Median per-run delta: +31.5% (reverse overhead on small reachable routes)
-- Key limitation: global transport-destination seeding caused 36M-node explosion; resolved with rate-limited, targets-only seeding
-- Next steps: path-length parity for disagreeing routes, reduce reverse overhead on reachable routes
+- Implementation on `perf/bidir-jps` (`90b04dd6`).
+- Approach: hybrid forward (reimplementation of production search) + deferred reverse (walking-only, targets seed) for dead-end detection.
+- Reverse starts after 2048 forward iterations without target found — eliminates overhead on routes with early transport shortcuts.
+- A/B harness: `./gradlew bidirAB -PdashboardDataset=/dashboard/routes.csv`
+- Latest results on `routes.csv` (29 scenarios):
+  - Total time: 1133ms → 948ms (**-16.3%**)
+  - Total nodes: 6.76M → 5.39M (**-20.3%**)
+  - Unreachable routes: near-instant (Brimhaven→Port Khazard: 177ms→0.4ms, White Knight 2F: 143ms→0.5ms, Auburnvale→Ferox Enclave: 88ms→0.5ms)
+  - 15/29 routes disagree on reachability/path-length (forward reimplementation diverges from production on some paths)
+- Known limitation: forward search reimplements production logic rather than wrapping it; 15 routes diverge.
+- Next step for correctness: wrap production `Pathfinder` and inject reverse BFS as an early-termination pre-check rather than duplicating the forward search.
 
 ## Delta Reconciliation
 
