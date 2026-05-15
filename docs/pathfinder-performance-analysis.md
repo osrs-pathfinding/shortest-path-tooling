@@ -122,8 +122,8 @@ The tables below use profile-enabled dashboard runs and compare the same phase/s
 ## Remaining Work
 
 - No remaining non-algorithmic hot-path items from C9/3.5/3.7.
-- Algorithmic branch work stays separate from this branch:
-  - bidirectional BFS (`perf/bidir-jps`)
+- Algorithmic branch work:
+  - bidirectional BFS (`perf/bidir-jps`): first implementation committed, A/B harness ready
   - JPS experiments (`perf/bidir-jps`)
   - region-graph precompute (`perf/region-graph`)
 
@@ -169,6 +169,20 @@ The tables below use profile-enabled dashboard runs and compare the same phase/s
   - Build static region connectivity first.
   - Add dynamic edge filters second.
   - Introduce hybrid search only after full regression parity.
+
+## Bidirectional BFS Status (2026-05-14)
+
+- First implementation committed on `perf/bidir-jps` (`91d6226d`).
+- Approach: hybrid forward (full production search) + rate-limited reverse (walking-only, targets-only seed) for dead-end detection.
+- A/B test harness available: `./gradlew bidirAB -PdashboardDataset=/dashboard/routes.csv`
+- Results on `routes.csv` (29 scenarios):
+  - Total time: 1186ms → 1162ms (-2.1%)
+  - Total nodes: 6.76M → 5.98M (-11.5%)
+  - Unreachable routes: near-instant (Brimhaven→Port Khazard: 195ms→0.1ms, White Knight 2F: 145ms→1.6ms)
+  - 22/29 routes agree on reachability; 3 disagree on path length (bidir finds shorter paths in some edge cases)
+  - Median per-run delta: +31.5% (reverse overhead on small reachable routes)
+- Key limitation: global transport-destination seeding caused 36M-node explosion; resolved with rate-limited, targets-only seeding
+- Next steps: path-length parity for disagreeing routes, reduce reverse overhead on reachable routes
 
 ## Delta Reconciliation
 
