@@ -48,6 +48,8 @@ public class ProfilingPathfinder {
     private int nodesChecked;
     private int transportsChecked;
 
+    private final NodeStore store = new NodeStore(1 << 20);
+
     // Shared neighbor list, matching CollisionMap's single-threaded assumption
     private final List<Node> neighbors = new ArrayList<>(16);
     private final boolean[] traversable = new boolean[8];
@@ -89,7 +91,8 @@ public class ProfilingPathfinder {
      */
     public void run() {
         long startNanos = System.nanoTime();
-        boundary.addFirst(new Node(start, null, 0, false));
+        int rootIdx = store.alloc(start, -1, 0, false);
+        boundary.addFirst(new PackedNode(store, rootIdx, null));
 
         long cutoffDurationMillis = config.getCalculationCutoffMillis();
         long cutoffTimeMillis = System.currentTimeMillis() + cutoffDurationMillis;
@@ -257,6 +260,7 @@ public class ProfilingPathfinder {
     // Only calls visited.get() (never visited.set()), returns the neighbor list.
 
     private List<Node> getTileNeighbors(Node node) {
+        final int parentIdx = (node instanceof PackedNode) ? ((PackedNode) node).idx : -1;
         final int x = WorldPointUtil.unpackWorldX(node.packedPosition);
         final int y = WorldPointUtil.unpackWorldY(node.packedPosition);
         final int z = WorldPointUtil.unpackWorldPlane(node.packedPosition);
@@ -358,7 +362,9 @@ public class ProfilingPathfinder {
                 if (!config.avoidWilderness(node.packedPosition, neighborPacked, targetInWilderness)
                     && !config.avoidBlockedRegion(node.packedPosition, neighborPacked, targetInBlockedRegion)) {
                     visited.set(nx, ny, z, pathBankVisited);
-                    boundary.addLast(new Node(neighborPacked, node, Node.cost(neighborPacked, node), pathBankVisited));
+                    int childCost = Node.cost(neighborPacked, node);
+                    int childIdx = store.alloc(neighborPacked, parentIdx, childCost, pathBankVisited);
+                    boundary.addLast(new PackedNode(store, childIdx, node));
                 }
             } else if (IS_CARDINAL[i] && map.isBlocked(nx, ny, z)) {
                 // Blocked-tile transport fallback
@@ -374,7 +380,9 @@ public class ProfilingPathfinder {
                         || visited.get(transport.getOrigin(), pathBankVisited)) {
                         continue;
                     }
-                    neighbors.add(new Node(transport.getOrigin(), node, Node.cost(transport.getOrigin(), node), pathBankVisited));
+                    int originCost = Node.cost(transport.getOrigin(), node);
+                    int originIdx = store.alloc(transport.getOrigin(), parentIdx, originCost, pathBankVisited);
+                    neighbors.add(new PackedNode(store, originIdx, node));
                 }
 
                 profile.blockedTileTransportNanos += System.nanoTime() - subStart;
