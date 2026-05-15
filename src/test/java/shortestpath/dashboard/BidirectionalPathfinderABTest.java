@@ -98,6 +98,10 @@ public class BidirectionalPathfinderABTest
 			bpf.run();
 			long bpfElapsed = System.nanoTime() - bpfStart;
 			PathfinderResult bpfResult = bpf.getResult();
+			if (pfResult == null || bpfResult == null) {
+				System.out.printf("[%2d/%-2d] %s %s  NO_RESULT%n", results.size()+1, scenarios.size(), "?", scenario.getName());
+				continue;
+			}
 
 			boolean bothReached = pfResult.isReached() && bpfResult.isReached();
 			boolean neitherReached = !pfResult.isReached() && !bpfResult.isReached();

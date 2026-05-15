@@ -201,16 +201,19 @@ The tables below use profile-enabled dashboard runs and compare the same phase/s
 
 ## Bidirectional BFS — Final Status
 
-- Implementation on `perf/bidir-jps` (`077eb1c4`).
+- Implementation on `perf/bidir-jps` (`c0fd68a3`).
 - Approach: pre-check reverse BFS + production `Pathfinder` forward search. Zero divergence.
-- Reverse BFS seeds: targets + origin-less teleport destinations.
-- Early exit: stops as soon as a transport destination is found in reverse (bridge exists).
+- Reverse BFS: walking-only from targets + all origin-less teleport destinations. Early exit at any transport destination.
+- Reverse transport propagation: when a transport destination is reached, also enqueues the transport's origin (follows transports backward through the graph).
 - Cached `PrimitiveIntHashMap` of all transport destinations for O(1) bridging checks.
 - A/B harness: `./gradlew bidirAB -PdashboardDataset=/dashboard/routes.csv`
-- Results on `routes.csv` (29 scenarios):
-  - Total time: 1226ms → 853ms (**-30.4%**)
+- Results on `routes.csv` (29 scenarios, latest rerun):
+  - Total time: 1143ms → 842ms (**-26.4%**)
   - Total nodes: 6.76M → 4.78M (**-29.2%**)
-  - Median per-run: **+1.0%** (negligible overhead on reachable routes)
   - Agreement: **29/29** (25 both-reached, 4 both-unreachable, 0 disagree)
-  - Unreachable routes: Brimhaven→Port Khazard 177ms→9ms, Mage Arena 140ms→19ms
+  - **Per-route user-experience (the metric that matters):**
+    - Reachable routes (25): median **+1.9%** overhead (negligible)
+    - Unreachable routes (4): Brimhaven 183ms→8ms, Mage Arena 137ms→18ms, White Knight 132ms→132ms, Auburnvale 92ms→95ms
+  - Early-exit unreachable detection is near-instant for truly disconnected components
+- JPS experiment: tried cardinal-scanning JPS for the reverse BFS walking expansion. Showed -42.3% total but 2 false negatives. Per-node JPS cost is higher than simple BFS, so JPS is net-neutral in the bounded (500k) reverse check. JPS remains a candidate for the forward Pathfinder where millions of nodes are explored.
 - Production readiness: pre-check is a drop-in wrapper — zero correctness risk.
