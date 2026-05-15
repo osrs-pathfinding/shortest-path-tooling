@@ -673,3 +673,206 @@ land and the design is stable.
    shaved from every scenario.
 4. After 1–3 land and ship, revisit O-3, O-5, B-6 if there's appetite
    for deeper changes.
+
+## O-1 — NodeStore initial capacity reduction (REVERTED, 2026-05-15)
+
+**Hypothesis:** the up-front `int[1<<20] + boolean[1<<20]` zero-fill in
+`NodeStore` was the cause of the short-path sub-millisecond regressions
+observed in the NodeStore A/B. Dropping the initial capacity to `1<<12`
+should let `grow()` (already implemented; doubles capacity) take care of
+larger searches at the cost of ~9 reallocations on a 1.5M-node worst case.
+
+**Result: regression. Reverted in `ce45b0f7`.**
+
+A/B vs the `1<<20` NodeStore baseline (`/tmp/dashboard-runs/o1-ux-report.md`):
+
+| Bucket | Metric | NS 1<<20 | NS 1<<12 | Delta |
+|---|---|---:|---:|---:|
+| Reachable (918) | Median | 81.1 ms | 86.8 ms | **+7.3%** |
+| Reachable (918) | p95 | 208 ms | 225 ms | +8.2% |
+| Reachable (918) | Max | 412 ms | **673 ms** | **+63%** |
+| Unreachable (59) | Median | 207 ms | 223 ms | +7.7% |
+| Unreachable (59) | Max | 234 ms | 319 ms | +36% |
+
+**Why the hypothesis was wrong.** Each `grow()` is a
+primitive-array copy of the *live* prefix, not the zero-fill of a fresh
+array — but on long searches it fires many times (each doubling copies
+more memory than the previous), and crucially each copy invalidates CPU
+data-cache lines that the hot expansion loop has just touched. The aggregate
+copy + cache-thrash cost on long searches exceeds the up-front zero-fill
+tax on short searches. `1<<20` is correct: pay the fixed setup once, then
+no reallocations for any realistic search.
+
+Commit `bb8c9732` is preserved on history for reference; `ce45b0f7` is
+the revert that returns `perf/optimise-pathfinder` to `1<<20`.
+
+## B-1 — Bidir `walkingOverlap` budget-exhaustion fix (committed, 2026-05-15)
+
+**Bug:** `walkingOverlap()` (forward walking-BFS from `start` capped at
+`OVERLAP_CAP=100_000` nodes, looking for any tile already visited by the
+reverse pre-check) returned `false` in two indistinguishable cases:
+
+1. The frontier emptied without finding any overlap (genuine "no
+   connectivity between start and reverse-visited set" — target really is
+   unreachable).
+2. The frontier hit `OVERLAP_CAP` without finding overlap (budget
+   exhausted; overlap is unknown).
+
+The caller treated both as "unreachable", so any scenario where the
+forward walking BFS from `start` had >100K reachable tiles before bumping
+into the reverse-visited set was incorrectly declared unreachable.
+
+**Fix (commit `a129cba7` on `perf/bidir-jps`):** Renamed to
+`walkingOverlapExhausted()`. Returns `true` only when `ff.isEmpty()` (the
+frontier actually drained) **and** no overlap was found. Budget exhaustion
+returns `false`, falling through to the forward `Pathfinder` — which
+correctly handles the dense-walking case.
+
+### Combined A/B on `perf/bidir-jps` after B-1
+
+`/tmp/dashboard-runs/bidir-b1-ux-report.md` (597 scenarios — the bidir A/B
+harness uses fewer scenarios than the dashboard because the minimal Mockito
+Client gates some clue locations):
+
+| Bucket | Metric | Pathfinder (NS) | Bidir + B-1 | Delta |
+|---|---|---:|---:|---:|
+| Reachable (464) | Median | 68.4 ms | 68.5 ms | +5.9% |
+| Reachable (464) | p95 | 260 ms | 267 ms | +2.6% |
+| Reachable (464) | Max | 626 ms | 533 ms | **−14.9%** |
+| Unreachable (133) | Median | 253 ms | 266 ms | +5.0% |
+| Unreachable (133) | Max | 461 ms | 471 ms | +2.1% |
+
+**Reachability disagreements (down from 2 to 1):**
+
+| Scenario | PF | Bidir+B1 |
+|---|---|---|
+| Great Conch → McGrubor's Wood with inventory Dramen staff | reached, 2.83 ms | unreachable, 8.97 ms |
+
+The second disagreement ("Banked Dramen staff should not leak to non-bank
+fairy-ring branch") is fixed by B-1. The remaining disagreement is a
+fairy-ring inventory-gated case that the reverse expansion can't bridge
+within `REVERSE_MAX = 500_000`. Resolving it likely requires teaching the
+reverse expansion to mirror the forward search's bank-state branching
+(more invasive) or further loosening the pre-check failure mode
+(safer — return "unknown" rather than "unreachable" when the reverse
+budget is exhausted in any way).
+
+### Production readiness
+
+Still **NOT** ready to ship — one false negative remains. The fix is
+small and well-scoped; recommend resolving the remaining Dramen-staff
+case with the same "treat budget exhaustion as unknown" pattern that B-1
+applied to `walkingOverlap`, this time applied to `reverseBFS`'s
+`REVERSE_MAX` exhaustion path.
+
+## Region Portal Pre-compute (perf/region-portals) — NEGATIVE RESULT, 2026-05-15
+
+**Hypothesis:** A coarse region-plane adjacency graph (every 64×64 region
+that has any walkable tile = one node; edges between regions whose boundary
+tiles can step across; transports add directed edges from origin-region to
+destination-region) gives a near-free reachability oracle. A BFS over this
+graph from `start` to `targets ∪ teleport-destinations` either proves
+"unreachable" (short-circuit the search) or returns "may be reachable" and
+defers to the forward `Pathfinder`. Conservative on unknown regions — never
+returns a false negative.
+
+**Implementation (`e5737578` on `perf/region-portals`):**
+
+- `RegionPortalIndex.java` — builds the graph once at `PathfinderConfig`
+  load time by scanning every region's boundary edges with
+  `CollisionMap.n/s/e/w`.
+- `Pathfinder.run()` — calls `config.getOrBuildPortalIndex().canReach(start, targets, config)`
+  before any of the heavy initialisation. Returns
+  `PathTerminationReason.SEARCH_EXHAUSTED` if the oracle proves
+  unreachable, otherwise proceeds normally.
+
+**Result: catastrophic per-search overhead. Branch shelved.**
+
+A/B vs `perf/optimise-pathfinder` (NodeStore baseline)
+— `/tmp/dashboard-runs/region-portals-ux-report.md`:
+
+| Bucket | Metric | NodeStore | Region-portals | Delta |
+|---|---|---:|---:|---:|
+| Reachable (918) | Median | 81.1 ms | **127 ms** | **+57.7%** |
+| Reachable (918) | p95 | 208 ms | 269 ms | +29% |
+| Reachable (918) | Max | 412 ms | **1337 ms** | **+225%** |
+| Unreachable (59) | Median | 207 ms | 262 ms | +27% |
+| Unreachable (59) | Max | 234 ms | 307 ms | +31% |
+
+Per-dataset reachable median deltas:
+
+| Dataset | NodeStore | Region-portals | Delta |
+|---|---:|---:|---:|
+| `clue-locations-full` | 96.2 ms | 143 ms | +51% |
+| `collision-map-issues` | 0.28 ms | 32.0 ms | +**12 282%** |
+| `quetzal-whistle-routes` | 0.73 ms | 34.6 ms | +**4 672%** |
+| `routes` | 6.68 ms | 40.6 ms | +507% |
+| `seasonal-briefcase-routes` | 0.28 ms | 31.6 ms | +**11 549%** |
+| `unit-tests` | 9.23 ms | 40.4 ms | +374% |
+
+The pre-check adds a roughly constant **~30 ms tax to every search**.
+Short paths (sub-millisecond on NodeStore) inflate by 100× or more.
+
+**Why.** Each `canReach()` seeds the BFS with `start` and *every* teleport
+destination from both bank states (hundreds of seeds). Because teleports
+span the map, the seed set's connected component is essentially the entire
+walkable world. The BFS visits a large fraction of the region graph
+(~3 000 region-plane nodes plus transport edges) on **every** search, and
+the per-region adjacency lookups dominate. The oracle is doing real work
+proportional to map size on a fast path that should be O(1).
+
+**Salvageable variants (not implemented):**
+
+1. **Skip the oracle when the start and target regions are connected in
+   the trivial sense** (same region, or walk-only distance ≤ a couple of
+   hops). Only run the BFS when the forward search is *expensive* — but
+   then the pre-check is just a slow proxy for the forward search.
+2. **Precompute connected components of the walking-only region graph
+   (no transports) once.** Reject unreachable iff start and any target are
+   in different walking components *and* no teleport bridges those two
+   components. This is an O(1) lookup, but the answer is almost always
+   "may be reachable" because teleports bridge most things — so the
+   oracle rarely fires while paying its O(1) cost on every search.
+3. **Move the oracle behind a cutoff hint** — invoke it only when the
+   forward search has already burned >N ms (i.e. as a fallback to decide
+   "give up now vs keep going"). This is structurally different from a
+   pre-check.
+
+None of these were implemented. The branch is left at `e5737578` for
+reference; **the code is not viable as written**.
+
+### Files (preserved on `perf/region-portals` for future reference)
+
+| File | Change |
+|---|---|
+| `RegionPortalIndex.java` (new, 332 lines) | Region-plane adjacency graph + `canReach` BFS |
+| `PathfinderConfig.java` (+13) | `getOrBuildPortalIndex()` lazy builder |
+| `Pathfinder.java` (+18) | Pre-check call at the top of `run()` |
+
+### Reproducing
+
+```bash
+git -C ../shortest-path checkout perf/region-portals
+cd /Users/frans/code/shortest-path-tooling
+# (move bidir-only tooling tests to _skip/ as they reference BidirectionalPathfinder)
+mkdir -p /tmp/dashboard-runs/region-portals
+for ds in routes unit-tests quetzal-whistle-routes collision-map-issues \
+          seasonal-briefcase-routes clue-locations-full; do
+  case "$ds" in
+    routes) csv=routes.csv;;
+    unit-tests) csv=unit-tests.csv;;
+    quetzal-whistle-routes) csv=quetzal_whistle_routes.csv;;
+    collision-map-issues) csv=collision-map-issues.csv;;
+    seasonal-briefcase-routes) csv=seasonal_briefcase_routes.csv;;
+    clue-locations-full) csv=clue_locations_full.csv;;
+  esac
+  ../shortest-path/gradlew --quiet dashboard \
+    -PdashboardDataset=/dashboard/$csv -PdashboardProfile=false
+  mkdir -p /tmp/dashboard-runs/region-portals/$ds
+  cp build/reports/pathfinder-dashboard/bundles/$ds/report.json \
+     /tmp/dashboard-runs/region-portals/$ds/
+done
+python3 scripts/analyse_dashboard_runs.py \
+    /tmp/dashboard-runs/nodestore /tmp/dashboard-runs/region-portals \
+    --label-baseline "NodeStore" --label-candidate "Region-portals"
+```
