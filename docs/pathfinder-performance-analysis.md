@@ -198,3 +198,19 @@ The tables below use profile-enabled dashboard runs and compare the same phase/s
 
 - This document is now intentionally concise and current-state oriented.
 - Detailed algorithmic workstream notes were restored per request.
+
+## Bidirectional BFS — Final Status
+
+- Implementation on `perf/bidir-jps` (`077eb1c4`).
+- Approach: pre-check reverse BFS + production `Pathfinder` forward search. Zero divergence.
+- Reverse BFS seeds: targets + origin-less teleport destinations.
+- Early exit: stops as soon as a transport destination is found in reverse (bridge exists).
+- Cached `PrimitiveIntHashMap` of all transport destinations for O(1) bridging checks.
+- A/B harness: `./gradlew bidirAB -PdashboardDataset=/dashboard/routes.csv`
+- Results on `routes.csv` (29 scenarios):
+  - Total time: 1226ms → 853ms (**-30.4%**)
+  - Total nodes: 6.76M → 4.78M (**-29.2%**)
+  - Median per-run: **+1.0%** (negligible overhead on reachable routes)
+  - Agreement: **29/29** (25 both-reached, 4 both-unreachable, 0 disagree)
+  - Unreachable routes: Brimhaven→Port Khazard 177ms→9ms, Mage Arena 140ms→19ms
+- Production readiness: pre-check is a drop-in wrapper — zero correctness risk.
