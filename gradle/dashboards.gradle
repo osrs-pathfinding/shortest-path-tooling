@@ -99,7 +99,8 @@ tasks.register('bidirAB', Test) {
     group = 'verification'
     description = 'Runs A/B comparison between Pathfinder and BidirectionalPathfinder. ' +
             'Options (all via -P): dashboardDataset (default: /dashboard/routes.csv), ' +
-            'bidir.maxScenarios (default: 50).'
+            'bidir.maxScenarios (default: all), bidir.outputDir (default: build/reports/bidir-ab). ' +
+            'Writes per-scenario JSONL to <outputDir>/<datasetName>.jsonl.'
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
@@ -114,5 +115,8 @@ tasks.register('bidirAB', Test) {
     systemProperty 'dashboard.dataset', dashboardDataset.get()
     if (providers.gradleProperty('bidir.maxScenarios').isPresent()) {
         systemProperty 'bidir.maxScenarios', providers.gradleProperty('bidir.maxScenarios').get()
+    }
+    if (providers.gradleProperty('bidir.outputDir').isPresent()) {
+        systemProperty 'bidir.outputDir', providers.gradleProperty('bidir.outputDir').get()
     }
 }
