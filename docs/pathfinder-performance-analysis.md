@@ -465,3 +465,211 @@ Currently **NOT** ready to ship as a drop-in wrapper because of the two
 false-negative scenarios. With the proposed Option (1) safety net, the
 pre-check becomes a pure performance optimisation with zero correctness
 risk and can replace the forward-only path.
+
+## Optimisation Opportunities — Code Audit (2026-05-15)
+
+A full read of `Pathfinder.java`, `NodeStore.java`, and
+`BidirectionalPathfinder.java` against the use-case constraint (users
+plan paths *infrequently* — one search at a time, latency-sensitive,
+never a hot loop). Findings are split per branch so that
+`perf/optimise-pathfinder` and `perf/bidir-jps` stay focused.
+
+### Findings on `perf/optimise-pathfinder`
+
+#### O-1 (HIGH IMPACT, LOW RISK) — `NodeStore` over-allocates on construction
+
+`Pathfinder.java:47` instantiates `new NodeStore(1 << 20)`. The
+`NodeStore` constructor immediately allocates `int[1<<20]` × 3 plus
+`boolean[1<<20]` ≈ **12 MB of zero-initialised memory on every search
+construction**, even for sub-millisecond reachable routes (e.g. start
+already adjacent to a transport).
+
+`NodeStore.java` already has a `grow()` method that doubles capacity on
+overflow, so initial capacity is purely a memory/latency knob with no
+correctness consequence.
+
+This is the single most likely cause of the per-route regressions on
+short paths (the dashboard NodeStore A/B shows several +100% / +250%
+deltas on sub-ms scenarios). Each search pays the allocation tax up
+front; on long searches it amortises, on short ones it dominates.
+
+**Fix:** drop the initial capacity to e.g. `1 << 12` (4096). The hot
+path's worst observed `nodesChecked` is ~1.5 M (master max), so `grow()`
+will fire ~9 times in the worst case, each copying the live prefix — 9
+× ~6 MB writes ≈ trivially small compared to the savings on the
+millions of short searches.
+
+**Expected outcome:** restores sub-ms latency floor on short routes
+while preserving the unreachable-max gain.
+
+**Risk:** none — `grow()` is already exercised; no behavioural change.
+
+#### O-2 (LOW IMPACT, LOW RISK) — `boundary` and `pending` allocated per search
+
+`Pathfinder.java:29-30` allocates `ArrayDeque<>(4096)` and
+`PriorityQueue<>(256)` in field initialisers. Together ~40 KB. With a
+once-per-minute search this is irrelevant. Skip unless O-1 measurement
+proves more is needed.
+
+#### O-3 (MEDIUM IMPACT, MEDIUM RISK) — `addNeighbors` returns `List<Node>`
+
+`Pathfinder.java:170` calls `map.getNeighbors(...)` returning a
+`List<Node>`. For each call this allocates a list (plus iterator) even
+when most neighbours go through the primitive store. The non-tile path
+(transports, teleports) is genuinely heap-bound, but the *list itself*
+is wasted on the tile-only fast path.
+
+**Fix sketch:** change `getNeighbors` to write into a caller-provided
+`ArrayList<Node>` that is cleared per call (or even better, split into
+`addTileNeighbors` (pure primitive into `boundary`) and
+`addNonTileNeighbors` (returns the list)). This needs care because
+`CollisionMap.getNeighbors` is also used elsewhere.
+
+**Expected outcome:** 5–15% on the long forward searches.
+
+**Risk:** medium — touches a widely-used API surface.
+
+#### O-4 (LOW IMPACT, LOW RISK) — `pending` PQ ordering still relies on heap nodes
+
+`TransportNode` is still allocated on heap (acknowledged by the comment
+at `Pathfinder.java:44-47`). The PQ holds these to order by
+`compareCost()`. Packing transport-node state into `NodeStore` with a
+parallel `priorityCost` column would eliminate the remaining
+heap-allocation hotspot, but transport-node counts are 1000–2000× lower
+than tile-node counts so the savings are modest. **Defer.**
+
+#### O-5 (UNVERIFIED, INVESTIGATE) — `VisitedTiles` per-region bitmap allocation
+
+`Pathfinder.java:31` allocates `new VisitedTiles(map)` per search. On
+first use it lazily creates per-region bitmaps. For a search that
+crosses N regions, this is N × bitmap allocations. If the dashboard
+short-path regression survives O-1, this is the next suspect.
+
+**Action:** read `VisitedTiles.java`, measure first-search GC behaviour.
+
+### Findings on `perf/bidir-jps`
+
+#### B-1 (HIGH IMPACT, HIGH VALUE — correctness blocker) — Pre-check returns false-negative on budget exhaustion
+
+`BidirectionalPathfinder.java:116`:
+```java
+if (complete && !walkingOverlap())
+{
+    // declare unreachable, return early without forward search
+    ...
+}
+```
+
+`reverseBFS()` returns `true` only when `frontier.isEmpty() && n <
+REVERSE_MAX`. If `n` hit `REVERSE_MAX` first, the reverse search was
+*budget-exhausted*, not *exhausted*. The current code treats both
+cases as "exhausted" and then relies on `walkingOverlap()` to catch
+mistakes. But `walkingOverlap` is capped at 100 000 tiles, so two
+budgets in series can both run out while the route remains reachable.
+
+This is the root cause of the two `unit-tests.csv` false negatives
+documented above.
+
+**Fix (Option 1 from the bidir section):** change the conditional so
+that when the reverse BFS hit `REVERSE_MAX`, the code falls through to
+the forward Pathfinder regardless of `walkingOverlap` result. Only
+declare unreachable when the reverse frontier *naturally exhausts*
+(no more reverse-walkable tiles) AND no walking overlap exists.
+
+Concretely:
+
+```java
+private boolean reverseExhaustedBudget;
+private boolean reverseBFS() {
+    ...
+    reverseExhaustedBudget = !(frontier.isEmpty()) && n >= REVERSE_MAX;
+    return frontier.isEmpty() && n < REVERSE_MAX;
+}
+...
+if (complete && !walkingOverlap() && !reverseExhaustedBudget)
+{
+    // genuine unreachable
+}
+```
+
+**Expected outcome:** eliminates the 2 false negatives; on those
+scenarios the forward search runs (small cost — both were sub-20 ms).
+
+**Risk:** essentially none — net behaviour becomes "pre-check is a hint,
+forward search is the source of truth".
+
+#### B-2 (HIGH IMPACT, LOW RISK) — Reverse transport-index built per search
+
+`BidirectionalPathfinder.java:50-90` (`buildDestinationSet` +
+`buildReverseTransportIndex`) iterate every transport × both bank states
+in the constructor. With ~2000 transports each, this is a few hundred
+KB of object churn and a couple of ms of work — **paid on every
+single search**, including the ones the pre-check would catch
+near-instantly.
+
+**Fix:** cache both structures keyed by `PathfinderConfig` identity (or
+a config version counter). Build once when config first appears, reuse
+across all searches until the config invalidates. `PathfinderConfig`
+already knows when usable teleports change.
+
+Even simpler: hold the cache in `PathfinderConfig` itself (e.g.
+`getOrComputeAllDestinations()`) so the bidir wrapper is just a reader.
+
+**Expected outcome:** 2–5 ms shaved off *every* bidir search. On short
+reachable routes this is a meaningful percentage.
+
+**Risk:** low — cache invalidation triggers already exist when
+teleport-set changes (varbits, region unlocks).
+
+#### B-3 (LOW IMPACT, LOW RISK) — `walkingOverlap` allocates per call
+
+`BidirectionalPathfinder.java:166-167` (`ArrayDeque` + `PrimitiveIntHashMap(1024)`).
+Field-promote and `clear()` per search instead. Trivial.
+
+#### B-4 (LOW IMPACT, MEDIUM RISK) — JPS uses Java recursion
+
+`jpsScan` and `jpsDiag` recurse straight-line until a forced neighbour
+or block. On long open corridors this can blow stack depth or thrash
+the JIT. Iterativise into a `while` loop with explicit `x += dx; y +=
+dy`. Performance gain is small (warm JIT inlines recursion anyway) but
+removes the StackOverflowError risk.
+
+#### B-5 (DESIGN, MEDIUM EFFORT) — `revTransportIndex` built via `HashMap` then copied
+
+`buildReverseTransportIndex` (lines 78-90) constructs a
+`java.util.HashMap<Integer, List<Transport>>` and then copies to a
+`PrimitiveIntHashMap`. Two allocations + autoboxing. Build into the
+primitive map directly. Only relevant if B-2 doesn't make this moot.
+
+#### B-6 (DESIGN, LARGE EFFORT) — Run pre-check and forward search concurrently
+
+Currently the pre-check runs first; only if it reports "may be
+reachable" does the forward search start. For unreachable routes this
+is great. For reachable routes, it's pure overhead.
+
+**Idea:** fork a background thread for the forward search the instant
+`run()` is called. Run the reverse pre-check on the calling thread. If
+the pre-check returns "unreachable" first, cancel the forward thread.
+Otherwise await the forward result.
+
+**Expected outcome:** reachable-route overhead → ~0; unreachable-route
+detection unchanged.
+
+**Risk:** introduces threading, must respect existing
+`Pathfinder.cancel()` semantics. Worth doing only after B-1 and B-2
+land and the design is stable.
+
+### Recommended Sequence
+
+1. **`perf/optimise-pathfinder`**: land O-1 (NodeStore initial capacity
+   to `1 << 12`). Re-run the dashboard A/B and check whether the
+   short-path regressions disappear. If they do, that branch is
+   ready to ship.
+2. **`perf/bidir-jps`**: land B-1 (correctness fallback). Re-run the
+   bidir A/B harness and confirm the 2 unit-tests disagreements are
+   gone.
+3. **`perf/bidir-jps`**: land B-2 (cache transport-index in
+   `PathfinderConfig`). Re-run the A/B and look for a couple of ms
+   shaved from every scenario.
+4. After 1–3 land and ship, revisit O-3, O-5, B-6 if there's appetite
+   for deeper changes.
