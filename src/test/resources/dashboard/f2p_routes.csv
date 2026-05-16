@@ -23,6 +23,13 @@ Lumbridge → Barbarian Village (canoe),canoe,3222,3218,0,3082,3420,0,UNIT_TEST,
 Edgeville → Ferox Enclave (canoe),canoe,3087,3496,0,3128,3631,0,UNIT_TEST,1351:1,,,,WOODCUTTING=57,useCanoes=true,,
 # --- Ships ---
 Port Sarim → Musa Point,ship,3027,3222,0,2956,3146,0,UNIT_TEST,995:10000,,,,,useShips=true,,
+# --- More walking routes ---
+Port Sarim → Draynor Village,walk,3027,3222,0,3092,3243,0,UNIT_TEST,,,,,,,,
+Goblin Village → Barbarian Village,walk,2956,3506,0,3082,3420,0,UNIT_TEST,,,,,,,,
+# --- Failure routes (members-only areas; expected to produce no F2P path) ---
+Falador → Castle Wars,fail,2964,3378,0,2442,3093,0,UNIT_TEST,,,,,,,,
+Varrock → Ardougne,fail,3183,3440,0,2662,3305,0,UNIT_TEST,,,,,,,,
+Port Sarim → Karamja Interior,fail,3027,3222,0,2823,3150,0,UNIT_TEST,,,,,,,,
 # --- Wilderness (F2P accessible up to level 47-48 fence) ---
 Edgeville → Ferox Enclave (walk),wilderness,3087,3496,0,3128,3631,0,UNIT_TEST,,,,,,avoidWilderness=false,,
 Edgeville → Hobgoblin Mine,wilderness,3087,3496,0,3300,3820,0,UNIT_TEST,,,,,,avoidWilderness=false,,
