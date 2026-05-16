@@ -128,6 +128,57 @@ tasks.register('leagueRegionDump', Test) {
     }
 }
 
+// Generates the regionId -> F2P/MEMBERS mapping consumed by F2pRegionChecker.
+// Reads the curated bounding-box source-of-truth at
+// src/test/resources/f2p_regions.tsv, walks every surface-level map region
+// (chunkY < 100) in the cache, and emits the result as a TSV. Underground
+// chunks are omitted (they default to UNKNOWN = permissive at runtime).
+//
+// Usage:
+//   collision-map-update/download-latest-cache.sh
+//   sed -i '' 's/mapsquare/region/g; s/key/keys/g' keys.json
+//   ./gradlew f2pRegionDump \
+//     -Pf2pRegionsCacheDir=$PWD/cache \
+//     -Pf2pRegionsXteaPath=$PWD/keys.json
+//   cp build/f2p-regions/regions.tsv \
+//     shortest-path/src/main/resources/f2p/regions.tsv
+def f2pRegionsCacheDir = providers.gradleProperty('f2pRegionsCacheDir').orElse('')
+def f2pRegionsXteaPath = providers.gradleProperty('f2pRegionsXteaPath').orElse('')
+def f2pRegionsOutput = providers.gradleProperty('f2pRegionsOutput')
+        .orElse(layout.buildDirectory.file('f2p-regions/regions.tsv').get().asFile.absolutePath)
+
+tasks.register('f2pRegionDump', Test) {
+    group = 'cache dumpers'
+    description = 'Generates regions.tsv (regionId -> F2P|MEMBERS) for the F2P mode filter. ' +
+            'Required: -Pf2pRegionsCacheDir=<cache dir>, -Pf2pRegionsXteaPath=<keys.json>. ' +
+            'Optional: -Pf2pRegionsOutput=<tsv path>.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/F2pRegionDumperTest.class'
+    systemProperty 'f2p.regions.dump', 'true'
+    systemProperty 'f2p.regions.cacheDir', f2pRegionsCacheDir.get()
+    systemProperty 'f2p.regions.xteaPath', f2pRegionsXteaPath.get()
+    systemProperty 'f2p.regions.output', f2pRegionsOutput.get()
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging {
+        showStandardStreams = true
+    }
+    doFirst {
+        if (f2pRegionsCacheDir.get().isEmpty() || f2pRegionsXteaPath.get().isEmpty()) {
+            throw new GradleException("f2pRegionDump requires -Pf2pRegionsCacheDir and -Pf2pRegionsXteaPath. " +
+                    "Run collision-map-update/download-latest-cache.sh first to produce ./cache and ./keys.json, " +
+                    "then patch keys.json (mapsquare->region, key->keys).")
+        }
+    }
+    doLast {
+        logger.lifecycle("")
+        logger.lifecycle("F2P region mapping written to ${f2pRegionsOutput.get()}")
+        logger.lifecycle("Copy into the plugin with:")
+        logger.lifecycle("  cp ${f2pRegionsOutput.get()} shortest-path/src/main/resources/f2p/regions.tsv")
+    }
+}
+
 // One-off probe that prints league-related item IDs (Banker's Briefcase, etc.)
 // from the cache to stdout. Useful when refreshing the hard-coded numeric IDs
 // in shortest-path/src/main/resources/transports/seasonal_transports.tsv.

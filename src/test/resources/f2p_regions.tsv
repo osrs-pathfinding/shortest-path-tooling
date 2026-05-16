@@ -1,0 +1,83 @@
+# F2P bounding boxes — source-of-truth for F2pRegionDumperTest.
+#
+# Each row is a rectangular world-coordinate bounding box covering an
+# F2P-accessible surface area. The dumper intersects these boxes with every
+# surface-level OSRS map region (64x64 chunk) in the cache and emits a
+# regionId -> tag TSV consumed by
+# shortest-path/src/main/resources/f2p/regions.tsv.
+#
+# CLASSIFICATION RULE (differs from leagues_regions.tsv):
+#   A SURFACE chunk (chunkY = regionId & 0xFF < 100, i.e. world y < 6400)
+#   that overlaps ANY box below (overlap area >= 1 tile) is tagged F2P.
+#   Every other loaded surface chunk is tagged MEMBERS.
+#   Underground/instanced chunks (chunkY >= 100) are omitted from the
+#   output entirely, which makes F2pRegionChecker return UNKNOWN for them
+#   at runtime — UNKNOWN is treated as permissive (F2P-accessible). This
+#   is intentional: F2P players can enter the Edgeville Dungeon, Varrock
+#   Sewers, Dwarven Mine, etc. The membersOnly transport flag separately
+#   prevents routing through members-only dungeon entrances.
+#
+# Wilderness fence note: F2P players can pass through the three gates at
+# wilderness levels 47-48. Deep wilderness above the fence is members-only
+# and falls outside the wilderness box below.
+#
+# Mudskipper Point note: the land is F2P-accessible; the fairy ring (AIQ)
+# on the peninsula is a members-only transport and is filtered separately.
+#
+# Boxes are inclusive on both ends. Sources cross-checked against the
+# OSRS wiki free-to-play article and transportation article.
+#
+# Format:
+#   tag<TAB>xMin<TAB>xMax<TAB>yMin<TAB>yMax
+
+# === Main F2P mainland (Misthalin + Asgarnia) ===
+#
+# Single broad box covers: Lumbridge (castle/swamp/cow field), Draynor
+# (village/manor/sewers entrance), Wizards' Tower island, Varrock (city/
+# GE/Champions' Guild/Earth Altar), Falador (both banks/party room/farm
+# patch), Barbarian Village (Stronghold of Security entrance), Edgeville
+# (bank/monastery/dungeon entrance/yew trees), Ice Mountain (Camdozaal
+# stair), Goblin Village, Port Sarim (docks/jail/Entrana pier), Rimmington
+# (Melzar's Maze entrance), Crafting Guild, Al Kharid (city/mine/tannery/
+# Emir's Arena), Shantay Pass, Fire Altar ruins, Body/Mind/Water/Earth
+# Altar ruins, and all connecting roads.
+# A narrow sliver of Kharidian Desert at the south-east corner (x>3270,
+# y<3130) is over-covered; those chunks have no F2P destinations so the
+# pathfinder never routes through them.
+F2P	2920	3395	3085	3535
+
+# Mudskipper Point peninsula (south of Port Sarim, outside the main box).
+# The surface land is F2P-accessible; the fairy ring transport is filtered
+# by the membersOnly transport flag.
+F2P	2975	3068	3085	3148
+
+# Air Altar mysterious ruins (south-west of Falador, outside main box x).
+# The corridor from Falador west heading south-west to the ruins is F2P.
+F2P	2834	2922	3340	3378
+
+# === Wilderness (F2P up to the fence at levels 47-48) ===
+#
+# F2P players can reach wilderness levels 47-48 via three gates in the
+# fence. Deep wilderness above the fence (Resource Area, Mage Arena,
+# God Wars Dungeon) is members-only and starts above y≈3904.
+# Notable F2P spots: Ferox Enclave (3128, 3631), Hobgoblin Mine (~3300,
+# 3820), moss giant spawns (~3230, 3838), Lava Dragon Isle (~3215, 3855).
+# The KBD trapdoor (~3017, 3850) and similar dungeon entrances are gated
+# by members-only transport flags — the surface chunks are walkable F2P.
+F2P	2944	3395	3520	3910
+
+# === Karamja (F2P portions only) ===
+
+# Musa Point: gangplank landing, banana plantation strip, customs officer.
+# The jungle further south/west is members territory.
+F2P	2910	2968	3135	3175
+
+# West Karamja coast: Crandor & Karamja Dungeon surface entrance.
+F2P	2815	2878	3135	3192
+
+# Crandor island (Dragon Slayer I quest island).
+F2P	2808	2895	3218	3306
+
+# === Corsair Cove (after starting The Corsair Curse quest) ===
+# Excludes Myth's Guild area (members; sits at ~2454, 2845).
+F2P	2519	2632	2812	2910
