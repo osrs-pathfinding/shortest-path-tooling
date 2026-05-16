@@ -28,6 +28,11 @@ public final class PathfinderDashboardModels {
          * region overlay (red tint for Misthalin, distinct hues elsewhere).
          */
         public boolean seasonal;
+        /**
+         * F2P dashboard flag. When true, the frontend fetches the bundled
+         * {@code f2p_regions.tsv} and tints members-only chunks.
+         */
+        public boolean f2p;
     }
 
     public static class Summary {

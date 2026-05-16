@@ -9,6 +9,8 @@ def dashboardProfile = providers.gradleProperty('dashboardProfile')
         .orElse('true')
 def dashboardSeasonal = providers.gradleProperty('dashboardSeasonal')
         .orElse('false')
+def dashboardF2p = providers.gradleProperty('dashboardF2p')
+        .orElse('false')
 // Derive bundle name and title from the dataset filename + profile flag.
 // e.g. dataset=/dashboard/clue_locations_full.csv, profile=true
 //   → bundle: clue-locations-full-profiled, title: Clue Locations Full Profiled
@@ -37,7 +39,8 @@ tasks.register('dashboard', Test) {
             'Options (all via -P): dashboardDataset (default: /dashboard/routes.csv), ' +
             'dashboardBundle, dashboardTitle, dashboardSubtitle, dashboardProfile (default: true), ' +
             'dashboardSeasonal (default: false; tags the bundle so the frontend renders the ' +
-            'Demonic Pacts League regions overlay).'
+            'Demonic Pacts League regions overlay), ' +
+            'dashboardF2p (default: false; tags the bundle so the frontend tints members-only chunks).'
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
@@ -55,6 +58,7 @@ tasks.register('dashboard', Test) {
     systemProperty 'dashboard.dataset', dashboardDataset.get()
     systemProperty 'dashboard.profile', dashboardProfile.get()
     systemProperty 'dashboard.seasonal', dashboardSeasonal.get()
+    systemProperty 'dashboard.f2p', dashboardF2p.get()
     if (!dashboardTitle.get().isEmpty()) {
         systemProperty 'dashboard.title', dashboardTitle.get()
     }

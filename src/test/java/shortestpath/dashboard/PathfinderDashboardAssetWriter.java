@@ -24,6 +24,7 @@ public class PathfinderDashboardAssetWriter {
      */
     private static final String[][] OPTIONAL_PLUGIN_ASSETS = {
         {"/leagues/regions.tsv", "regions.tsv"},
+        {"/f2p/regions.tsv", "f2p_regions.tsv"},
         {"/collision-map.zip", "collision-map.zip"}
     };
 

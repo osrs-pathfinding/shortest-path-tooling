@@ -250,6 +250,9 @@ public class DashboardTest {
         // additional system property.
         report.seasonal = Boolean.parseBoolean(System.getProperty("dashboard.seasonal", "false"))
             || (bundleName != null && bundleName.toLowerCase(java.util.Locale.ROOT).startsWith("seasonal"));
+        // Same convention for F2P bundles: `f2p-…` slug or -PdashboardF2p=true.
+        report.f2p = Boolean.parseBoolean(System.getProperty("dashboard.f2p", "false"))
+            || (bundleName != null && bundleName.toLowerCase(java.util.Locale.ROOT).startsWith("f2p"));
 
         bundlePublisher.publishBundle(bundleName, report);
 

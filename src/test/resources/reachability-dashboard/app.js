@@ -373,6 +373,100 @@ async function applyLeagueRegionsOverlay(seasonal) {
   setLeagueRegionLegendVisible(Boolean(checked));
 }
 
+// ── F2P — members-chunk overlay ───────────────────────────────────────
+//
+// Mirrors the league-region overlay. Rendered only when the loaded bundle
+// has {@code report.f2p === true}. f2p_regions.tsv is published next to
+// index.html by the asset writer (from the plugin's /f2p/regions.tsv
+// resource) — one row per region: "<regionId>\t<F2P|MEMBERS>".
+const F2P_MEMBERS_COLOR = "#dc2626";
+
+const f2pRegionsLayer = L.layerGroup();
+let f2pRegionsToggle = null;
+let f2pRegionsToggleVisible = false;
+let f2pRegionsFetchPromise = null;
+let f2pRegionsLoaded = false;
+
+async function fetchF2pRegions() {
+  if (f2pRegionsFetchPromise) {
+    return f2pRegionsFetchPromise;
+  }
+  f2pRegionsFetchPromise = (async () => {
+    const resp = await fetch("f2p_regions.tsv");
+    if (!resp.ok) {
+      throw new Error("f2p_regions.tsv missing — run with -PdashboardF2p=true and ensure /f2p/regions.tsv is on the plugin classpath.");
+    }
+    const text = await resp.text();
+    text.split(/\r?\n/).forEach(line => {
+      if (!line || line.startsWith("#")) return;
+      const [idStr, tag] = line.split("\t");
+      const regionId = parseInt(idStr, 10);
+      if (!Number.isFinite(regionId) || !tag) return;
+      if (tag.trim().toUpperCase() !== "MEMBERS") return;
+      // Region id encodes (chunkX << 8) | chunkY, each chunk is 64 tiles.
+      const minX = (regionId >> 8) * 64;
+      const minY = (regionId & 0xff) * 64;
+      const rect = L.rectangle([
+        [minY, minX],
+        [minY + 64, minX + 64]
+      ], {
+        color: F2P_MEMBERS_COLOR,
+        weight: 0.5,
+        opacity: 0.5,
+        fillColor: F2P_MEMBERS_COLOR,
+        fillOpacity: 0.25,
+        interactive: false
+      });
+      f2pRegionsLayer.addLayer(rect);
+    });
+    f2pRegionsLoaded = true;
+  })();
+  return f2pRegionsFetchPromise;
+}
+
+function ensureF2pRegionsToggle() {
+  if (f2pRegionsToggle) return;
+  f2pRegionsToggle = {
+    label: "Members-only chunks",
+    checked: true,
+    onChange: (visible) => {
+      if (visible && f2pRegionsLoaded && f2pRegionsToggleVisible) {
+        f2pRegionsLayer.addTo(map);
+      } else {
+        map.removeLayer(f2pRegionsLayer);
+      }
+    }
+  };
+  window.addMapLayerToggle(f2pRegionsToggle);
+}
+
+function setF2pRegionsToggleVisible(visible) {
+  f2pRegionsToggleVisible = visible;
+  if (!f2pRegionsToggle || !f2pRegionsToggle._input) return;
+  const row = f2pRegionsToggle._input.parentElement;
+  if (row) row.style.display = visible ? "" : "none";
+}
+
+async function applyF2pRegionsOverlay(f2p) {
+  if (!f2p) {
+    map.removeLayer(f2pRegionsLayer);
+    setF2pRegionsToggleVisible(false);
+    return;
+  }
+  ensureF2pRegionsToggle();
+  setF2pRegionsToggleVisible(true);
+  try {
+    await fetchF2pRegions();
+  } catch (err) {
+    console.warn("[f2p-regions]", err);
+    return;
+  }
+  const checked = f2pRegionsToggle._input && f2pRegionsToggle._input.checked;
+  if (checked) {
+    f2pRegionsLayer.addTo(map);
+  }
+}
+
 // ── Chunk coordinate labels overlay ──────────────────────────────────
 //
 // Shows "cx, cy" at the centre of every 64×64 map region.
@@ -1223,6 +1317,7 @@ function renderReport(report) {
   selectedRun = null;
   clearLayers();
   applyLeagueRegionsOverlay(Boolean(report.seasonal));
+  applyF2pRegionsOverlay(Boolean(report.f2p));
   const summaryLines = [];
   if (report.title) {
     summaryLines.push(report.title);
