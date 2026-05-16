@@ -1,0 +1,28 @@
+name,category,start_x,start_y,start_plane,x,y,plane,preset,inventory,equipment,bank,varbits,skill_levels,config_overrides,expected_length,minimum_length
+# --- Walking routes between F2P landmarks ---
+Lumbridge → Draynor Village,walk,3222,3218,0,3092,3243,0,UNIT_TEST,,,,,,useAgilityShortcuts=true,,
+Lumbridge → Varrock,walk,3222,3218,0,3183,3440,0,UNIT_TEST,,,,,,useAgilityShortcuts=true,,
+Varrock → Falador,walk,3183,3440,0,2964,3378,0,UNIT_TEST,,,,,,useAgilityShortcuts=true,,
+Falador → Port Sarim,walk,2964,3378,0,3027,3222,0,UNIT_TEST,,,,,,,,
+Lumbridge → Al Kharid,walk,3222,3218,0,3269,3167,0,UNIT_TEST,,,,,,,,
+Falador → Rimmington,walk,2964,3378,0,2957,3214,0,UNIT_TEST,,,,,,,,
+Edgeville → Varrock,walk,3087,3496,0,3183,3440,0,UNIT_TEST,,,,,,useAgilityShortcuts=true,,
+Falador → Goblin Village,walk,2964,3378,0,2956,3506,0,UNIT_TEST,,,,,,,,
+Edgeville → Barbarian Village,walk,3087,3496,0,3082,3420,0,UNIT_TEST,,,,,,,,
+Varrock → Wizards Tower,walk,3183,3440,0,3104,3162,0,UNIT_TEST,,,,,,,,
+Port Sarim → Mudskipper Point,walk,3027,3222,0,2989,3111,0,UNIT_TEST,,,,,,,,
+Lumbridge → Crafting Guild,walk,3222,3218,0,2934,3290,0,UNIT_TEST,,,,,,,,
+Falador → Ice Mountain,walk,2964,3378,0,3007,3474,0,UNIT_TEST,,,,,,,,
+# --- Teleportation spells (standard spells; note: type-level F2P filtering may be sub-optimal) ---
+Edgeville → Lumbridge (Home Teleport),teleport,3087,3496,0,3222,3218,0,UNIT_TEST,,,,,,useTeleportationSpells=true,,
+Lumbridge → Varrock (Varrock Teleport),teleport,3222,3218,0,3213,3424,0,UNIT_TEST,556:3;554:1;563:1,,,,MAGIC=25,useTeleportationSpells=true,,
+Varrock → Falador (Falador Teleport),teleport,3213,3424,0,2964,3378,0,UNIT_TEST,555:1;556:3;563:1,,,,MAGIC=37,useTeleportationSpells=true,,
+# --- Canoes (River Lum) ---
+Lumbridge → Edgeville (canoe),canoe,3222,3218,0,3087,3496,0,UNIT_TEST,1351:1,,,,WOODCUTTING=42,useCanoes=true,,
+Lumbridge → Barbarian Village (canoe),canoe,3222,3218,0,3082,3420,0,UNIT_TEST,1351:1,,,,WOODCUTTING=12,useCanoes=true,,
+Edgeville → Ferox Enclave (canoe),canoe,3087,3496,0,3128,3631,0,UNIT_TEST,1351:1,,,,WOODCUTTING=57,useCanoes=true,,
+# --- Ships ---
+Port Sarim → Musa Point,ship,3027,3222,0,2956,3146,0,UNIT_TEST,995:10000,,,,,useShips=true,,
+# --- Wilderness (F2P accessible up to level 47-48 fence) ---
+Edgeville → Ferox Enclave (walk),wilderness,3087,3496,0,3128,3631,0,UNIT_TEST,,,,,,avoidWilderness=false,,
+Edgeville → Hobgoblin Mine,wilderness,3087,3496,0,3300,3820,0,UNIT_TEST,,,,,,avoidWilderness=false,,

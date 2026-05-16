@@ -114,7 +114,7 @@ public final class DashboardScenarioLoader {
         List<DashboardScenario> result = new ArrayList<>();
         while (scanner.hasNextLine()) {
             String line = scanner.nextLine();
-            if (line.isBlank()) {
+            if (line.isBlank() || line.startsWith("#")) {
                 continue;
             }
             String[] f = line.split(",", -1);

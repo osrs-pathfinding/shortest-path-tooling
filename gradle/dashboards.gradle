@@ -89,6 +89,7 @@ tasks.register('captureExpectedLengths', Test) {
     systemProperty 'dashboard.bundleName', dashboardBundle.get()
     systemProperty 'dashboard.dataset', dashboardDataset.get()
     systemProperty 'dashboard.profile', dashboardProfile.get()
+    systemProperty 'dashboard.f2p', dashboardF2p.get()
     systemProperty 'dashboard.sourceResourcesDir', sourceSets.test.resources.srcDirs.first().absolutePath
     if (!dashboardTitle.get().isEmpty()) {
         systemProperty 'dashboard.title', dashboardTitle.get()
