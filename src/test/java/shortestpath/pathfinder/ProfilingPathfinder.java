@@ -1,14 +1,11 @@
 package shortestpath.pathfinder;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
-import java.util.PriorityQueue;
-import java.util.Queue;
 import java.util.Set;
 
+import shortestpath.PrimitiveIntList;
 import shortestpath.WorldPointUtil;
+import shortestpath.leagues.LeagueModeState;
 import shortestpath.transport.Transport;
 
 /**
@@ -18,6 +15,11 @@ import shortestpath.transport.Transport;
  * <p>The search algorithm is kept structurally identical to
  * {@code Pathfinder.run()} so that the {@code profilingDoesNotAffectResults}
  * test can catch any drift.</p>
+ *
+ * <p>Like {@link Pathfinder}, nodes are stored as {@code int} ids into a shared
+ * {@link NodeGraph} (structure-of-arrays) rather than one object per explored tile (issue #491).
+ * The neighbour-generation phases that {@link CollisionMap#getNeighbors} performs are re-inlined
+ * here so each sub-phase can be timed; the node bookkeeping is otherwise identical.</p>
  */
 public class ProfilingPathfinder {
 
@@ -26,15 +28,17 @@ public class ProfilingPathfinder {
     private final int start;
     private final Set<Integer> targets;
     private final boolean targetInWilderness;
+    private final boolean targetInBlockedRegion;
 
-    private final Deque<Node> boundary = new ArrayDeque<>(4096);
-    private final Queue<TransportNode> pending = new PriorityQueue<>(256);
+    private final NodeGraph graph = new NodeGraph(1 << 14);
+    private final IntDeque boundary = new IntDeque(4096);
+    private final IntMinHeap pending = new IntMinHeap(graph, 256);
     private final VisitedTiles visited;
 
     private PathfinderProfile profile;
     private PathfinderResult result;
 
-    private Node bestLastNode;
+    private int bestLastNode = NodeGraph.NO_NODE;
     private int bestRemainingDistance = Integer.MAX_VALUE;
     private int bestTravelledDistance = Integer.MAX_VALUE;
     private int bestX = Integer.MAX_VALUE;
@@ -47,7 +51,7 @@ public class ProfilingPathfinder {
     private int transportsChecked;
 
     // Shared neighbor list, matching CollisionMap's single-threaded assumption
-    private final List<Node> neighbors = new ArrayList<>(16);
+    private final PrimitiveIntList neighbors = new PrimitiveIntList(16);
     private final boolean[] traversable = new boolean[8];
     private static final OrdinalDirection[] ORDINAL_VALUES = OrdinalDirection.values();
 
@@ -58,8 +62,21 @@ public class ProfilingPathfinder {
         this.targets = targets;
         this.visited = new VisitedTiles(map);
         this.targetInWilderness = WildernessChecker.isInWilderness(targets);
+        this.targetInBlockedRegion = anyInBlockedRegion(config.getLeagueModeState(), targets);
         this.wildernessLevel = 31;
         this.profile = new PathfinderProfile();
+    }
+
+    private static boolean anyInBlockedRegion(LeagueModeState league, Set<Integer> packed) {
+        if (!league.isSeasonal() || packed == null || packed.isEmpty()) {
+            return false;
+        }
+        for (Integer point : packed) {
+            if (league.isInBlockedRegion(point)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -68,7 +85,7 @@ public class ProfilingPathfinder {
      */
     public void run() {
         long startNanos = System.nanoTime();
-        boundary.addFirst(new Node(start, null, 0, false));
+        boundary.addFirst(graph.createStart(start));
 
         long cutoffDurationMillis = config.getCalculationCutoffMillis();
         long cutoffTimeMillis = System.currentTimeMillis() + cutoffDurationMillis;
@@ -78,51 +95,64 @@ public class ProfilingPathfinder {
             // ── Queue selection phase ──
             long phaseStart = System.nanoTime();
 
-            Node node = boundary.peekFirst();
-            TransportNode p = pending.peek();
+            int boundaryHead = boundary.peekFirst();
+            int pendingHead = pending.peek();
 
-            if (p != null && (node == null || p.compareCost() < node.cost)) {
+            int node;
+            if (pendingHead != NodeGraph.NO_NODE
+                && (boundaryHead == NodeGraph.NO_NODE || graph.compareCost(pendingHead) < graph.cost(boundaryHead))) {
                 node = pending.poll();
 
                 // For delayed-visit nodes, check if the destination was already
                 // reached by a cheaper path while this node was queued.
-                if (node instanceof TransportNode && ((TransportNode) node).delayedVisit) {
-                    if (visited.get(node.packedPosition, node.bankVisited)) {
+                if (graph.isDelayedVisit(node)) {
+                    int packed = graph.packedPosition(node);
+                    boolean bank = graph.bankVisited(node);
+                    if (visited.get(packed, bank)) {
                         profile.delayedVisitSkipped++;
                         profile.queueSelectionNanos += System.nanoTime() - phaseStart;
                         continue;
                     }
-                    visited.set(node.packedPosition, node.bankVisited);
+                    visited.set(packed, bank);
                 }
             } else {
-                node = boundary.removeFirst();
+                node = boundary.pollFirst();
             }
 
             profile.queueSelectionNanos += System.nanoTime() - phaseStart;
 
+            if (node == NodeGraph.NO_NODE) {
+                continue;
+            }
+
+            final boolean nodeIsTile = graph.isTile(node);
+            final int nodePacked = nodeIsTile ? graph.packedPosition(node) : WorldPointUtil.UNDEFINED;
+
             // ── Wilderness check phase ──
-            if (node.isTile()) {
+            if (nodeIsTile) {
                 phaseStart = System.nanoTime();
-                updateWildernessLevel(node);
+                updateWildernessLevel(nodePacked);
                 profile.wildernessCheckNanos += System.nanoTime() - phaseStart;
             }
 
             // ── Target check phase ──
-            phaseStart = System.nanoTime();
+            if (nodeIsTile) {
+                phaseStart = System.nanoTime();
 
-            if (node.isTile() && targets.contains(node.packedPosition)) {
-                bestLastNode = node;
-                reachedTarget = node.packedPosition;
-                terminationReason = PathTerminationReason.TARGET_REACHED;
+                if (targets.contains(nodePacked)) {
+                    bestLastNode = node;
+                    reachedTarget = nodePacked;
+                    terminationReason = PathTerminationReason.TARGET_REACHED;
+                    profile.targetCheckNanos += System.nanoTime() - phaseStart;
+                    break;
+                }
+
+                if (updateBestPathWhenUnreachable(node, nodePacked)) {
+                    cutoffTimeMillis = System.currentTimeMillis() + cutoffDurationMillis;
+                }
+
                 profile.targetCheckNanos += System.nanoTime() - phaseStart;
-                break;
             }
-
-            if (node.isTile() && updateBestPathWhenUnreachable(node)) {
-                cutoffTimeMillis = System.currentTimeMillis() + cutoffDurationMillis;
-            }
-
-            profile.targetCheckNanos += System.nanoTime() - phaseStart;
 
             // ── Cutoff check phase ──
             phaseStart = System.nanoTime();
@@ -137,7 +167,7 @@ public class ProfilingPathfinder {
 
             // ── addNeighbors phase ──
             phaseStart = System.nanoTime();
-            addNeighbors(node);
+            addNeighbors(node, nodeIsTile, nodePacked);
             profile.addNeighborsNanos += System.nanoTime() - phaseStart;
 
             // ── Bookkeeping phase ──
@@ -148,7 +178,7 @@ public class ProfilingPathfinder {
             iteration++;
             if (profile.shouldSample(iteration)) {
                 profile.recordSample(iteration, boundary.size(), pending.size(),
-                    node.cost, System.nanoTime() - startNanos);
+                    graph.cost(node), System.nanoTime() - startNanos);
             }
 
             profile.bookkeepingNanos += System.nanoTime() - phaseStart;
@@ -158,16 +188,18 @@ public class ProfilingPathfinder {
             terminationReason = PathTerminationReason.SEARCH_EXHAUSTED;
         }
 
+        boolean reached = reachedTarget != WorldPointUtil.UNDEFINED;
+        int target = reached ? reachedTarget : (targets.isEmpty() ? WorldPointUtil.UNDEFINED : targets.iterator().next());
+        // Materialise the path/closest tile from the graph before releasing it.
+        int closestReached = bestLastNode != NodeGraph.NO_NODE ? graph.getClosestTilePosition(bestLastNode) : start;
+        List<PathStep> path = bestLastNode != NodeGraph.NO_NODE ? graph.getPathSteps(bestLastNode) : List.of();
+
         long elapsedNanos = System.nanoTime() - startNanos;
 
         boundary.clear();
         visited.clear();
         pending.clear();
-
-        boolean reached = reachedTarget != WorldPointUtil.UNDEFINED;
-        int target = reached ? reachedTarget : (targets.isEmpty() ? WorldPointUtil.UNDEFINED : targets.iterator().next());
-        int closestReached = bestLastNode != null ? bestLastNode.getClosestTilePosition() : start;
-        List<PathStep> path = bestLastNode != null ? bestLastNode.getPathSteps() : List.of();
+        graph.release();
 
         result = new PathfinderResult(start, target, reached, path, closestReached,
             nodesChecked, transportsChecked, elapsedNanos, terminationReason);
@@ -175,29 +207,38 @@ public class ProfilingPathfinder {
 
     // ── addNeighbors: matches Pathfinder.addNeighbors exactly ───────────
 
-    private void addNeighbors(Node node) {
-        List<Node> nodes;
-        if (node.isTile()) {
-            nodes = getTileNeighbors(node);
+    private void addNeighbors(int node, boolean nodeIsTile, int nodePacked) {
+        PrimitiveIntList nodes;
+        if (nodeIsTile) {
+            nodes = getTileNeighbors(node, nodePacked);
         } else {
             nodes = getAbstractNodeNeighbors(node);
         }
 
-        for (Node neighbor : nodes) {
-            if (node.isTile() && neighbor.isTile()
-                && config.avoidWilderness(node.packedPosition, neighbor.packedPosition, targetInWilderness)) {
-                continue;
+        final int count = nodes.size();
+        for (int i = 0; i < count; i++) {
+            int neighbor = nodes.get(i);
+            final boolean neighborIsTile = graph.isTile(neighbor);
+            if (nodeIsTile && neighborIsTile) {
+                final int neighborPacked = graph.packedPosition(neighbor);
+                if (config.avoidWilderness(nodePacked, neighborPacked, targetInWilderness)) {
+                    continue;
+                }
+                if (config.avoidBlockedRegion(nodePacked, neighborPacked, targetInBlockedRegion)) {
+                    continue;
+                }
             }
 
+            final boolean neighborIsTransport = graph.isTransport(neighbor);
             // For delayed-visit nodes (shared destinations), don't mark as visited on enqueue.
             // They will be checked and marked when dequeued from pending.
-            if (!(neighbor instanceof TransportNode && ((TransportNode) neighbor).delayedVisit)) {
-                visited.set(neighbor);
+            if (!(neighborIsTransport && graph.isDelayedVisit(neighbor))) {
+                visited.set(neighbor, graph);
             } else {
                 profile.delayedVisitEnqueued++;
             }
-            if (neighbor instanceof TransportNode) {
-                pending.add((TransportNode) neighbor);
+            if (neighborIsTransport) {
+                pending.add(neighbor);
                 ++transportsChecked;
                 profile.transportNeighborsAdded++;
             } else {
@@ -208,38 +249,40 @@ public class ProfilingPathfinder {
         }
 
         // Tile visit counting for tile nodes
-        if (node.isTile()) {
-            profile.incrementTileVisit(node.packedPosition);
+        if (nodeIsTile) {
+            profile.incrementTileVisit(nodePacked);
         }
     }
 
     // ── getTileNeighbors: matches CollisionMap.getTileNeighbors ─────────
     // Only calls visited.get() (never visited.set()), returns the neighbor list.
 
-    private List<Node> getTileNeighbors(Node node) {
-        final int x = WorldPointUtil.unpackWorldX(node.packedPosition);
-        final int y = WorldPointUtil.unpackWorldY(node.packedPosition);
-        final int z = WorldPointUtil.unpackWorldPlane(node.packedPosition);
+    private PrimitiveIntList getTileNeighbors(int node, int packedPosition) {
+        final int x = WorldPointUtil.unpackWorldX(packedPosition);
+        final int y = WorldPointUtil.unpackWorldY(packedPosition);
+        final int z = WorldPointUtil.unpackWorldPlane(packedPosition);
 
         neighbors.clear();
 
         // ── Bank check sub-phase ──
         long subStart = System.nanoTime();
 
-        boolean pathBankVisited = node.bankVisited
-            || (config.isBankPathEnabled() && config.bankAccessible(node.packedPosition));
+        boolean nodeBankVisited = graph.bankVisited(node);
+        boolean pathBankVisited = nodeBankVisited
+            || (config.isBankPathEnabled() && config.bankAccessible(packedPosition));
 
         profile.bankCheckNanos += System.nanoTime() - subStart;
-        if (pathBankVisited && !node.bankVisited) {
+        if (pathBankVisited && !nodeBankVisited) {
             profile.bankTransitions++;
         }
 
         // ── Transport lookup sub-phase ──
         subStart = System.nanoTime();
 
-        Set<Transport> transports = config.getTransportsPacked(pathBankVisited).getOrDefault(node.packedPosition, Set.of());
-        int inheritedDifferential = (node instanceof TransportNode && ((TransportNode) node).delayedVisit)
-            ? ((TransportNode) node).differentialCost
+        Transport[] transports = config.getTransportsPacked(pathBankVisited)
+            .getOrDefault(packedPosition, TransportAvailability.EMPTY_TRANSPORTS);
+        int inheritedDifferential = (graph.isTransport(node) && graph.isDelayedVisit(node))
+            ? graph.differentialCost(node)
             : 0;
         for (Transport transport : transports) {
             profile.transportEvaluations++;
@@ -249,7 +292,7 @@ public class ProfilingPathfinder {
                 continue;
             }
             int chainPenalty = (delayedVisit && inheritedDifferential > 0) ? inheritedDifferential : 0;
-            neighbors.add(new TransportNode(
+            neighbors.add(graph.createTransport(
                 transport.getDestination(), node,
                 transport.getDuration(), config.getAdditionalTransportCost(transport) + chainPenalty,
                 pathBankVisited,
@@ -262,9 +305,9 @@ public class ProfilingPathfinder {
         // ── Abstract node sub-phase ──
         subStart = System.nanoTime();
 
-        Node globalTeleports = Node.abstractNode(AbstractNodeKind.fromWildernessLevel(wildernessLevel), node, pathBankVisited);
-        if (!visited.get(globalTeleports)) {
-            neighbors.add(globalTeleports);
+        AbstractNodeKind abstractKind = AbstractNodeKind.fromWildernessLevel(wildernessLevel);
+        if (!visited.getAbstract(abstractKind, pathBankVisited)) {
+            neighbors.add(graph.createAbstract(abstractKind, node, pathBankVisited));
             profile.abstractNodesExpanded++;
         }
 
@@ -313,13 +356,14 @@ public class ProfilingPathfinder {
             if (visited.get(neighborPacked, pathBankVisited)) continue;
 
             if (traversable[i]) {
-                neighbors.add(new Node(neighborPacked, node, Node.cost(neighborPacked, node), pathBankVisited));
+                neighbors.add(graph.createTile(neighborPacked, node, pathBankVisited));
             } else if (Math.abs(d.x + d.y) == 1 && map.isBlocked(x + d.x, y + d.y, z)) {
                 // Blocked-tile transport fallback
                 profile.walkableTileNanos += System.nanoTime() - subStart;
                 subStart = System.nanoTime();
 
-                Set<Transport> neighborTransports = config.getTransportsPacked(pathBankVisited).getOrDefault(neighborPacked, Set.of());
+                Transport[] neighborTransports = config.getTransportsPacked(pathBankVisited)
+                    .getOrDefault(neighborPacked, TransportAvailability.EMPTY_TRANSPORTS);
                 for (Transport transport : neighborTransports) {
                     profile.blockedTileTransportChecks++;
                     if (transport.getOrigin() == Transport.UNDEFINED_ORIGIN
@@ -327,7 +371,7 @@ public class ProfilingPathfinder {
                         || visited.get(transport.getOrigin(), pathBankVisited)) {
                         continue;
                     }
-                    neighbors.add(new Node(transport.getOrigin(), node, Node.cost(transport.getOrigin(), node), pathBankVisited));
+                    neighbors.add(graph.createTile(transport.getOrigin(), node, pathBankVisited));
                 }
 
                 profile.blockedTileTransportNanos += System.nanoTime() - subStart;
@@ -342,40 +386,42 @@ public class ProfilingPathfinder {
 
     // ── getAbstractNodeNeighbors: matches CollisionMap.getAbstractNodeNeighbors ──
 
-    private List<Node> getAbstractNodeNeighbors(Node node) {
+    private PrimitiveIntList getAbstractNodeNeighbors(int node) {
         neighbors.clear();
-        int sourceTile = node.getClosestTilePosition();
-        for (Transport transport : config.getUsableTeleports(node.bankVisited)) {
+        int sourceTile = graph.getClosestTilePosition(node);
+        boolean bankVisited = graph.bankVisited(node);
+        int maxWildernessLevel = graph.abstractKind(node).maxWildernessLevel();
+        for (Transport transport : config.getUsableTeleports(bankVisited)) {
             profile.transportEvaluations++;
             boolean delayedVisit = transport.getType().sharesDestinationsWith() != null;
-            if (!delayedVisit && visited.get(transport.getDestination(), node.bankVisited)) {
+            if (!delayedVisit && visited.get(transport.getDestination(), bankVisited)) {
                 profile.visitedSkipped++;
                 continue;
             }
-            if (!transport.isUsableAtWildernessLevel(node.abstractKind.maxWildernessLevel())) {
+            if (!transport.isUsableAtWildernessLevel(maxWildernessLevel)) {
                 continue;
             }
             if (config.avoidWilderness(sourceTile, transport.getDestination(), targetInWilderness)) {
                 continue;
             }
             int differentialCost = delayedVisit ? config.getDifferentialCost(transport) : 0;
-            neighbors.add(new TransportNode(
+            neighbors.add(graph.createTransport(
                 transport.getDestination(), node,
                 transport.getDuration(), config.getAdditionalTransportCost(transport),
-                node.bankVisited,
+                bankVisited,
                 delayedVisit,
                 differentialCost));
         }
         return neighbors;
     }
 
-    private boolean updateBestPathWhenUnreachable(Node node) {
+    private boolean updateBestPathWhenUnreachable(int node, int packedPosition) {
         boolean update = false;
+        final int travelledDistance = graph.cost(node);
         for (int target : targets) {
-            int remainingDistance = WorldPointUtil.distanceBetween(target, node.packedPosition, WorldPointUtil.EUCLIDEAN_SQUARED_DISTANCE_METRIC);
-            int travelledDistance = node.cost;
-            int x = WorldPointUtil.unpackWorldX(node.packedPosition);
-            int y = WorldPointUtil.unpackWorldY(node.packedPosition);
+            int remainingDistance = WorldPointUtil.distanceBetween(target, packedPosition, WorldPointUtil.EUCLIDEAN_SQUARED_DISTANCE_METRIC);
+            int x = WorldPointUtil.unpackWorldX(packedPosition);
+            int y = WorldPointUtil.unpackWorldY(packedPosition);
             if ((remainingDistance < bestRemainingDistance) ||
                 (remainingDistance == bestRemainingDistance && travelledDistance < bestTravelledDistance) ||
                 (remainingDistance == bestRemainingDistance && travelledDistance == bestTravelledDistance && x < bestX) ||
@@ -391,16 +437,16 @@ public class ProfilingPathfinder {
         return update;
     }
 
-    private void updateWildernessLevel(Node node) {
+    private void updateWildernessLevel(int packedPosition) {
         int previousLevel = wildernessLevel;
         if (wildernessLevel > 0) {
-            if (wildernessLevel > 30 && !WildernessChecker.isInLevel30Wilderness(node.packedPosition)) {
+            if (wildernessLevel > 30 && !WildernessChecker.isInLevel30Wilderness(packedPosition)) {
                 wildernessLevel = 30;
             }
-            if (wildernessLevel > 20 && !WildernessChecker.isInLevel20Wilderness(node.packedPosition)) {
+            if (wildernessLevel > 20 && !WildernessChecker.isInLevel20Wilderness(packedPosition)) {
                 wildernessLevel = 20;
             }
-            if (wildernessLevel > 0 && !WildernessChecker.isInWilderness(node.packedPosition)) {
+            if (wildernessLevel > 0 && !WildernessChecker.isInWilderness(packedPosition)) {
                 wildernessLevel = 0;
             }
         }

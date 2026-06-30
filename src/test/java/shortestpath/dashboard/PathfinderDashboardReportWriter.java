@@ -13,6 +13,7 @@ import shortestpath.WorldPointUtil;
 import shortestpath.pathfinder.PathfinderConfig;
 import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.PathStep;
+import shortestpath.pathfinder.TransportAvailability;
 import shortestpath.transport.Transport;
 import shortestpath.transport.TransportLoader;
 import shortestpath.transport.TransportType;
@@ -169,7 +170,7 @@ public class PathfinderDashboardReportWriter {
         Set<TransportKey> keys = new HashSet<>();
 
         for (int origin : config.getTransportsPacked(bankVisited).keys()) {
-            for (Transport transport : config.getTransportsPacked(bankVisited).getOrDefault(origin, Set.of())) {
+            for (Transport transport : config.getTransportsPacked(bankVisited).getOrDefault(origin, TransportAvailability.EMPTY_TRANSPORTS)) {
                 keys.add(new TransportKey(transport));
             }
         }
@@ -214,7 +215,7 @@ public class PathfinderDashboardReportWriter {
             boolean bankVisited = destinationStep.isBankVisited();
 
             // Physical transports at the origin tile — these are always shown.
-            Set<Transport> physicalTransports = config.getTransportsPacked(bankVisited).getOrDefault(origin, Set.of());
+            Transport[] physicalTransports = config.getTransportsPacked(bankVisited).getOrDefault(origin, TransportAvailability.EMPTY_TRANSPORTS);
             boolean physicalCoversDestination = false;
             for (Transport transport : physicalTransports) {
                 if (transport.getDestination() == destination) {
