@@ -17,3 +17,23 @@ cache/
 
 *.zip
 keys.json
+
+# === OpenGSD (gsd-core) — keep ALL GSD-produced files out of git ===
+.cursor/
+.claude/
+.devin/
+.windsurf/
+.windsurf/gsd-local-patches/
+.windsurf/gsd-pristine/
+.planning/
+.planning/tmp/
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+graphify-out/
+handoffs/
+memories/
+context/
+specs/
+.gsd/
+.gsd-profile
