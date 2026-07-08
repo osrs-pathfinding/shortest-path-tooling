@@ -18,6 +18,9 @@ cache/
 *.zip
 keys.json
 
+# Debug test data
+src/test/resources/dashboard/debug.csv
+
 # === OpenGSD (gsd-core) — keep ALL GSD-produced files out of git ===
 .cursor/
 .claude/
