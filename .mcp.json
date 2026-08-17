@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "gsd-graph": {
+      "command": "/opt/homebrew/bin/gsd-graph-mcp",
+      "args": [
+        "--dir",
+        ".gsd-graph"
+      ]
+    }
+  }
+}
