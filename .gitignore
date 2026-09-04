@@ -25,9 +25,6 @@ src/test/resources/dashboard/debug.csv
 .cursor/
 .claude/
 .devin/
-.windsurf/
-.windsurf/gsd-local-patches/
-.windsurf/gsd-pristine/
 .planning/
 .planning/tmp/
 /AGENTS.md
@@ -43,3 +40,4 @@ specs/
 # GSD stop hook counter (session-local)
 .planning/.gsd-stop-counter
 .gsd-graph/
+
