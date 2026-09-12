@@ -188,3 +188,154 @@ def test_cache_help_exits_zero():
     with pytest.raises(SystemExit) as exc:
         mm.main(["cache", "--help"])
     assert exc.value.code == 0
+
+
+# ---------- collision-map (primary path) ----------
+
+
+def collision_kind(cmd):
+    """Bucket a recorded argv into the pipeline step it represents."""
+    if cmd[:4] == ["git", "-C", "shortest-path", "status"]:
+        return "status"
+    if cmd[:4] == ["git", "-C", "shortest-path", "rev-parse"]:
+        return "rev-parse-short" if "--short" in cmd else "rev-parse"
+    if cmd[:4] == ["git", "-C", "shortest-path", "fetch"]:
+        return "fetch"
+    if cmd[:4] == ["git", "-C", "shortest-path", "merge"]:
+        return "merge"
+    if cmd[:4] == ["git", "-C", "shortest-path", "show"]:
+        return "show"
+    if cmd[:2] == ["git", "add"]:
+        return "add"
+    if cmd[:2] == ["git", "commit"]:
+        return "commit"
+    if cmd[0] == sys.executable:
+        return "compare"
+    return f"other:{cmd}"
+
+
+def make_collision_run(calls, *, status_out="", heads=("oldsha", "newsha"),
+                       fetch_rc=0, merge_rc=0, show_bytes=b"ZIPBYTES",
+                       show_rc=0, diff_stdout="EDGE TOTALS\n",
+                       diff_rc=0, short="newsha1"):
+    """fake mm.run for the primary submodule-bump path."""
+    remaining = list(heads)
+
+    def fake_run(cmd, *, cwd=None, timeout=None, binary=False):
+        calls.append(list(cmd))
+        kind = collision_kind(cmd)
+        if kind == "status":
+            return cp(cmd, status_out)
+        if kind == "rev-parse":
+            head = remaining.pop(0) if len(remaining) > 1 \
+                else remaining[0]
+            return cp(cmd, head)
+        if kind == "rev-parse-short":
+            return cp(cmd, short)
+        if kind == "fetch":
+            return cp(cmd, rc=fetch_rc)
+        if kind == "merge":
+            return cp(cmd, stderr="fatal: Not possible to "
+                                  "fast-forward", rc=merge_rc)
+        if kind == "show":
+            assert binary is True, "git show of a zip must be binary"
+            return subprocess.CompletedProcess(
+                cmd, show_rc, show_bytes, b"")
+        if kind in ("add", "commit"):
+            return cp(cmd)
+        if kind == "compare":
+            return cp(cmd, diff_stdout, rc=diff_rc)
+        raise AssertionError(f"unexpected argv: {cmd}")
+
+    return fake_run
+
+
+def test_collision_map_bump_diff_sequence(tmp_path, monkeypatch, capsys):
+    repo, submodule = redirect_repo(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        mm, "run",
+        make_collision_run(calls, heads=["oldsha0000", "newsha1111"]))
+    rc = mm.main(["collision-map"])
+    assert rc == 0
+    assert [collision_kind(c) for c in calls] == [
+        "status", "rev-parse", "fetch", "merge", "rev-parse",
+        "show", "compare"]
+    show = calls[5]
+    assert show[3] == "show"
+    assert show[4] == "oldsha0000:src/main/resources/collision-map.zip"
+    old_zip = repo / "build" / "old-collision-map.zip"
+    assert old_zip.read_bytes() == b"ZIPBYTES"
+    compare = calls[6]
+    assert compare[1].endswith("compare_collision_maps.py")
+    assert compare[2] == str(old_zip)
+    assert compare[3] == str(
+        submodule / "src" / "main" / "resources" / "collision-map.zip")
+    assert "EDGE TOTALS" in capsys.readouterr().out
+
+
+def test_collision_map_already_up_to_date(tmp_path, monkeypatch, capsys):
+    repo, _ = redirect_repo(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        mm, "run",
+        make_collision_run(calls, heads=["samesha", "samesha"]))
+    rc = mm.main(["collision-map"])
+    assert rc == 0
+    kinds = [collision_kind(c) for c in calls]
+    assert kinds == ["status", "rev-parse", "fetch", "merge",
+                     "rev-parse"]
+    assert "show" not in kinds and "compare" not in kinds
+    assert "up to date" in capsys.readouterr().out
+
+
+def test_collision_map_dirty_worktree_refused(tmp_path, monkeypatch):
+    repo, _ = redirect_repo(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        mm, "run", make_collision_run(calls, status_out=" M file"))
+    with pytest.raises(SystemExit):
+        mm.main(["collision-map"])
+    kinds = [collision_kind(c) for c in calls]
+    assert kinds == ["status"]
+
+
+def test_collision_map_diverged_fails(tmp_path, monkeypatch, capsys):
+    repo, _ = redirect_repo(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        mm, "run", make_collision_run(calls, merge_rc=128))
+    rc = mm.main(["collision-map"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "merge or rebase" in err
+
+
+def test_collision_map_commit_flag(tmp_path, monkeypatch):
+    repo, _ = redirect_repo(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        mm, "run", make_collision_run(calls, short="abc1234"))
+    rc = mm.main(["collision-map", "--commit"])
+    assert rc == 0
+    kinds = [collision_kind(c) for c in calls]
+    assert kinds[-3:] == ["rev-parse-short", "add", "commit"]
+    add = calls[-2]
+    commit = calls[-1]
+    assert add == ["git", "add", "shortest-path"]
+    assert commit == ["git", "commit", "-m",
+                      "chore: update shortest-path submodule to abc1234"]
+
+
+def test_collision_map_no_commit_prints_hint(tmp_path, monkeypatch,
+                                             capsys):
+    repo, _ = redirect_repo(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(mm, "run", make_collision_run(calls))
+    rc = mm.main(["collision-map"])
+    assert rc == 0
+    kinds = [collision_kind(c) for c in calls]
+    assert "add" not in kinds and "commit" not in kinds
+    out = capsys.readouterr().out
+    assert "git add shortest-path" in out
+    assert "chore: update shortest-path submodule" in out
