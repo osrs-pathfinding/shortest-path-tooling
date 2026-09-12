@@ -207,3 +207,132 @@ def test_list_outputs_status_lines(tmp_path, monkeypatch, capsys):
     assert numbers == sorted(numbers)
     assert any(l.startswith("ISSUE-549") and "reported" in l
                for l in lines)
+
+
+# --------------------------------------------------------------------------
+# status subcommand — lifecycle transitions
+# --------------------------------------------------------------------------
+
+def make_shadow(tmp_path, number, status="reported", fm_extra=None,
+                body_text="\n## Triage Notes\n\nmaintainer note\n"):
+    """Write a minimal valid shadow file and return its path."""
+    fm = {
+        "upstream": f"Skretzo/shortest-path#{number}",
+        "url": f"https://example.invalid/issues/{number}",
+        "title": "fixture issue",
+        "upstream_state": "open",
+        "upstream_state_reason": None,
+        "labels": ["bug"],
+        "author": "reporter",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "synced_at": "2026-01-01T00:00:00Z",
+        "status": status,
+        "phase": None,
+        "fix_candidates": [],
+        "scenario_rows": [],
+        "verification": {
+            "command": None, "dataset_rows": [], "report": None,
+            "fix_commit": None, "fix_pr": None, "verifier": None,
+            "verified_at": None,
+        },
+        "history": [{"at": "2026-01-01T00:00:00Z", "event": "imported",
+                     "by": "import_issues.py"}],
+    }
+    if fm_extra:
+        fm.update(fm_extra)
+    path = tmp_path / f"ISSUE-{number}.md"
+    path.write_text(
+        "---\n" + yaml.safe_dump(fm, sort_keys=False) + "---\n" + body_text)
+    return path
+
+
+def run_status(tmp_path, *argv):
+    return ii.main(["status", "--output-dir", str(tmp_path), *argv])
+
+
+def test_status_transition_appends_history(tmp_path, capsys):
+    path = make_shadow(tmp_path, 1, status="reported")
+    before = path.read_text()
+    rc = run_status(tmp_path, "1", "triaged", "--by", "tester")
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "ISSUE-1: reported -> triaged" in out
+    fm, body = frontmatter_and_body(path)
+    assert fm["status"] == "triaged"
+    last = fm["history"][-1]
+    assert last["event"] == "status: reported -> triaged"
+    assert last["by"] == "tester"
+    # Upstream-owned fields and the body must be untouched.
+    assert fm["title"] == "fixture issue"
+    assert fm["upstream_state"] == "open"
+    assert body == before.split("---", 2)[2]
+
+
+def test_status_note_appends_to_event(tmp_path):
+    path = make_shadow(tmp_path, 10, status="reported")
+    rc = run_status(tmp_path, "10", "needs_info", "--note", "asked reporter")
+    assert rc == 0
+    fm, _body = frontmatter_and_body(path)
+    assert fm["history"][-1]["event"].endswith("— asked reporter")
+
+
+def test_status_rejects_unknown_status(tmp_path, capsys):
+    path = make_shadow(tmp_path, 2, status="reported")
+    before = path.read_text()
+    rc = run_status(tmp_path, "2", "bogus")
+    assert rc != 0
+    assert capsys.readouterr().err
+    assert path.read_text() == before
+
+
+def test_status_rejects_invalid_transition(tmp_path):
+    path = make_shadow(tmp_path, 3, status="reported")
+    before = path.read_text()
+    assert run_status(tmp_path, "3", "verified") != 0
+    assert run_status(tmp_path, "3", "closed") != 0
+    assert path.read_text() == before
+
+
+def test_status_verified_rejected_use_verify(tmp_path, capsys):
+    # fixed -> verified looks plausible in the map but evidence-bearing
+    # verification is a separate gate, so `status` must always refuse it.
+    path = make_shadow(tmp_path, 4, status="fixed")
+    before = path.read_text()
+    rc = run_status(tmp_path, "4", "verified")
+    assert rc != 0
+    assert "verify" in capsys.readouterr().err
+    assert path.read_text() == before
+
+
+def test_status_phase_linked_requires_phase(tmp_path):
+    path = make_shadow(tmp_path, 5, status="triaged")
+    before = path.read_text()
+    assert run_status(tmp_path, "5", "phase_linked") != 0
+    assert path.read_text() == before
+    assert run_status(tmp_path, "5", "phase_linked",
+                      "--phase", "phases/xyz") == 0
+    fm, _body = frontmatter_and_body(path)
+    assert fm["status"] == "phase_linked"
+    assert fm["phase"] == "phases/xyz"
+
+
+def test_status_reopened_from_terminal(tmp_path):
+    for n, status in ((6, "closed"), (7, "wontfix"), (8, "duplicate")):
+        make_shadow(tmp_path, n, status=status)
+        assert run_status(tmp_path, str(n), "reopened") == 0
+        fm, _body = frontmatter_and_body(tmp_path / f"ISSUE-{n}.md")
+        assert fm["status"] == "reopened"
+
+
+def test_status_blocked_returns_to_active(tmp_path):
+    make_shadow(tmp_path, 9, status="blocked")
+    assert run_status(tmp_path, "9", "in_progress") == 0
+    fm, _body = frontmatter_and_body(tmp_path / "ISSUE-9.md")
+    assert fm["status"] == "in_progress"
+
+
+def test_status_missing_file(tmp_path, capsys):
+    rc = run_status(tmp_path, "999", "triaged")
+    assert rc != 0
+    assert "ISSUE-999.md" in capsys.readouterr().err

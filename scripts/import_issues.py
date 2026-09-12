@@ -304,12 +304,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     lp.add_argument("--output-dir", type=Path, required=True)
     lp.add_argument("--status", default=None)
 
+    st = sub.add_parser("status",
+                        help="Transition a shadow file's lifecycle status")
+    st.add_argument("--output-dir", type=Path, required=True)
+    st.add_argument("issue", type=int)
+    st.add_argument("new_status")
+    st.add_argument("--note", default="")
+    st.add_argument("--phase", default=None)
+    st.add_argument("--by", default=None)
+
     args = ap.parse_args(argv)
 
     if args.cmd == "sync":
         return cmd_sync(args)
     if args.cmd == "list":
         return cmd_list(args)
+    if args.cmd == "status":
+        return cmd_status(args)
     return 0
 
 
@@ -337,6 +348,10 @@ def cmd_sync(args: argparse.Namespace) -> int:
         candidates = fix_map.get(int(issue["number"]), [])
         write_shadow(args.output_dir, issue, fix_candidates=candidates)
         print(f"wrote {path.name}")
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
