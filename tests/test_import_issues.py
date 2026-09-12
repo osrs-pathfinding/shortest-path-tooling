@@ -49,8 +49,9 @@ def stub_prs(monkeypatch):
 def frontmatter_and_body(path):
     text = path.read_text()
     assert text.startswith("---"), "shadow file must start with YAML frontmatter"
-    _, fm, body = text.split("---", 2)
-    return yaml.safe_load(fm), body
+    fm, body = ii.load_shadow(path)
+    assert fm is not None, "shadow file frontmatter must parse as a dict"
+    return fm, body
 
 
 def test_sync_writes_shadow_file(tmp_path, monkeypatch):
@@ -542,6 +543,52 @@ def test_resync_state_reason_suggestions(tmp_path, monkeypatch, capsys):
     assert fm["status"] == "reopened"
     assert "status: closed -> reopened (upstream)" in [
         h["event"] for h in fm["history"]]
+
+
+def test_resync_title_with_triple_dash_preserves_maintainer(tmp_path,
+                                                          monkeypatch):
+    # yaml.safe_dump emits a scalar containing "---" unquoted; the
+    # frontmatter split must be line-anchored or maintainer state is
+    # silently destroyed on re-sync.
+    issue = dict(fixture_issue("gh_issue_list_all.json", 549))
+    issue["title"] = "Bad --- title"
+    run_sync(tmp_path, monkeypatch, [issue], extra_args=["--no-digest"])
+    path = tmp_path / "ISSUE-549.md"
+    fm, _body = frontmatter_and_body(path)
+    fm["status"] = "triaged"
+    fm["phase"] = "phases/x"
+    path.write_text("---\n" + yaml.safe_dump(fm, sort_keys=False)
+                    + "---\n\nbody\n")
+    run_sync(tmp_path, monkeypatch, [issue], extra_args=["--no-digest"])
+    fm, _ = frontmatter_and_body(path)
+    assert fm["title"] == "Bad --- title"
+    assert fm["status"] == "triaged"
+    assert fm["phase"] == "phases/x"
+
+
+def test_status_note_with_triple_dash_roundtrips(tmp_path):
+    # A "---" inside a --note lands in the history event string; the file
+    # must stay readable afterwards.
+    path = make_shadow(tmp_path, 20, status="reported")
+    rc = run_status(tmp_path, "20", "triaged", "--note", "check --- ok")
+    assert rc == 0
+    fm, _ = frontmatter_and_body(path)
+    assert fm["status"] == "triaged"
+    assert fm["history"][-1]["event"].endswith("check --- ok")
+
+
+def test_verify_command_with_triple_dash_roundtrips(tmp_path):
+    # record_verification re-reads the file after transition_status; a
+    # "---" in --command must not corrupt the frontmatter mid-write.
+    make_shadow(tmp_path, 30, status="fixed",
+                fm_extra={"scenario_rows": ["alpha scenario"]})
+    report = make_report(tmp_path)
+    rc = run_verify(tmp_path, 30, "--command", "run --- replay",
+                    "--report", str(report))
+    assert rc == 0
+    fm, _ = frontmatter_and_body(tmp_path / "ISSUE-30.md")
+    assert fm["status"] == "verified"
+    assert fm["verification"]["command"] == "run --- replay"
 
 
 def test_digest_sentinel_replace(tmp_path):

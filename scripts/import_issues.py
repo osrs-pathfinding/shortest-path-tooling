@@ -188,7 +188,10 @@ def load_shadow(path: Path) -> Tuple[Optional[Dict], str]:
     text = path.read_text()
     if not text.startswith("---"):
         return None, text
-    parts = text.split("---", 2)
+    # Split on the line-anchored document marker only: a bare "---"
+    # substring inside a frontmatter value (a title, a status note, a
+    # verify command) must not truncate the YAML block mid-value.
+    parts = re.split(r"(?m)^---[ \t]*$", text, maxsplit=2)
     if len(parts) < 3:
         return None, text
     try:
