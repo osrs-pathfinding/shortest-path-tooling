@@ -153,6 +153,16 @@ def build_frontmatter(issue: Dict, fix_candidates: List[Dict],
         "status": "reported",
         "phase": None,
         "fix_candidates": fix_candidates or [],
+        "scenario_rows": [],
+        "verification": {
+            "command": None,
+            "dataset_rows": [],
+            "report": None,
+            "fix_commit": None,
+            "fix_pr": None,
+            "verifier": None,
+            "verified_at": None,
+        },
         "history": [{"at": now, "event": "imported", "by": "import_issues.py"}],
     }
     if existing:
@@ -165,9 +175,59 @@ def build_frontmatter(issue: Dict, fix_candidates: List[Dict],
     return fm
 
 
-def render_body(issue: Dict) -> str:
+MAINTAINER_SECTIONS = (
+    "Normalized Scenario", "Triage Notes", "Requirements",
+    "Acceptance Criteria", "Canonical References",
+)
+
+
+def split_sections(body: str) -> Dict[str, str]:
+    """Map ``## Heading`` -> section text (heading included)."""
+    parts = re.split(r"(?m)^(## .+)$", body or "")
+    out: Dict[str, str] = {}
+    for i in range(1, len(parts) - 1, 2):
+        out[parts[i][3:].strip()] = (parts[i] + parts[i + 1]).rstrip()
+    return out
+
+
+def maintainer_section(name: str, output_dir: Optional[Path]) -> str:
+    """Empty maintainer-edited section template."""
+    if name == "Normalized Scenario":
+        csv_ref = f"{output_dir}/scenarios.csv" if output_dir else "scenarios.csv"
+        return (
+            "## Normalized Scenario\n\n"
+            "| Field | Value |\n"
+            "|-------|-------|\n"
+            "| name |  |\n"
+            "| category |  |\n"
+            "| start |  |\n"
+            "| target |  |\n"
+            "| preset |  |\n"
+            "| config_overrides |  |\n"
+            "| expected |  |\n\n"
+            f"CSV row ref: {csv_ref}"
+        )
+    hints = {
+        "Triage Notes":
+            "<!-- maintainer: suspected root cause, related issues/PRs -->",
+        "Requirements":
+            "<!-- maintainer: one precise requirement per line; becomes a "
+            "locked decision downstream -->",
+        "Acceptance Criteria":
+            "<!-- maintainer: executable criteria — scenario rows or checks "
+            "that must pass -->",
+        "Canonical References":
+            "<!-- maintainer: files and docs the fix phase must read -->",
+    }
+    return f"## {name}\n\n{hints[name]}"
+
+
+def render_body(issue: Dict, output_dir: Optional[Path] = None,
+                existing_body: str = "") -> str:
     """Markdown body: upstream text verbatim inside UNTRUSTED-marked
-    sections so downstream agents treat it as data, never instructions."""
+    sections so downstream agents treat it as data, never instructions.
+    Maintainer-edited sections are carried over from the existing file so
+    a re-sync never clobbers triage work."""
     title = issue.get("title") or "(no title)"
     body_text = issue.get("body") or ""
     comments = issue.get("comments") or []
@@ -197,25 +257,34 @@ def render_body(issue: Dict) -> str:
     else:
         csec.append("(no comments)")
 
-    return "\n".join(report) + "\n\n" + "\n".join(csec).rstrip() + "\n"
+    sections = ["\n".join(report), "\n".join(csec).rstrip()]
+    existing = split_sections(existing_body)
+    for name in MAINTAINER_SECTIONS:
+        sections.append(existing.get(name)
+                        or maintainer_section(name, output_dir))
+    return "\n\n".join(sections) + "\n"
 
 
 def render_shadow(issue: Dict, fix_candidates: List[Dict],
-                  existing: Optional[Dict] = None, now: Optional[str] = None) -> str:
+                  existing: Optional[Tuple[Optional[Dict], str]] = None,
+                  output_dir: Optional[Path] = None,
+                  now: Optional[str] = None) -> str:
     now = now or utc_now_iso()
-    fm = build_frontmatter(issue, fix_candidates, existing, now)
+    existing_fm, existing_body = existing or (None, "")
+    fm = build_frontmatter(issue, fix_candidates, existing_fm, now)
     return ("---\n"
             + yaml.safe_dump(fm, sort_keys=False, allow_unicode=True)
             + "---\n\n"
-            + render_body(issue))
+            + render_body(issue, output_dir, existing_body))
 
 
 def write_shadow(output_dir: Path, issue: Dict,
                  fix_candidates: List[Dict]) -> Path:
     number = int(issue["number"])
     path = shadow_path(output_dir, number)
-    existing_fm, _body = load_shadow(path)
-    path.write_text(render_shadow(issue, fix_candidates, existing_fm))
+    existing = load_shadow(path)
+    path.write_text(render_shadow(issue, fix_candidates, existing,
+                                  output_dir=output_dir))
     return path
 
 
@@ -240,8 +309,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.cmd == "sync":
         return cmd_sync(args)
     if args.cmd == "list":
-        print("list: not implemented yet", file=sys.stderr)
-        return 1
+        return cmd_list(args)
     return 0
 
 
@@ -269,6 +337,27 @@ def cmd_sync(args: argparse.Namespace) -> int:
         candidates = fix_map.get(int(issue["number"]), [])
         write_shadow(args.output_dir, issue, fix_candidates=candidates)
         print(f"wrote {path.name}")
+    return 0
+
+
+def cmd_list(args: argparse.Namespace) -> int:
+    def number_of(path: Path) -> int:
+        try:
+            return int(path.stem.split("-", 1)[1])
+        except (IndexError, ValueError):
+            return -1
+
+    rows = []
+    for path in sorted(args.output_dir.glob("ISSUE-*.md"), key=number_of):
+        fm, _body = load_shadow(path)
+        if not fm:
+            continue
+        status = fm.get("status") or "unknown"
+        if args.status and status != args.status:
+            continue
+        rows.append(f"{path.stem}  {status}  {fm.get('title') or ''}")
+    for row in rows:
+        print(row)
     return 0
 
 
