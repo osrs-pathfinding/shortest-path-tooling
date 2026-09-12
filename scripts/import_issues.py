@@ -70,8 +70,31 @@ def fetch_issue(number: int) -> Dict:
 
 
 def fetch_fix_candidates(limit: int = 500) -> Dict[int, List[Dict]]:
-    """Map issue number -> PRs that (maybe) fix it."""
-    return {}
+    """Map issue number -> PRs that (maybe) fix it.
+
+    ``closingIssuesReferences`` is GitHub's authoritative parse and
+    yields ``link: confirmed``; closing keywords in the body and
+    ``fix/<N>``-style branch names are only ``link: heuristic`` because
+    GitHub misses loose references such as "Fixes issue #504".
+    """
+    prs = gh_json([
+        "pr", "list", "--repo", UPSTREAM_REPO,
+        "--state", "open", "--limit", str(limit),
+        "--json", PR_JSON_FIELDS,
+    ])
+    out: Dict[int, List[Dict]] = {}
+    for pr in prs:
+        confirmed = {ref["number"] for ref in pr.get("closingIssuesReferences") or []}
+        heuristic = set(CLOSING_RE.findall(pr.get("body") or ""))
+        heuristic |= set(BRANCH_ISSUE_RE.findall(pr.get("headRefName") or ""))
+        for n in confirmed | {int(h) for h in heuristic}:
+            out.setdefault(n, []).append({
+                "pr": pr["number"], "url": pr["url"],
+                "author": (pr.get("author") or {}).get("login"),
+                "branch": pr.get("headRefName"),
+                "link": "confirmed" if n in confirmed else "heuristic",
+            })
+    return out
 
 
 def shadow_path(output_dir: Path, number: int) -> Path:
@@ -227,6 +250,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
         issues = [fetch_issue(args.issue)]
     else:
         issues = fetch_issues(args.state, args.limit)
+    fix_map = fetch_fix_candidates()
 
     planned: List[Tuple[Path, Dict]] = []
     for issue in issues:
@@ -242,7 +266,8 @@ def cmd_sync(args: argparse.Namespace) -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for path, issue in planned:
-        write_shadow(args.output_dir, issue, fix_candidates=[])
+        candidates = fix_map.get(int(issue["number"]), [])
+        write_shadow(args.output_dir, issue, fix_candidates=candidates)
         print(f"wrote {path.name}")
     return 0
 
