@@ -174,8 +174,12 @@ tasks.register('f2pRegionDump', Test) {
     doLast {
         logger.lifecycle("")
         logger.lifecycle("F2P region mapping written to ${f2pRegionsOutput.get()}")
-        logger.lifecycle("Copy into the plugin with:")
-        logger.lifecycle("  cp ${f2pRegionsOutput.get()} shortest-path/src/main/resources/f2p/regions.tsv")
+        if (file('shortest-path/src/main/resources/f2p').exists()) {
+            logger.lifecycle("Copy into the plugin with:")
+            logger.lifecycle("  cp ${f2pRegionsOutput.get()} shortest-path/src/main/resources/f2p/regions.tsv")
+        } else {
+            logger.lifecycle("F2P consumer not merged in the plugin yet — leaving staged output in build/; maintenance.py regions decides whether to copy")
+        }
     }
 }
 
