@@ -594,3 +594,215 @@ def test_collision_map_local_missing_cache_downloads_first(
     assert rc == 0
     kinds = [local_kind(c) for c, _ in calls]
     assert kinds.index("download") < kinds.index("clone")
+
+
+# ---------- regions + bank subcommands ----------
+
+
+def write_gate_kind(cmd):
+    """Bucket a recorded argv into the write-gate probe it answers."""
+    if cmd[:4] == ["git", "-C", "shortest-path", "rev-parse"]:
+        return "upstream" if "@{u}" in cmd else "branch"
+    if cmd[:4] == ["git", "-C", "shortest-path", "status"]:
+        return "status"
+    return f"other:{cmd}"
+
+
+def make_dump_run(repo, calls, *, branch="maint-x",
+                  upstream="myfork/maint-x", upstream_rc=0,
+                  status_out="", league_rc=0, f2p_rc=0, bank_rc=0,
+                  script_rc=0, script_stdout=""):
+    """fake mm.run for the regions/bank subcommands: answers the
+    write-gate git probes and fabricates each dumper's build/ output."""
+    def fake_run(cmd, *, cwd=None, timeout=None, binary=False):
+        calls.append((list(cmd), cwd, timeout))
+        kind = write_gate_kind(cmd)
+        if kind == "branch":
+            return cp(cmd, branch)
+        if kind == "upstream":
+            return cp(cmd, upstream if upstream_rc == 0 else "",
+                      "" if upstream_rc == 0 else "no upstream",
+                      rc=upstream_rc)
+        if kind == "status":
+            return cp(cmd, status_out)
+        if cmd[:2] == ["./gradlew", "leagueRegionDump"]:
+            out = repo / "build" / "league-regions"
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "regions.tsv").write_text("1\tVARLAMORE\n")
+            return cp(cmd, "league dump ok", rc=league_rc)
+        if cmd[:2] == ["./gradlew", "f2pRegionDump"]:
+            out = repo / "build" / "f2p-regions"
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "regions.tsv").write_text("2\tF2P\n")
+            return cp(cmd, "f2p dump ok", rc=f2p_rc)
+        if cmd[:2] == ["./gradlew", "bankTileDump"]:
+            out = repo / "build" / "bank-tiles"
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "bank_tile_placements.tsv").write_text("P\tL\n")
+            return cp(cmd, "bank dump ok", rc=bank_rc)
+        if cmd[0] == sys.executable:
+            return cp(cmd, script_stdout, rc=script_rc)
+        raise AssertionError(f"unexpected argv: {cmd}")
+
+    return fake_run
+
+
+def prepare_dump_repo(tmp_path, monkeypatch, *, cache_ready=True,
+                      f2p_resources=False, f2p_java=False,
+                      **run_kwargs):
+    """Common regions/bank setup: redirected repo with cache + keys and
+    the submodule's existing leagues/ resource dir.  Returns
+    (repo, submodule, calls)."""
+    repo, submodule = redirect_repo(tmp_path, monkeypatch)
+    if cache_ready:
+        (repo / "cache").mkdir()
+        (repo / "keys.json").write_text(
+            (FIXTURES / "keys_patched.json").read_text())
+    resources = submodule / "src" / "main" / "resources"
+    (resources / "leagues").mkdir(parents=True)
+    (resources / "leagues" / "regions.tsv").write_text("OLD\n")
+    if f2p_resources:
+        (resources / "f2p").mkdir(parents=True)
+    if f2p_java:
+        pkg = submodule / "src" / "main" / "java" / "shortestpath" / "f2p"
+        pkg.mkdir(parents=True)
+        (pkg / "F2pRegionChecker.java").write_text(
+            "class F2pRegionChecker {}\n")
+    calls = []
+    monkeypatch.setattr(
+        mm, "run", make_dump_run(repo, calls, **run_kwargs))
+    return repo, submodule, calls
+
+
+def gradle_calls(calls):
+    return [c for c, _, _ in calls if c[0] == "./gradlew"]
+
+
+def test_regions_invokes_both_dumps_sequentially(tmp_path, monkeypatch):
+    repo, _, calls = prepare_dump_repo(tmp_path, monkeypatch)
+    rc = mm.main(["regions"])
+    assert rc == 0
+    dumps = gradle_calls(calls)
+    assert dumps == [
+        ["./gradlew", "leagueRegionDump",
+         f"-PleagueRegionsCacheDir={repo / 'cache'}",
+         f"-PleagueRegionsXteaPath={repo / 'keys.json'}"],
+        ["./gradlew", "f2pRegionDump",
+         f"-Pf2pRegionsCacheDir={repo / 'cache'}",
+         f"-Pf2pRegionsXteaPath={repo / 'keys.json'}"],
+    ]
+    for cmd, cwd, timeout in calls:
+        if cmd[0] == "./gradlew":
+            assert cwd == repo
+            assert timeout == mm.GRADLE_TIMEOUT_SECONDS
+
+
+def test_regions_copies_leagues_unconditionally(tmp_path, monkeypatch):
+    repo, submodule, calls = prepare_dump_repo(tmp_path, monkeypatch)
+    rc = mm.main(["regions"])
+    assert rc == 0
+    copied = (submodule / "src" / "main" / "resources" / "leagues" /
+              "regions.tsv")
+    assert copied.read_text() == "1\tVARLAMORE\n"
+
+
+def test_regions_f2p_skipped_without_consumer(tmp_path, monkeypatch,
+                                              capsys):
+    repo, submodule, calls = prepare_dump_repo(tmp_path, monkeypatch)
+    rc = mm.main(["regions"])
+    assert rc == 0
+    f2p_out = (submodule / "src" / "main" / "resources" / "f2p" /
+               "regions.tsv")
+    assert not f2p_out.exists()
+    # The dump still ran — only the copy is gated.
+    assert any(c[:2] == ["./gradlew", "f2pRegionDump"]
+               for c in gradle_calls(calls))
+    out = capsys.readouterr().out
+    assert "build/f2p-regions/regions.tsv" in out
+    assert "--f2p" in out
+
+
+def test_regions_f2p_copied_when_consumer_present(tmp_path, monkeypatch):
+    repo, submodule, calls = prepare_dump_repo(
+        tmp_path, monkeypatch, f2p_resources=True)
+    rc = mm.main(["regions"])
+    assert rc == 0
+    copied = (submodule / "src" / "main" / "resources" / "f2p" /
+              "regions.tsv")
+    assert copied.read_text() == "2\tF2P\n"
+
+
+def test_regions_f2p_copied_when_java_consumer(tmp_path, monkeypatch):
+    repo, submodule, calls = prepare_dump_repo(
+        tmp_path, monkeypatch, f2p_java=True)
+    rc = mm.main(["regions"])
+    assert rc == 0
+    copied = (submodule / "src" / "main" / "resources" / "f2p" /
+              "regions.tsv")
+    assert copied.read_text() == "2\tF2P\n"
+
+
+def test_regions_f2p_forced_flag(tmp_path, monkeypatch):
+    repo, submodule, calls = prepare_dump_repo(tmp_path, monkeypatch)
+    rc = mm.main(["regions", "--f2p"])
+    assert rc == 0
+    copied = (submodule / "src" / "main" / "resources" / "f2p" /
+              "regions.tsv")
+    assert copied.read_text() == "2\tF2P\n"
+
+
+def test_regions_refuses_on_master_and_detached(tmp_path, monkeypatch):
+    for name, branch in (("a", "master"), ("b", "HEAD")):
+        repo, _, calls = prepare_dump_repo(
+            tmp_path / name, monkeypatch, branch=branch)
+        rc = mm.main(["regions"])
+        assert rc == 1
+        assert gradle_calls(calls) == []
+
+
+def test_regions_missing_cache_refuses(tmp_path, monkeypatch, capsys):
+    repo, _, calls = prepare_dump_repo(
+        tmp_path, monkeypatch, cache_ready=False)
+    rc = mm.main(["regions"])
+    assert rc == 1
+    assert "maintenance.py cache" in capsys.readouterr().err
+    assert gradle_calls(calls) == []
+
+
+def test_bank_sequence(tmp_path, monkeypatch):
+    repo, _, calls = prepare_dump_repo(tmp_path, monkeypatch)
+    rc = mm.main(["bank"])
+    assert rc == 0
+    dumps = gradle_calls(calls)
+    assert dumps == [[
+        "./gradlew", "bankTileDump",
+        f"-PbankTileCacheDir={repo / 'cache'}",
+        f"-PbankTileXteaPath={repo / 'keys.json'}"]]
+    # The dump must use its default output path — the same hardcoded
+    # PLACEMENTS_TSV rebuild_bank_tsv.py reads.
+    assert not any("bankTileOutput" in arg for arg in dumps[0])
+    script_calls = [c for c, _, _ in calls if c[0] == sys.executable]
+    assert script_calls == [[
+        sys.executable,
+        str(repo / "scripts" / "rebuild_bank_tsv.py")]]
+    kinds = [("dump" if c[0] == "./gradlew" else "script")
+             for c, _, _ in calls if c[0] in ("./gradlew",
+                                              sys.executable)]
+    assert kinds == ["dump", "script"]
+
+
+def test_bank_refuses_on_master(tmp_path, monkeypatch):
+    repo, _, calls = prepare_dump_repo(
+        tmp_path, monkeypatch, branch="master")
+    rc = mm.main(["bank"])
+    assert rc == 1
+    assert gradle_calls(calls) == []
+
+
+def test_bank_missing_cache_refuses(tmp_path, monkeypatch, capsys):
+    repo, _, calls = prepare_dump_repo(
+        tmp_path, monkeypatch, cache_ready=False)
+    rc = mm.main(["bank"])
+    assert rc == 1
+    assert "maintenance.py cache" in capsys.readouterr().err
+    assert gradle_calls(calls) == []
