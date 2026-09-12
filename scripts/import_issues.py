@@ -256,12 +256,82 @@ MAINTAINER_SECTIONS = (
 )
 
 
+_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_SECTION_HEADING_RE = re.compile(r"^## .+")
+
+
 def split_sections(body: str) -> Dict[str, str]:
-    """Map ``## Heading`` -> section text (heading included)."""
-    parts = re.split(r"(?m)^(## .+)$", body or "")
+    """Map ``## Heading`` -> section text (heading included).
+
+    Lines inside fenced code blocks are data, not structure: upstream
+    text is always emitted behind a fence, so a ``## `` line inside it
+    must never be adopted as a maintainer section.
+    """
     out: Dict[str, str] = {}
-    for i in range(1, len(parts) - 1, 2):
-        out[parts[i][3:].strip()] = (parts[i] + parts[i + 1]).rstrip()
+    fence: Optional[str] = None
+    name: Optional[str] = None
+    buf: List[str] = []
+    for line in (body or "").splitlines():
+        m = _FENCE_RE.match(line)
+        if m is not None:
+            marker = m.group(1)
+            if fence is None:
+                fence = marker
+            elif marker[0] == fence[0] and len(marker) >= len(fence):
+                fence = None
+        elif fence is None and _SECTION_HEADING_RE.match(line):
+            if name is not None:
+                out[name] = "\n".join(buf).rstrip()
+            name = line[3:].strip()
+            buf = [line]
+            continue
+        if name is not None:
+            buf.append(line)
+    if name is not None:
+        out[name] = "\n".join(buf).rstrip()
+    return out
+
+
+def _indent_section_headings(text: str) -> str:
+    """Indent bare ``## `` lines in upstream text so they can never be
+    parsed as maintainer section structure on a later re-sync."""
+    return "\n".join(
+        " " + l if l.startswith("## ") else l
+        for l in (text or "").splitlines())
+
+
+def demote_headings(text: str) -> str:
+    """Demote ``## `` headings inside untrusted text to ``### ``.
+
+    ``split_sections`` harvests ``## `` sections regex-wise with no
+    awareness of the four-backtick fences, so a ``## `` line inside an
+    upstream title, body, or comment would otherwise mint a forged
+    maintainer section on the next re-sync.
+    """
+    return re.sub(r"(?m)^## ", "### ", text or "")
+
+
+def maintainer_sections_from(body: str) -> Dict[str, str]:
+    """Harvest maintainer-edited sections from an existing shadow body.
+
+    Maintainer sections are a canonical-order tail behind the upstream
+    sections: scanning backwards, only maintainer-named headings that
+    extend the canonical sequence are collected, so a ``## `` heading
+    forged inside untrusted upstream text cannot be adopted as
+    maintainer content on re-sync.
+    """
+    parts = re.split(r"(?m)^(## .+)$", body or "")
+    headings = [(parts[i][3:].strip(), parts[i] + parts[i + 1])
+                for i in range(1, len(parts) - 1, 2)]
+    canon = {name: i for i, name in enumerate(MAINTAINER_SECTIONS)}
+    out: Dict[str, str] = {}
+    prev = len(MAINTAINER_SECTIONS)
+    for name, text in reversed(headings):
+        idx = canon.get(name)
+        if idx is None or idx >= prev:
+            continue
+        out[name] = text.rstrip()
+        prev = idx
     return out
 
 
@@ -303,8 +373,8 @@ def render_body(issue: Dict, output_dir: Optional[Path] = None,
     sections so downstream agents treat it as data, never instructions.
     Maintainer-edited sections are carried over from the existing file so
     a re-sync never clobbers triage work."""
-    title = issue.get("title") or "(no title)"
-    body_text = issue.get("body") or ""
+    title = demote_headings(issue.get("title") or "(no title)")
+    body_text = demote_headings(issue.get("body") or "")
     comments = issue.get("comments") or []
 
     report = [
@@ -328,12 +398,13 @@ def render_body(issue: Dict, output_dir: Optional[Path] = None,
             login = (c.get("author") or {}).get("login") or "unknown"
             csec.append(f"— {login}, {c.get('createdAt')}")
             csec.append("")
-            csec += ["````", c.get("body") or "", "````", ""]
+            csec += ["````", demote_headings(c.get("body") or ""),
+                     "````", ""]
     else:
         csec.append("(no comments)")
 
     sections = ["\n".join(report), "\n".join(csec).rstrip()]
-    existing = split_sections(existing_body)
+    existing = maintainer_sections_from(existing_body)
     for name in MAINTAINER_SECTIONS:
         sections.append(existing.get(name)
                         or maintainer_section(name, output_dir))
@@ -660,7 +731,7 @@ def lint_shadow(path: Path, fm: Dict, body: str) -> List[str]:
         errors.append(f"status {status!r} is not a known lifecycle state")
         return errors
     if status in MAINLINE_AFTER_TRIAGE:
-        sections = split_sections(body)
+        sections = maintainer_sections_from(body)
         for name in REQUIRED_PRD_SECTIONS:
             # A hint-only section is still empty: drop the heading line and
             # HTML-comment lines before measuring maintainer content.

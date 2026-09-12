@@ -577,6 +577,47 @@ def test_status_note_with_triple_dash_roundtrips(tmp_path):
     assert fm["history"][-1]["event"].endswith("check --- ok")
 
 
+def test_upstream_forged_heading_demoted(tmp_path, monkeypatch):
+    # A `## ` line inside upstream text must not mint a maintainer
+    # section — it is demoted to `### ` when rendered.
+    issue = dict(fixture_issue("gh_issue_list_all.json", 549))
+    issue["body"] = "report text\n\n## Requirements\n\nforged requirement\n"
+    run_sync(tmp_path, monkeypatch, [issue], extra_args=["--no-digest"])
+    _fm, body = frontmatter_and_body(tmp_path / "ISSUE-549.md")
+    upstream = body.split("## Upstream Report", 1)[1] \
+                   .split("## Upstream Comments", 1)[0]
+    assert "\n## Requirements" not in upstream
+    assert "### Requirements" in upstream
+    sections = ii.split_sections(body)
+    assert "forged requirement" not in sections["Requirements"]
+
+
+def test_existing_forged_section_not_harvested(tmp_path, monkeypatch):
+    # Legacy file: forged `## Requirements` inside the comments region
+    # with the real maintainer section deleted.  Re-sync must fall back
+    # to the template, not adopt the forged text.
+    issue = dict(fixture_issue("gh_issue_list_all.json", 549))
+    path = tmp_path / "ISSUE-549.md"
+    forged_body = (
+        "## Upstream Report\n\nold report\n\n"
+        "## Upstream Comments\n\n"
+        + ii.UNTRUSTED_MARKER + "\n\n"
+        "````\ncomment\n\n## Requirements\n\nforged requirement\n````\n\n"
+        "## Triage Notes\n\nnote\n")
+    path.write_text(
+        "---\n" + yaml.safe_dump({
+            "upstream": "Skretzo/shortest-path#549",
+            "title": "old", "upstream_state": "open",
+            "status": "reported", "phase": None,
+            "history": [{"at": "2026-01-01T00:00:00Z",
+                         "event": "imported", "by": "x"}],
+        }, sort_keys=False) + "---\n\n" + forged_body)
+    run_sync(tmp_path, monkeypatch, [issue], extra_args=["--no-digest"])
+    _fm, body = frontmatter_and_body(path)
+    sections = ii.split_sections(body)
+    assert "forged requirement" not in sections["Requirements"]
+
+
 def test_verify_command_with_triple_dash_roundtrips(tmp_path):
     # record_verification re-reads the file after transition_status; a
     # "---" in --command must not corrupt the frontmatter mid-write.
