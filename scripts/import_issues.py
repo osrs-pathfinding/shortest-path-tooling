@@ -467,8 +467,14 @@ def upstream_closure_signal(fm: Dict, number: int) -> Optional[str]:
     now = utc_now_iso()
     if state == "closed" and reason in ("NOT_PLANNED", "COMPLETED"):
         suggestion = "wontfix" if reason == "NOT_PLANNED" else "closed"
-        history.append({"at": now, "event": f"upstream-closed: {reason}",
-                        "by": "import_issues.py"})
+        event = f"upstream-closed: {reason}"
+        # History is append-only: a re-sync while the issue stays closed
+        # upstream must not pile up duplicate closure signals (the
+        # "re-synced" event always sits between them, so the scan covers
+        # the whole log rather than just the last entry).
+        if not any(h.get("event") == event for h in history):
+            history.append({"at": now, "event": event,
+                            "by": "import_issues.py"})
         return (f"ISSUE-{number}: upstream closed {reason}"
                 f" — suggest {suggestion}")
     if reason == "REOPENED" and status in ("closed", "verified"):

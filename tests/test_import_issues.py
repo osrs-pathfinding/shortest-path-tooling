@@ -565,6 +565,19 @@ def test_resync_state_reason_suggestions(tmp_path, monkeypatch, capsys):
         h["event"] for h in fm["history"]]
 
 
+def test_resync_upstream_closed_dedup(tmp_path, monkeypatch, capsys):
+    # While the issue stays closed upstream, re-syncs must not pile up
+    # duplicate upstream-closed history events.
+    np_issue = fixture_issue("gh_issue_list_all.json", 99996)
+    run_sync(tmp_path, monkeypatch, [np_issue],
+             extra_args=["--no-digest"])
+    run_sync(tmp_path, monkeypatch, [np_issue],
+             extra_args=["--no-digest"])
+    fm, _ = frontmatter_and_body(tmp_path / "ISSUE-99996.md")
+    events = [h["event"] for h in fm["history"]]
+    assert events.count("upstream-closed: NOT_PLANNED") == 1
+
+
 def test_resync_title_with_triple_dash_preserves_maintainer(tmp_path,
                                                           monkeypatch):
     # yaml.safe_dump emits a scalar containing "---" unquoted; the
