@@ -615,11 +615,20 @@ def update_state_digest(state_path: Path,
     if rows:
         table += "\n" + "\n".join(rows)
     text = state_path.read_text()
-    if DIGEST_START in text and DIGEST_END in text:
+    start_idx = text.find(DIGEST_START)
+    end_idx = text.find(DIGEST_END)
+    if start_idx != -1 and end_idx > start_idx:
         pre, rest = text.split(DIGEST_START, 1)
         _old, post = rest.split(DIGEST_END, 1)
         new_text = (pre + DIGEST_START + "\n" + table + "\n"
                     + DIGEST_END + post)
+    elif start_idx != -1 or end_idx != -1:
+        # Sentinels present but malformed — unpaired, or END before
+        # START.  Refuse to append a second bounded block into a corrupt
+        # file; the maintainer must repair the markers by hand.
+        print(f"WARNING {state_path.name}: digest sentinels malformed — "
+              "skipping digest update", file=sys.stderr)
+        return False
     else:
         if text and not text.endswith("\n"):
             text += "\n"
