@@ -119,9 +119,20 @@ OPTIONAL_COLUMN_GRAMMARS = {
 }
 
 
+GH_TIMEOUT_SECONDS = 120
+
+
 def gh_json(args: List[str]) -> list:
-    proc = subprocess.run(
-        ["gh", *args], capture_output=True, text=True, check=True)
+    try:
+        proc = subprocess.run(
+            ["gh", *args], capture_output=True, text=True, check=True,
+            timeout=GH_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        # A wedged gh (auth prompt, network stall) must not hang the
+        # whole sync without a diagnostic.
+        raise SystemExit(
+            f"gh {' '.join(args[:2])} timed out after "
+            f"{GH_TIMEOUT_SECONDS}s") from None
     return json.loads(proc.stdout)
 
 

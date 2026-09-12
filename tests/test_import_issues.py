@@ -40,6 +40,30 @@ def run_sync(tmp_path, monkeypatch, issues=None, prs=None, extra_args=None):
     return ii.main(argv)
 
 
+def test_gh_json_uses_timeout(monkeypatch):
+    calls = {}
+
+    class FakeProc:
+        stdout = "[]"
+
+    def fake_run(cmd, **kwargs):
+        calls.update(kwargs)
+        return FakeProc()
+
+    monkeypatch.setattr(ii.subprocess, "run", fake_run)
+    assert ii.gh_json(["issue", "list"]) == []
+    assert calls["timeout"] > 0
+
+
+def test_gh_json_timeout_exits_cleanly(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        raise ii.subprocess.TimeoutExpired(cmd, kwargs.get("timeout"))
+
+    monkeypatch.setattr(ii.subprocess, "run", fake_run)
+    with pytest.raises(SystemExit):
+        ii.gh_json(["issue", "list"])
+
+
 def stub_prs(monkeypatch):
     monkeypatch.setattr(
         ii, "gh_json", lambda args: load_fixture("gh_pr_list.json"))
