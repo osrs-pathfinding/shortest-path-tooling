@@ -39,6 +39,5 @@ specs/
 .gsd-profile
 # GSD stop hook counter (session-local)
 .planning/.gsd-stop-counter
-.gsd-graph/
 .windsurf/
 
