@@ -4,8 +4,8 @@ Verify seasonal teleport region assignments against wiki ground truth.
 
 Reads:
 - src/test/resources/leagues_regions.tsv (bbox source-of-truth in this repo)
-- ../shortest-path/src/main/resources/transports/seasonal_transports.tsv
-  (plugin data in the sibling shortest-path repo)
+- shortest-path/src/main/resources/transports/seasonal_transports.tsv
+  (plugin data in the shortest-path submodule)
 
 Re-implements LeagueRegionDumperTest's chunk classifier in Python, then for
 each Map of Alacrity / Evil Eye row compares the actual region (current
@@ -22,10 +22,8 @@ from collections import defaultdict
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BBOX_TSV = os.path.join(REPO, "src/test/resources/leagues_regions.tsv")
-TRANSPORTS = os.path.normpath(
-    os.path.join(
-        REPO, "../shortest-path/src/main/resources/transports/seasonal_transports.tsv"
-    )
+TRANSPORTS = os.path.join(
+    REPO, "shortest-path/src/main/resources/transports/seasonal_transports.tsv"
 )
 
 
