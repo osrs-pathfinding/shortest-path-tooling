@@ -28,6 +28,9 @@ Subcommands:
                    seasonal (``--skip-collision`` omits the first step)
     probes         run every season-discovery cache dumper in
                    sequence; ``--names-file`` adds the name-driven scans
+    verify         run the compatibility gate: compileTestJava ->
+                   submodule test -> dashboard sweep over every
+                   committed scenario CSV -> collision-map edge-diff
 """
 
 import argparse
@@ -671,6 +674,173 @@ def cmd_collision_map(args: argparse.Namespace) -> int:
     return do_collision_map(args)
 
 
+def scan_report(path: Path) -> List[str]:
+    """Extract failure lines from a dashboard bundle's report.json.
+
+    report.json is the only pass/fail surface for the dashboard task —
+    ``ignoreFailures = true`` plus zero hard assertions in DashboardTest
+    mean a green Gradle exit carries no scenario signal.  A missing or
+    unparseable report therefore fails closed: it returns a failure
+    naming the path rather than an empty (passing) list.
+    """
+    try:
+        data = json.loads(Path(path).read_text())
+    except (json.JSONDecodeError, OSError):
+        return [f"missing or unreadable report: {path}"]
+    failures = []
+    for r in data.get("runs") or []:
+        if not r.get("reached"):
+            failures.append(f"{r.get('name')}: unreachable")
+        elif r.get("assertionPassed") is False:
+            failures.append(
+                f"{r.get('name')}: {r.get('assertionMessage')}")
+    return failures
+
+
+def dashboard_datasets() -> List[str]:
+    """Committed dashboard scenario CSV basenames, sorted.
+
+    The sweep enumerates ``git ls-files`` — never the filesystem — so
+    gitignored scratch state (``debug.csv``) can never leak into the
+    gate, and newly committed datasets are picked up automatically.
+    """
+    proc = run(["git", "ls-files", "src/test/resources/dashboard/"],
+               cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
+    return sorted(
+        Path(line).name
+        for line in (proc.stdout or "").splitlines()
+        if line.strip())
+
+
+def do_verify(args: argparse.Namespace) -> int:
+    """Four-tier compatibility gate: compile -> submodule test ->
+    dashboard sweep -> collision edge-diff.
+
+    Every tier runs even when an earlier one fails — the maintainer
+    wants the whole picture, not just the first red.  The compile and
+    lint tiers judge on exit codes; the dashboard tier parses each
+    bundle's report.json (the task's ``ignoreFailures = true`` makes
+    Gradle's exit code meaningless); the edge-diff tier fails only when
+    an artifact cannot be materialized or the compare tool errors — a
+    non-empty diff is review evidence, not a failure.  All evidence
+    stays under ``build/``; nothing here writes a committed log.
+    """
+    tiers = {}  # name -> list of failure lines (only ran tiers)
+
+    if not args.skip_compile:
+        proc = run(["./gradlew", "compileTestJava"], cwd=REPO,
+                   timeout=GRADLE_TIMEOUT_SECONDS)
+        tiers["compile"] = ([] if proc.returncode == 0 else [
+            f"compileTestJava exited {proc.returncode}"])
+
+    if not args.skip_lint:
+        # The whole submodule test task — strictly more coverage than
+        # *LintTest alone.
+        proc = run(["./gradlew", "-p", "shortest-path", "test"],
+                   cwd=REPO, timeout=GRADLE_TIMEOUT_SECONDS)
+        tiers["lint"] = ([] if proc.returncode == 0 else [
+            f"submodule test exited {proc.returncode}"])
+
+    if not args.skip_dashboard:
+        failures = []
+        datasets = dashboard_datasets()
+        if not datasets:
+            # An empty sweep is a broken gate, not a green one.
+            failures.append(
+                "no committed dashboard datasets found via "
+                "git ls-files")
+        for csv in datasets:
+            argv = ["./gradlew", "dashboard",
+                    f"-PdashboardDataset=/dashboard/{csv}",
+                    "-PdashboardProfile=false"]
+            # Belt-and-braces over the slug auto-tagging — a renamed
+            # dataset would otherwise lose its overlay silently.
+            if csv.startswith("seasonal_"):
+                argv.append("-PdashboardSeasonal=true")
+            if csv.startswith("f2p_"):
+                argv.append("-PdashboardF2p=true")
+            run(argv, cwd=REPO, timeout=GRADLE_TIMEOUT_SECONDS)
+            # profile=false makes the bundle name equal the slug —
+            # the same derivation dashboards.gradle applies.
+            slug = Path(csv).stem.lower().replace("_", "-")
+            report = (REPO / "build" / "reports" /
+                      "pathfinder-dashboard" / slug / "report.json")
+            failures.extend(scan_report(report))
+        tiers["dashboard"] = failures
+
+    if not args.skip_diff:
+        failures = []
+        if args.old_zip is not None and args.new_zip is not None:
+            old_zip, new_zip = args.old_zip, args.new_zip
+        else:
+            old_zip = REPO / "build" / "verify-old-collision-map.zip"
+            new_zip = (SUBMODULE / "src" / "main" / "resources" /
+                       "collision-map.zip")
+            tree = run(["git", "ls-tree", "HEAD", "shortest-path"],
+                       cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
+            fields = (tree.stdout or "").split()
+            if tree.returncode != 0 or len(fields) < 3:
+                failures.append(
+                    "could not resolve the pinned submodule gitlink "
+                    "via git ls-tree")
+            else:
+                sha = fields[2]
+                show = run(["git", "-C", "shortest-path", "show",
+                            f"{sha}:src/main/resources/"
+                            "collision-map.zip"],
+                           binary=True, timeout=GIT_TIMEOUT_SECONDS)
+                if show.returncode != 0:
+                    failures.append(
+                        f"could not extract collision-map.zip at "
+                        f"{sha[:7]}")
+                else:
+                    old_zip.parent.mkdir(parents=True, exist_ok=True)
+                    old_zip.write_bytes(show.stdout)
+        if not failures:
+            missing = [p for p in (old_zip, new_zip) if not p.exists()]
+            if missing:
+                failures.append(
+                    f"missing collision-map artifact: {missing[0]}")
+            elif old_zip.read_bytes() == new_zip.read_bytes():
+                print("collision-map: no edge changes")
+            else:
+                diff = run([sys.executable,
+                            str(REPO / "scripts" /
+                                "compare_collision_maps.py"),
+                            str(old_zip), str(new_zip)],
+                           timeout=SCRIPT_TIMEOUT_SECONDS)
+                _print_stdout(diff)
+                if diff.returncode != 0:
+                    tail = _stderr_tail(diff)
+                    failures.append(
+                        tail.splitlines()[-1] if tail else
+                        f"compare_collision_maps.py exited "
+                        f"{diff.returncode}")
+        tiers["diff"] = failures
+
+    failed = 0
+    passed = 0
+    for name in ("compile", "lint", "dashboard", "diff"):
+        if name not in tiers:
+            print(f"SKIP {name}")
+            continue
+        failures = tiers[name]
+        if failures:
+            failed += 1
+            print(f"FAIL {name}: {failures[0]}")
+            for extra in failures[1:]:
+                print(f"  {extra}")
+        else:
+            passed += 1
+            print(f"PASS {name}")
+    print(f"verify: {passed}/4 tiers passed")
+    return 1 if failed else 0
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    return do_verify(args)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -735,6 +905,32 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Canonical destination-name list (one per line) — also "
              "enables the three name-driven scans")
 
+    vf = sub.add_parser(
+        "verify",
+        help="Run the compatibility gate: compile -> submodule test "
+             "-> dashboard sweep over committed scenario CSVs -> "
+             "collision-map edge-diff")
+    vf.add_argument(
+        "--skip-compile", action="store_true",
+        help="Omit the compileTestJava tier")
+    vf.add_argument(
+        "--skip-lint", action="store_true",
+        help="Omit the submodule test tier")
+    vf.add_argument(
+        "--skip-dashboard", action="store_true",
+        help="Omit the dashboard sweep tier")
+    vf.add_argument(
+        "--skip-diff", action="store_true",
+        help="Omit the collision-map edge-diff tier")
+    vf.add_argument(
+        "--old-zip", type=Path, default=None,
+        help="Baseline collision-map.zip for the edge-diff — must be "
+             "given together with --new-zip")
+    vf.add_argument(
+        "--new-zip", type=Path, default=None,
+        help="Candidate collision-map.zip for the edge-diff — must "
+             "be given together with --old-zip")
+
     args = ap.parse_args(argv)
 
     if args.cmd == "cache":
@@ -751,6 +947,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_refresh(args)
     if args.cmd == "probes":
         return cmd_probes(args)
+    if args.cmd == "verify":
+        if (args.old_zip is None) != (args.new_zip is None):
+            vf.error("--old-zip and --new-zip must be given together")
+        return cmd_verify(args)
     return 0
 
 
