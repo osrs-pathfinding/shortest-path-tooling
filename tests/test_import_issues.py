@@ -465,3 +465,155 @@ def test_check_scenario_header_columns(tmp_path, capsys):
         header=SCENARIO_HEADER + ",bogus_col")
     assert run_check(tmp_path) != 0
     assert "bogus_col" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------
+# re-sync preservation, upstream-state mapping, STATE.md digest
+# --------------------------------------------------------------------------
+
+def fixture_issue(name, number):
+    return next(r for r in load_fixture(name) if r["number"] == number)
+
+
+def test_resync_updates_upstream_preserves_maintainer(tmp_path, monkeypatch):
+    issues = load_fixture("gh_issue_list_all.json")
+    run_sync(tmp_path, monkeypatch, issues, extra_args=["--no-digest"])
+    path = tmp_path / "ISSUE-549.md"
+    fm, _body = frontmatter_and_body(path)
+    # Maintainer edits: triage the file, fill the handoff sections.
+    fm["status"] = "triaged"
+    fm["phase"] = "phases/fix-549"
+    fm["scenario_rows"] = ["alpha scenario"]
+    fm["verification"]["command"] = "./gradlew dashboard"
+    maintainer_body = (
+        "## Triage Notes\n\nmy root-cause theory\n\n"
+        "## Requirements\n- fix it\n\n"
+        "## Acceptance Criteria\n- it works\n\n"
+        "## Canonical References\n- file.java\n")
+    path.write_text("---\n" + yaml.safe_dump(fm, sort_keys=False)
+                    + "---\n\n" + maintainer_body)
+    # Re-sync with changed upstream data.
+    changed = dict(fixture_issue("gh_issue_list_all.json", 549))
+    changed["title"] = "Retitled upstream report"
+    capsys.readouterr()
+    run_sync(tmp_path, monkeypatch, [changed],
+             extra_args=["--no-digest"])
+    fm, body = frontmatter_and_body(path)
+    # Upstream-owned fields and sections refresh...
+    assert fm["title"] == "Retitled upstream report"
+    upstream = ii.split_sections(body)
+    assert "Retitled upstream report" in upstream["Upstream Report"]
+    # ...while every maintainer-owned field and section is preserved.
+    assert fm["status"] == "triaged"
+    assert fm["phase"] == "phases/fix-549"
+    assert fm["scenario_rows"] == ["alpha scenario"]
+    assert fm["verification"]["command"] == "./gradlew dashboard"
+    events = [h["event"] for h in fm["history"]]
+    assert "imported" in events and "re-synced" in events
+    for section, marker in (("Triage Notes", "my root-cause theory"),
+                            ("Requirements", "- fix it"),
+                            ("Acceptance Criteria", "- it works"),
+                            ("Canonical References", "- file.java")):
+        assert marker in upstream[section]
+
+
+def test_resync_state_reason_suggestions(tmp_path, monkeypatch, capsys):
+    # NOT_PLANNED -> suggest wontfix + history marker.
+    np_issue = fixture_issue("gh_issue_list_all.json", 99996)
+    run_sync(tmp_path, monkeypatch, [np_issue],
+             extra_args=["--no-digest"])
+    assert "suggest wontfix" in capsys.readouterr().out
+    fm, _ = frontmatter_and_body(tmp_path / "ISSUE-99996.md")
+    assert "upstream-closed: NOT_PLANNED" in [
+        h["event"] for h in fm["history"]]
+
+    # COMPLETED -> suggest closed.
+    sub = tmp_path / "b"
+    comp = fixture_issue("gh_issue_list_all.json", 511)
+    run_sync(sub, monkeypatch, [comp], extra_args=["--no-digest"])
+    assert "suggest closed" in capsys.readouterr().out
+
+    # REOPENED on a locally closed file -> status flips to reopened.
+    sub2 = tmp_path / "c"
+    sub2.mkdir()
+    make_shadow(sub2, 99997, status="closed", body_text=PRD_BODY)
+    reop = fixture_issue("gh_issue_list_all.json", 99997)
+    run_sync(sub2, monkeypatch, [reop], extra_args=["--no-digest"])
+    fm, _ = frontmatter_and_body(sub2 / "ISSUE-99997.md")
+    assert fm["status"] == "reopened"
+    assert "status: closed -> reopened (upstream)" in [
+        h["event"] for h in fm["history"]]
+
+
+def test_digest_sentinel_replace(tmp_path):
+    state = tmp_path / "STATE.md"
+    state.write_text(
+        "---\nkey: value\n---\n\n## Hand Written\n\nkeep me\n\n"
+        "<!-- issues:digest:start -->\nstale table\n"
+        "<!-- issues:digest:end -->\n\ntrailing notes\n")
+    files = [(1, {"upstream_state": "open", "title": "one",
+                  "status": "triaged", "phase": None}),
+             (2, {"upstream_state": "closed", "title": "two",
+                  "status": "closed", "phase": None})]
+    ii.update_state_digest(state, files)
+    text = state.read_text()
+    pre, rest = text.split("<!-- issues:digest:start -->", 1)
+    _table, post = rest.split("<!-- issues:digest:end -->", 1)
+    assert pre == "---\nkey: value\n---\n\n## Hand Written\n\nkeep me\n\n"
+    assert post == "\n\ntrailing notes\n"
+    assert "Skretzo/shortest-path#1" in text
+    assert "two" not in text
+
+
+def test_digest_appends_section_when_missing(tmp_path):
+    state = tmp_path / "STATE.md"
+    state.write_text("# Existing state\n")
+    files = [(3, {"upstream_state": "open", "title": "three",
+                  "status": "reported", "phase": None})]
+    ii.update_state_digest(state, files)
+    text = state.read_text()
+    assert text.startswith("# Existing state\n")
+    assert "## Open Issues" in text
+    assert "<!-- issues:digest:start -->" in text
+    assert "Skretzo/shortest-path#3" in text
+
+
+def test_digest_skips_when_state_file_absent(tmp_path, monkeypatch):
+    out = tmp_path / "issues"
+    run_sync(out, monkeypatch,
+             [fixture_issue("gh_issue_list_all.json", 549)])
+    assert not (tmp_path / "STATE.md").exists()
+
+
+def test_digest_lists_only_upstream_open(tmp_path):
+    state = tmp_path / "STATE.md"
+    state.write_text("")
+    files = [(2, {"upstream_state": "closed", "title": "closed one",
+                  "status": "closed", "phase": None}),
+             (1, {"upstream_state": "open", "title": "first",
+                  "status": "triaged", "phase": None}),
+             (3, {"upstream_state": "open", "title": "third",
+                  "status": "reported", "phase": "phases/x"})]
+    ii.update_state_digest(state, files)
+    text = state.read_text()
+    assert "#1" in text and "#3" in text
+    assert "#2" not in text and "closed one" not in text
+    assert text.index("#1") < text.index("#3")  # sorted by issue number
+    assert "phases/x" in text
+
+
+def test_sync_writes_digest_to_derived_state_file(tmp_path, monkeypatch):
+    out = tmp_path / "issues"
+    state = tmp_path / "STATE.md"
+    state.write_text("# State\n")
+    issues = load_fixture("gh_issue_list_all.json")
+    capsys.readouterr()
+    rc = run_sync(out, monkeypatch, issues)
+    assert rc == 0
+    text = state.read_text()
+    assert "## Open Issues" in text
+    assert "Skretzo/shortest-path#549" in text
+    # Closed-upstream files are written but excluded from the digest.
+    assert (out / "ISSUE-511.md").is_file()
+    digest = text.split("<!-- issues:digest:start -->")[1]
+    assert "#511" not in digest

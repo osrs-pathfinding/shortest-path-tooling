@@ -368,6 +368,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     sp.add_argument("--issue", type=int, default=None,
                     help="Refresh a single upstream issue number")
     sp.add_argument("--dry-run", action="store_true")
+    sp.add_argument("--state-file", type=Path, default=None,
+                    help="State file receiving the open-issue digest "
+                         "(default: STATE.md next to --output-dir)")
+    sp.add_argument("--no-digest", action="store_true",
+                    help="Skip the open-issue digest write")
 
     lp = sub.add_parser("list", help="List shadow files with status")
     lp.add_argument("--output-dir", type=Path, required=True)
@@ -397,6 +402,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.cmd == "check":
         return cmd_check(args)
     return 0
+
+
+def update_state_digest(state_path: Path, files) -> bool:
+    return False
 
 
 def cmd_sync(args: argparse.Namespace) -> int:

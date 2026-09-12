@@ -1,0 +1,238 @@
+[
+  {
+    "author": {
+      "id": "MDQ6VXNlcjU4NTE0MzM=",
+      "is_bot": false,
+      "login": "ShaunDreclin",
+      "name": "Shaun Dreclin"
+    },
+    "body": "<img width=\"822\" height=\"438\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/c035caf3-1439-44fd-96fa-058b9992d3ea\" />",
+    "closedAt": null,
+    "closedByPullRequestsReferences": [],
+    "comments": [],
+    "createdAt": "2026-09-11T20:01:46Z",
+    "labels": [
+      {
+        "id": "LA_kwDOGiX-VM7ZSQUq",
+        "name": "bug",
+        "description": "Something isn't working",
+        "color": "d73a4a"
+      }
+    ],
+    "number": 549,
+    "state": "OPEN",
+    "stateReason": "",
+    "title": "Gu'Tanoth agility shortcut not mapped",
+    "updatedAt": "2026-09-11T20:01:46Z",
+    "url": "https://github.com/Skretzo/shortest-path/issues/549"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjE3MzQ2OTcz",
+      "is_bot": false,
+      "login": "Jeflex",
+      "name": ""
+    },
+    "body": "Low level iron. Landed in Fortis. Set destination to Axe Shop in Auburn Valley. The route suggested I go through Gorge and walk around the Huey mountain. This passes right by the guide to Auburn Valley. Taking it is a shorter route.\n\nTested by standing in front of the guide and the route is still not suggested.\n\n<img width=\"1440\" height=\"932\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/ba241d2a-0a4c-48d8-87d4-918cda4a71a5\" />",
+    "closedAt": null,
+    "closedByPullRequestsReferences": [],
+    "comments": [],
+    "createdAt": "2026-09-04T04:27:16Z",
+    "labels": [
+      {
+        "id": "LA_kwDOGiX-VM7ZSQUq",
+        "name": "bug",
+        "description": "Something isn't working",
+        "color": "d73a4a"
+      }
+    ],
+    "number": 548,
+    "state": "OPEN",
+    "stateReason": "",
+    "title": "Guide to Auburn Valley not routed",
+    "updatedAt": "2026-09-04T04:27:16Z",
+    "url": "https://github.com/Skretzo/shortest-path/issues/548"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjI0MjM4NTY=",
+      "is_bot": false,
+      "login": "wvanderp",
+      "name": "Wouter van der Plas"
+    },
+    "body": "if you go to the lunar isle with out a Seal of passage you will be kicked off the island.\n\nthis might be a easy way of getting to rellekka if you have forexample a lunar home teleport.\n\njust leaving it here\n\nhttps://oldschool.runescape.wiki/w/Lunar_Isle",
+    "closedAt": null,
+    "closedByPullRequestsReferences": [],
+    "comments": [],
+    "createdAt": "2026-08-30T20:51:32Z",
+    "labels": [
+      {
+        "id": "LA_kwDOGiX-VM7ZSQUw",
+        "name": "enhancement",
+        "description": "New feature or request",
+        "color": "a2eeef"
+      }
+    ],
+    "number": 547,
+    "state": "OPEN",
+    "stateReason": "",
+    "title": "kicked off lunar island",
+    "updatedAt": "2026-08-30T20:51:32Z",
+    "url": "https://github.com/Skretzo/shortest-path/issues/547"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjQ0MDY3MzU2",
+      "is_bot": false,
+      "login": "Aborts",
+      "name": ""
+    },
+    "body": "as title states  \n\n<img width=\"189\" height=\"184\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/9bbef22e-12c2-4cb9-98ac-9f272eef71ea\" />",
+    "closedAt": "2026-06-27T15:56:09Z",
+    "closedByPullRequestsReferences": [],
+    "comments": [
+      {
+        "id": "IC_kwDOGiX-VM8AAAABHzqg3g",
+        "author": {
+          "login": "Aborts"
+        },
+        "authorAssociation": "NONE",
+        "body": "seems to be an issue with Improved tile Indicators  with the setting of   \"Draw overlays below player\"   \n",
+        "createdAt": "2026-06-27T15:44:26Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/Skretzo/shortest-path/issues/511#issuecomment-4818903262",
+        "viewerDidAuthor": false
+      },
+      {
+        "id": "IC_kwDOGiX-VM8AAAABHzsg8Q",
+        "author": {
+          "login": "NinjaLikesCheez"
+        },
+        "authorAssociation": "NONE",
+        "body": "> seems to be an issue with Improved tile Indicators  with the setting of   \"Draw overlays below player\"   \n> \n\nCould you close out the issue in that case? Thanks :) ",
+        "createdAt": "2026-06-27T15:51:50Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/Skretzo/shortest-path/issues/511#issuecomment-4818936049",
+        "viewerDidAuthor": false
+      }
+    ],
+    "createdAt": "2026-06-27T15:40:21Z",
+    "labels": [
+      {
+        "id": "LA_kwDOGiX-VM7ZSQUw",
+        "name": "enhancement",
+        "description": "New feature or request",
+        "color": "a2eeef"
+      }
+    ],
+    "number": 511,
+    "state": "CLOSED",
+    "stateReason": "COMPLETED",
+    "title": "Make text appear infront of the player  not behind/ under",
+    "updatedAt": "2026-06-27T15:56:09Z",
+    "url": "https://github.com/Skretzo/shortest-path/issues/511"
+  },
+  {
+    "author": {
+      "id": "U_kgDODZ_8_A",
+      "is_bot": false,
+      "login": "milessearcy",
+      "name": ""
+    },
+    "body": "It would be nice to have a bind/button that takes you to the bank closest to you. Not in terms of on your map but just least amount of tiles.",
+    "closedAt": "2026-05-24T16:45:52Z",
+    "closedByPullRequestsReferences": [],
+    "comments": [
+      {
+        "id": "IC_kwDOGiX-VM8AAAABDfjW2g",
+        "author": {
+          "login": "FIrgolitsch"
+        },
+        "authorAssociation": "COLLABORATOR",
+        "body": "You can right-click the bank icon in the sidebar on the map! Not everything is supported, but banks work.\n\n![Find Closest](https://i.imgur.com/fpeXZRN.gif)",
+        "createdAt": "2026-05-24T16:45:38Z",
+        "includesCreatedEdit": true,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/Skretzo/shortest-path/issues/482#issuecomment-4529379034",
+        "viewerDidAuthor": true
+      }
+    ],
+    "createdAt": "2026-05-22T22:36:05Z",
+    "labels": [
+      {
+        "id": "LA_kwDOGiX-VM7ZSQUw",
+        "name": "enhancement",
+        "description": "New feature or request",
+        "color": "a2eeef"
+      }
+    ],
+    "number": 482,
+    "state": "CLOSED",
+    "stateReason": "COMPLETED",
+    "title": "Closest bank bind/button",
+    "updatedAt": "2026-05-24T16:48:22Z",
+    "url": "https://github.com/Skretzo/shortest-path/issues/482"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjUzMzY5Nzg2",
+      "is_bot": false,
+      "login": "purush97",
+      "name": ""
+    },
+    "body": "Fixture record for a NOT_PLANNED upstream closure.",
+    "closedAt": "2026-05-24T21:07:16Z",
+    "closedByPullRequestsReferences": [],
+    "comments": [],
+    "createdAt": "2026-05-17T15:32:20Z",
+    "labels": [
+      {
+        "id": "LA_kwDOGiX-VM7ZSQUq",
+        "name": "bug",
+        "description": "Something isn't working",
+        "color": "d73a4a"
+      }
+    ],
+    "number": 99996,
+    "state": "CLOSED",
+    "stateReason": "NOT_PLANNED",
+    "title": "Fixture: path ignores custom transports",
+    "updatedAt": "2026-05-24T21:07:16Z",
+    "url": "https://github.com/Skretzo/shortest-path/issues/99996"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjY3NTYyODM2",
+      "is_bot": false,
+      "login": "MichaelRVP",
+      "name": "MichaelRVP"
+    },
+    "body": "Fixture record for a reopened upstream issue.",
+    "closedAt": null,
+    "closedByPullRequestsReferences": [],
+    "comments": [],
+    "createdAt": "2026-08-28T02:34:38Z",
+    "labels": [
+      {
+        "id": "LA_kwDOGiX-VM7ZSQUw",
+        "name": "enhancement",
+        "description": "New feature or request",
+        "color": "a2eeef"
+      }
+    ],
+    "number": 99997,
+    "state": "OPEN",
+    "stateReason": "REOPENED",
+    "title": "Fixture: reopened regression in transport data",
+    "updatedAt": "2026-08-28T02:34:38Z",
+    "url": "https://github.com/Skretzo/shortest-path/issues/99997"
+  }
+]
