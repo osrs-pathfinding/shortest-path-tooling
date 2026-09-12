@@ -142,6 +142,104 @@ def cmd_cache(args: argparse.Namespace) -> int:
     return do_cache()
 
 
+def require_clean_submodule() -> None:
+    """Refuse to bump or overwrite submodule data on a dirty worktree —
+    an in-progress edit must never be silently mixed into a bump."""
+    proc = run(["git", "-C", "shortest-path", "status", "--porcelain"],
+               timeout=GIT_TIMEOUT_SECONDS)
+    if (proc.stdout or "").strip():
+        raise SystemExit(
+            "submodule worktree is dirty — commit or stash before "
+            "updating")
+
+
+def do_collision_map(args: argparse.Namespace) -> int:
+    """Primary path: fast-forward the submodule to origin/master and
+    print the edge diff against the previous collision-map.zip.
+
+    Uses ``fetch`` + ``merge --ff-only`` rather than the remote-tracking
+    submodule bump: that command detaches HEAD unconditionally, which
+    would break the feature-branch precondition the data-writing
+    subcommands rely on.  A fast-forward keeps a checked-out myfork
+    branch intact.
+    """
+    require_clean_submodule()
+    old = run(["git", "-C", "shortest-path", "rev-parse", "HEAD"],
+              timeout=GIT_TIMEOUT_SECONDS).stdout.strip()
+    fetch = run(["git", "-C", "shortest-path", "fetch", "origin"],
+                timeout=GIT_TIMEOUT_SECONDS)
+    if fetch.returncode != 0:
+        print("git fetch failed in submodule:", file=sys.stderr)
+        tail = _stderr_tail(fetch)
+        if tail:
+            print(tail, file=sys.stderr)
+        return 1
+    merge = run(["git", "-C", "shortest-path", "merge", "--ff-only",
+                 "origin/master"], timeout=GIT_TIMEOUT_SECONDS)
+    if merge.returncode != 0:
+        print("submodule diverged from origin/master — merge or rebase "
+              "it manually", file=sys.stderr)
+        tail = _stderr_tail(merge)
+        if tail:
+            print(tail, file=sys.stderr)
+        return 1
+    new = run(["git", "-C", "shortest-path", "rev-parse", "HEAD"],
+              timeout=GIT_TIMEOUT_SECONDS).stdout.strip()
+    if new == old:
+        print(f"collision-map.zip already up to date ({old[:7]})")
+        return 0
+    # The previous artifact lives in git history — extract it in binary
+    # mode without touching the worktree, then diff old vs new.
+    proc = run(["git", "-C", "shortest-path", "show",
+                f"{old}:src/main/resources/collision-map.zip"],
+               binary=True, timeout=GIT_TIMEOUT_SECONDS)
+    if proc.returncode != 0:
+        print(f"could not extract collision-map.zip at {old[:7]}:",
+              file=sys.stderr)
+        tail = _stderr_tail(proc)
+        if tail:
+            print(tail, file=sys.stderr)
+        return 1
+    build = REPO / "build"
+    build.mkdir(parents=True, exist_ok=True)
+    old_zip = build / "old-collision-map.zip"
+    old_zip.write_bytes(proc.stdout)
+    new_zip = (SUBMODULE / "src" / "main" / "resources" /
+               "collision-map.zip")
+    diff = run([sys.executable,
+                str(REPO / "scripts" / "compare_collision_maps.py"),
+                str(old_zip), str(new_zip)],
+               timeout=SCRIPT_TIMEOUT_SECONDS)
+    if diff.stdout:
+        print(diff.stdout,
+              end="" if diff.stdout.endswith("\n") else "\n")
+    if diff.returncode != 0:
+        tail = _stderr_tail(diff)
+        if tail:
+            print(tail, file=sys.stderr)
+        return 1
+    if args.commit:
+        short = run(["git", "-C", "shortest-path", "rev-parse",
+                     "--short", "HEAD"],
+                    timeout=GIT_TIMEOUT_SECONDS).stdout.strip()
+        run(["git", "add", "shortest-path"], cwd=REPO,
+            timeout=GIT_TIMEOUT_SECONDS)
+        run(["git", "commit", "-m",
+             f"chore: update shortest-path submodule to {short}"],
+            cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
+    else:
+        print()
+        print("Next steps:")
+        print("  git add shortest-path")
+        print(f'  git commit -m "chore: update shortest-path submodule '
+              f'to {new[:7]}"')
+    return 0
+
+
+def cmd_collision_map(args: argparse.Namespace) -> int:
+    return do_collision_map(args)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -150,10 +248,24 @@ def main(argv: Optional[List[str]] = None) -> int:
         "cache",
         help="Download the latest OSRS cache and patch keys.json")
 
+    cm = sub.add_parser(
+        "collision-map",
+        help="Update the submodule's collision-map.zip and print an "
+             "edge diff for review")
+    cm.add_argument(
+        "--local", action="store_true",
+        help="Regenerate the zip through the local runelite pipeline "
+             "instead of fast-forwarding to upstream's weekly artifact")
+    cm.add_argument(
+        "--commit", action="store_true",
+        help="Commit the submodule gitlink bump after the diff")
+
     args = ap.parse_args(argv)
 
     if args.cmd == "cache":
         return cmd_cache(args)
+    if args.cmd == "collision-map":
+        return cmd_collision_map(args)
     return 0
 
 
