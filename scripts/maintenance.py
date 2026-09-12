@@ -21,6 +21,8 @@ Subcommands:
                    is gated on a plugin-side consumer or ``--f2p``)
     bank           regenerate bank tile placements and merge them into
                    bank.tsv via rebuild_bank_tsv.py
+    seasonal       check seasonal transport region assignments against
+                   wiki ground truth (read-only)
 """
 
 import argparse
@@ -404,6 +406,25 @@ def cmd_bank(args: argparse.Namespace) -> int:
     return do_bank(args)
 
 
+def do_seasonal(args: argparse.Namespace) -> int:
+    """Run the seasonal region verification against the submodule's
+    seasonal_transports.tsv.  Read-only — no write preconditions; the
+    script's return code propagates."""
+    proc = run([sys.executable,
+                str(REPO / "scripts" / "verify_seasonal_regions.py")],
+               cwd=REPO, timeout=SCRIPT_TIMEOUT_SECONDS)
+    _print_stdout(proc)
+    if proc.returncode != 0:
+        tail = _stderr_tail(proc)
+        if tail:
+            print(tail, file=sys.stderr)
+    return proc.returncode
+
+
+def cmd_seasonal(args: argparse.Namespace) -> int:
+    return do_seasonal(args)
+
+
 def do_collision_map_local(args: argparse.Namespace) -> int:
     """Fallback path: regenerate collision-map.zip locally through the
     runelite pipeline, mirroring the upstream ExtractCollisionMap
@@ -562,6 +583,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Regenerate bank tile placements and merge them into "
              "bank.tsv")
 
+    sub.add_parser(
+        "seasonal",
+        help="Verify seasonal transport region assignments against "
+             "wiki ground truth")
+
     args = ap.parse_args(argv)
 
     if args.cmd == "cache":
@@ -572,6 +598,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_regions(args)
     if args.cmd == "bank":
         return cmd_bank(args)
+    if args.cmd == "seasonal":
+        return cmd_seasonal(args)
     return 0
 
 
