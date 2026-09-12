@@ -29,6 +29,14 @@ The published dashboard is also available on GitHub Pages:
 | `./gradlew bankTileDump -PbankTileCacheDir=<dir> -PbankTileXteaPath=<keys.json>` | Dump bank-object placements from an OSRS cache to TSV |
 | `./gradlew sailingAmenityVarbitDump -PsailingAmenityCacheDir=<dir> -PsailingAmenityXteaPath=<keys.json>` | Dump Sailing island amenity varbits from an OSRS cache |
 
+## Maintenance
+
+`scripts/maintenance.py` orchestrates post-update data maintenance —
+`cache`, `collision-map`, `regions`, `bank`, `seasonal`, `refresh`,
+`probes`, and `verify` subcommands wrap the cache download, Gradle
+dumpers, and verification tiers in one entry point. See
+[docs/maintenance.md](docs/maintenance.md) for the runbook.
+
 ## Dashboard options
 
 All options are passed via `-P`:
@@ -65,7 +73,7 @@ sed -i '' 's/mapsquare/region/g; s/key/keys/g' keys.json
 
 Then run the desired task (see table above).
 
-The `rebuild_bank_tsv.py` script merges the bankTileDump output into `shortest-path/src/main/resources/bank.tsv`:
+The `rebuild_bank_tsv.py` script merges the bankTileDump output into `shortest-path/src/main/resources/destinations/game_features/bank.tsv`:
 
 ```bash
 python3 scripts/rebuild_bank_tsv.py
