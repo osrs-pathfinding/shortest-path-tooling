@@ -32,6 +32,12 @@ def run_sync(tmp_path, monkeypatch, issues=None, prs=None, extra_args=None):
     def dispatch(args):
         if args[:2] == ["pr", "list"]:
             return prs if prs is not None else load_fixture("gh_pr_list.json")
+        if args[:2] == ["issue", "view"]:
+            # `gh issue view` returns a single object, not a list.
+            number = int(args[2])
+            pool = (issues if issues is not None
+                    else load_fixture("gh_issue_list.json"))
+            return next(r for r in pool if r["number"] == number)
         return issues if issues is not None else load_fixture("gh_issue_list.json")
     monkeypatch.setattr(ii, "gh_json", dispatch)
     argv = ["sync", "--output-dir", str(tmp_path)]
@@ -109,6 +115,26 @@ def test_sync_dry_run_writes_nothing(tmp_path, monkeypatch, capsys):
     assert list(tmp_path.iterdir()) == []
     out = capsys.readouterr().out
     assert "ISSUE-549.md" in out
+
+
+def test_sync_single_issue_fetch(tmp_path, monkeypatch):
+    # --issue N goes through `gh issue view`, which returns one object.
+    issues = load_fixture("gh_issue_list.json")
+    target = issues[0]["number"]
+    rc = run_sync(tmp_path, monkeypatch, issues,
+                  extra_args=["--issue", str(target)])
+    assert rc == 0
+    names = [f.name for f in tmp_path.glob("ISSUE-*.md")]
+    assert names == [f"ISSUE-{target}.md"]
+
+
+def test_sync_state_all_writes_all_issues(tmp_path, monkeypatch):
+    issues = load_fixture("gh_issue_list_all.json")
+    rc = run_sync(tmp_path, monkeypatch, issues,
+                  extra_args=["--state", "all", "--no-digest"])
+    assert rc == 0
+    names = {f.name for f in tmp_path.glob("ISSUE-*.md")}
+    assert names == {f"ISSUE-{r['number']}.md" for r in issues}
 
 
 def test_sync_empty_body_and_comments(tmp_path, monkeypatch):
