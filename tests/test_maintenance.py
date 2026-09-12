@@ -339,3 +339,253 @@ def test_collision_map_no_commit_prints_hint(tmp_path, monkeypatch,
     out = capsys.readouterr().out
     assert "git add shortest-path" in out
     assert "chore: update shortest-path submodule" in out
+
+
+# ---------- collision-map --local (fallback pipeline) ----------
+
+
+def local_kind(cmd):
+    """Bucket a recorded argv into the local-pipeline step it
+    represents."""
+    if cmd[:4] == ["git", "-C", "shortest-path", "rev-parse"]:
+        return "upstream" if "@{u}" in cmd else "branch"
+    if cmd[:4] == ["git", "-C", "shortest-path", "status"]:
+        return "status"
+    if cmd[0].endswith("download-latest-cache.sh"):
+        return "download"
+    if cmd[:2] == ["git", "clone"]:
+        return "clone"
+    if cmd[:2] == ["git", "-C"] and "fetch" in cmd:
+        return "fetch"
+    if cmd[:2] == ["git", "-C"] and "reset" in cmd:
+        return "reset"
+    if cmd[:3] == ["git", "apply", "--check"]:
+        return "apply-check"
+    if cmd[:3] == ["git", "apply", "--reverse"]:
+        return "apply-reverse-check"
+    if cmd[:2] == ["git", "apply"]:
+        return "apply"
+    if cmd[0].endswith("gradlew"):
+        return "shadowJar"
+    if cmd[0] == "java":
+        return "java"
+    if cmd[0] == "zip":
+        return "zip"
+    if cmd[0] == sys.executable:
+        return "compare"
+    return f"other:{cmd}"
+
+
+def make_local_run(repo, calls, *, branch="maint-x",
+                   upstream="myfork/maint-x", upstream_rc=0,
+                   status_out="", download_rc=0,
+                   apply_check_rc=0, reverse_check_rc=1,
+                   shadow_rc=0, java_rc=0, zip_rc=0,
+                   diff_stdout="EDGE TOTALS\n"):
+    """fake mm.run for the --local pipeline; fabricates the filesystem
+    effects each step would produce under the tmp repo."""
+    runelite = repo / "build" / "runelite-work" / "runelite"
+    cache_mod = runelite / "cache"
+    download_script = str(
+        repo / "collision-map-update" / "download-latest-cache.sh")
+
+    def fake_run(cmd, *, cwd=None, timeout=None, binary=False):
+        calls.append((list(cmd), cwd))
+        kind = local_kind(cmd)
+        if kind == "branch":
+            return cp(cmd, branch)
+        if kind == "upstream":
+            return cp(cmd, upstream if upstream_rc == 0 else "",
+                      "" if upstream_rc == 0 else "no upstream",
+                      rc=upstream_rc)
+        if kind == "status":
+            return cp(cmd, status_out)
+        if kind == "download":
+            (repo / "cache").mkdir(exist_ok=True)
+            (repo / "keys.json").write_text(
+                (FIXTURES / "keys_raw.json").read_text())
+            return cp(cmd, rc=download_rc)
+        if kind == "clone":
+            target = Path(cmd[-1])
+            (target / "cache" / "src" / "main" / "java" / "net" /
+             "runelite" / "cache").mkdir(parents=True)
+            (target / ".git").mkdir()
+            return cp(cmd)
+        if kind in ("fetch", "reset"):
+            return cp(cmd)
+        if kind == "apply-check":
+            return cp(cmd, stderr="patch does not apply",
+                      rc=apply_check_rc)
+        if kind == "apply-reverse-check":
+            return cp(cmd, rc=reverse_check_rc)
+        if kind == "apply":
+            return cp(cmd)
+        if kind == "shadowJar":
+            libs = cache_mod / "build" / "libs"
+            libs.mkdir(parents=True, exist_ok=True)
+            (libs / "cache-1.0-all.jar").write_bytes(b"JAR")
+            return cp(cmd, rc=shadow_rc)
+        if kind == "java":
+            return cp(cmd, rc=java_rc)
+        if kind == "zip":
+            Path(cwd, "collision-map.zip").write_bytes(b"NEWZIP")
+            return cp(cmd, rc=zip_rc)
+        if kind == "compare":
+            return cp(cmd, diff_stdout)
+        raise AssertionError(f"unexpected argv: {cmd}")
+
+    return fake_run
+
+
+def prepare_local(tmp_path, monkeypatch, *, cache_ready=True,
+                  existing_zip=True, **run_kwargs):
+    """Common --local setup: redirected repo, stubbed tool check, fake
+    run seam.  Returns (repo, submodule, calls)."""
+    repo, submodule = redirect_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(mm, "check_tools", lambda names: None)
+    resources = submodule / "src" / "main" / "resources"
+    resources.mkdir(parents=True)
+    if existing_zip:
+        (resources / "collision-map.zip").write_bytes(b"OLDZIP")
+    if cache_ready:
+        (repo / "cache").mkdir()
+        (repo / "keys.json").write_text(
+            (FIXTURES / "keys_patched.json").read_text())
+    calls = []
+    monkeypatch.setattr(
+        mm, "run", make_local_run(repo, calls, **run_kwargs))
+    return repo, submodule, calls
+
+
+def test_collision_map_local_sequence(tmp_path, monkeypatch, capsys):
+    # Cache absent -> the pipeline downloads it first; existing
+    # submodule zip -> snapshotted as the diff baseline.
+    repo, submodule, calls = prepare_local(
+        tmp_path, monkeypatch, cache_ready=False)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    kinds = [local_kind(c) for c, _ in calls]
+    assert kinds == [
+        "branch", "upstream", "status", "download", "clone",
+        "apply-check", "apply", "shadowJar", "java", "zip", "compare"]
+
+    runelite = repo / "build" / "runelite-work" / "runelite"
+    build = repo / "build"
+    # Clone argv and every scratch path live under build/.
+    clone = next(c for c, _ in calls if local_kind(c) == "clone")
+    assert clone[:4] == ["git", "clone", "--depth", "1"]
+    assert clone[4] == "https://github.com/runelite/runelite"
+    assert clone[5] == str(runelite)
+
+    gradle = next(c for c, _ in calls if local_kind(c) == "shadowJar")
+    assert gradle == [str(runelite / "gradlew"), ":cache:shadowJar",
+                      "-x", "test", "--dependency-verification=off"]
+    gradle_cwd = next(w for c, w in calls
+                      if local_kind(c) == "shadowJar")
+    assert gradle_cwd == runelite
+
+    java = next(c for c, _ in calls if local_kind(c) == "java")
+    assert java[:3] == ["java", "-jar", str(build / "cache.jar")]
+    assert str(build / "collision-output") in java
+
+    # The new zip landed in the submodule; the old one was preserved.
+    new_zip = (submodule / "src" / "main" / "resources" /
+               "collision-map.zip")
+    assert new_zip.read_bytes() == b"NEWZIP"
+    assert (build / "old-collision-map.zip").read_bytes() == b"OLDZIP"
+    compare = next(c for c, _ in calls if local_kind(c) == "compare")
+    assert compare[2] == str(build / "old-collision-map.zip")
+    assert compare[3] == str(new_zip)
+    assert "EDGE TOTALS" in capsys.readouterr().out
+
+
+def test_collision_map_local_refuses_master(tmp_path, monkeypatch):
+    repo, _, calls = prepare_local(
+        tmp_path, monkeypatch, branch="master")
+    with pytest.raises(SystemExit):
+        mm.main(["collision-map", "--local"])
+    kinds = [local_kind(c) for c, _ in calls]
+    assert kinds == ["branch"]
+
+
+def test_collision_map_local_refuses_detached(tmp_path, monkeypatch):
+    repo, _, calls = prepare_local(tmp_path, monkeypatch, branch="HEAD")
+    with pytest.raises(SystemExit):
+        mm.main(["collision-map", "--local"])
+    kinds = [local_kind(c) for c, _ in calls]
+    assert kinds == ["branch"]
+
+
+def test_collision_map_local_refuses_origin_upstream(tmp_path,
+                                                     monkeypatch):
+    repo, _, calls = prepare_local(
+        tmp_path, monkeypatch, upstream="origin/master")
+    with pytest.raises(SystemExit):
+        mm.main(["collision-map", "--local"])
+    kinds = [local_kind(c) for c, _ in calls]
+    assert kinds == ["branch", "upstream"]
+    assert "clone" not in kinds and "download" not in kinds
+
+
+def test_collision_map_local_no_upstream_warns_but_allows(
+        tmp_path, monkeypatch, capsys):
+    repo, _, calls = prepare_local(
+        tmp_path, monkeypatch, upstream_rc=1, existing_zip=False)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    assert "no upstream" in capsys.readouterr().err
+    kinds = [local_kind(c) for c, _ in calls]
+    assert "clone" in kinds
+
+
+def test_collision_map_local_existing_clone_refreshed(tmp_path,
+                                                      monkeypatch):
+    repo, _, calls = prepare_local(
+        tmp_path, monkeypatch, existing_zip=False)
+    runelite = repo / "build" / "runelite-work" / "runelite"
+    cache_mod = runelite / "cache"
+    (cache_mod / "src" / "main" / "java" / "net" / "runelite" /
+     "cache").mkdir(parents=True)
+    (runelite / ".git").mkdir()
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    kinds = [local_kind(c) for c, _ in calls]
+    assert "clone" not in kinds
+    assert "fetch" in kinds and "reset" in kinds
+    assert kinds.index("fetch") < kinds.index("reset") < \
+        kinds.index("apply-check")
+
+
+def test_collision_map_local_patch_already_applied(tmp_path,
+                                                   monkeypatch, capsys):
+    repo, _, calls = prepare_local(
+        tmp_path, monkeypatch, existing_zip=False,
+        apply_check_rc=1, reverse_check_rc=0)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    kinds = [local_kind(c) for c, _ in calls]
+    assert "apply-check" in kinds
+    assert "apply-reverse-check" in kinds
+    assert "apply" not in kinds
+    assert "shadowJar" in kinds
+    assert "already applied" in capsys.readouterr().out
+
+
+def test_collision_map_local_old_zip_preserved(tmp_path, monkeypatch):
+    repo, submodule, calls = prepare_local(tmp_path, monkeypatch)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    old_zip = repo / "build" / "old-collision-map.zip"
+    assert old_zip.read_bytes() == b"OLDZIP"
+    compare = next(c for c, _ in calls if local_kind(c) == "compare")
+    assert compare[2] == str(old_zip)
+
+
+def test_collision_map_local_missing_cache_downloads_first(
+        tmp_path, monkeypatch):
+    repo, _, calls = prepare_local(
+        tmp_path, monkeypatch, cache_ready=False, existing_zip=False)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    kinds = [local_kind(c) for c, _ in calls]
+    assert kinds.index("download") < kinds.index("clone")
