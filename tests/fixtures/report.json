@@ -1,0 +1,14 @@
+{
+  "runs": [
+    {
+      "name": "alpha scenario",
+      "reached": true,
+      "pathLength": 12,
+      "assertionPassed": true,
+      "assertionMessage": null,
+      "stats": {
+        "elapsedNanos": 123456
+      }
+    }
+  ]
+}

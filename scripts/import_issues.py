@@ -451,6 +451,32 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="Lint shadow files and the scenario CSV")
     ck.add_argument("--output-dir", type=Path, required=True)
 
+    vp = sub.add_parser(
+        "verify",
+        help="Record replay evidence and mark an issue verified")
+    vp.add_argument("--output-dir", type=Path, required=True)
+    vp.add_argument("issue", type=int)
+    vp.add_argument("--command", required=True,
+                    help="Exact verification command run (verbatim)")
+    vp.add_argument("--report", default=None,
+                    help="report.json produced by the dashboard replay")
+    vp.add_argument("--manual", action="store_true",
+                    help="Non-dashboard verification: --evidence carries "
+                         "a test name or reporter comment URL")
+    vp.add_argument("--evidence", default=None,
+                    help="Evidence reference for --manual")
+    vp.add_argument("--fix-commit", default=None,
+                    help="SHA of the fix commit on the myfork fix branch "
+                         "(git -C shortest-path rev-parse HEAD); upstream "
+                         "closure still follows the PR merge")
+    vp.add_argument("--fix-pr", default=None,
+                    help="Upstream PR URL carrying 'Fixes #N'")
+    vp.add_argument("--verifier", default=None,
+                    help="Who verified (default: current user)")
+    vp.add_argument("--dataset-rows", default=None,
+                    help="Comma-separated scenario row names, overriding "
+                         "the file's scenario_rows")
+
     args = ap.parse_args(argv)
 
     if args.cmd == "sync":
@@ -461,6 +487,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_status(args)
     if args.cmd == "check":
         return cmd_check(args)
+    if args.cmd == "verify":
+        return cmd_verify(args)
     return 0
 
 
@@ -737,6 +765,31 @@ def cmd_check(args: argparse.Namespace) -> int:
         return 1
     print("check: clean")
     return 0
+
+
+def load_report_runs(path: Path) -> List[Dict]:
+    """Parse a dashboard bundle report.json into its run records."""
+    return []
+
+
+def record_verification(path: Path, **kwargs) -> Tuple[bool, str]:
+    """Stub — real evidence checking lands in the implementation commit."""
+    return False, f"{path.name}: verify not implemented"
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    rows = None
+    if args.dataset_rows:
+        rows = [r.strip() for r in args.dataset_rows.split(",")
+                if r.strip()]
+    ok, msg = record_verification(
+        shadow_path(args.output_dir, args.issue),
+        command=args.command, report=args.report, manual=args.manual,
+        evidence=args.evidence, fix_commit=args.fix_commit,
+        fix_pr=args.fix_pr, verifier=args.verifier,
+        dataset_rows=rows)
+    print(msg, file=sys.stdout if ok else sys.stderr)
+    return 0 if ok else 1
 
 
 def cmd_list(args: argparse.Namespace) -> int:

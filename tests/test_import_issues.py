@@ -615,3 +615,175 @@ def test_sync_writes_digest_to_derived_state_file(tmp_path, monkeypatch):
     assert (out / "ISSUE-511.md").is_file()
     digest = text.split("<!-- issues:digest:start -->")[1]
     assert "#511" not in digest
+
+
+# --------------------------------------------------------------------------
+# verify subcommand — evidence-gated path to `verified`
+# --------------------------------------------------------------------------
+
+def make_report(tmp_path, name="alpha scenario", reached=True,
+                assertion_passed=True, assertion_message=None,
+                filename="report.json"):
+    """Write a report.json in the DashboardBundlePublisher shape."""
+    report = json.loads((FIXTURES / "report.json").read_text())
+    run = report["runs"][0]
+    run["name"] = name
+    run["reached"] = reached
+    run["assertionPassed"] = assertion_passed
+    run["assertionMessage"] = assertion_message
+    path = tmp_path / filename
+    path.write_text(json.dumps(report))
+    return path
+
+
+def run_verify(tmp_path, issue, *argv):
+    return ii.main(
+        ["verify", "--output-dir", str(tmp_path), str(issue), *argv])
+
+
+def test_verification_records_report_evidence(tmp_path):
+    make_shadow(tmp_path, 1, status="fixed",
+                fm_extra={"scenario_rows": ["alpha scenario"]})
+    report = make_report(tmp_path)
+    rc = run_verify(
+        tmp_path, 1,
+        "--command", "./gradlew dashboard -PdashboardDataset=x "
+        "-PdashboardBundle=issue-1",
+        "--report", str(report),
+        "--fix-commit", "abc1234",
+        "--fix-pr", "https://example.invalid/pr/1",
+        "--verifier", "tester")
+    assert rc == 0
+    fm, _body = frontmatter_and_body(tmp_path / "ISSUE-1.md")
+    v = fm["verification"]
+    assert v["command"].startswith("./gradlew dashboard")
+    assert v["dataset_rows"] == ["alpha scenario"]
+    assert v["report"] == str(report)
+    assert v["fix_commit"] == "abc1234"
+    assert v["fix_pr"] == "https://example.invalid/pr/1"
+    assert v["verifier"] == "tester"
+    assert v["verified_at"]
+    assert fm["status"] == "verified"
+    assert fm["history"][-1]["event"] == "status: fixed -> verified"
+
+
+def test_verification_rejects_unreached_run(tmp_path, capsys):
+    path = make_shadow(tmp_path, 2, status="fixed",
+                       fm_extra={"scenario_rows": ["alpha scenario"]})
+    before = path.read_text()
+    report = make_report(tmp_path, reached=False)
+    rc = run_verify(tmp_path, 2, "--command", "cmd",
+                    "--report", str(report))
+    assert rc != 0
+    assert "alpha scenario" in capsys.readouterr().err
+    assert path.read_text() == before
+
+
+def test_verification_rejects_assertion_failure(tmp_path, capsys):
+    path = make_shadow(tmp_path, 3, status="fixed",
+                       fm_extra={"scenario_rows": ["alpha scenario"]})
+    before = path.read_text()
+    report = make_report(tmp_path, assertion_passed=False,
+                         assertion_message="expected 12, got 20")
+    rc = run_verify(tmp_path, 3, "--command", "cmd",
+                    "--report", str(report))
+    assert rc != 0
+    assert "alpha scenario" in capsys.readouterr().err
+    assert path.read_text() == before
+
+
+def test_verification_rejects_missing_row_name(tmp_path, capsys):
+    path = make_shadow(
+        tmp_path, 4, status="fixed",
+        fm_extra={"scenario_rows": ["alpha scenario", "beta scenario"]})
+    before = path.read_text()
+    report = make_report(tmp_path)  # only covers "alpha scenario"
+    rc = run_verify(tmp_path, 4, "--command", "cmd",
+                    "--report", str(report))
+    assert rc != 0
+    assert "beta scenario" in capsys.readouterr().err
+    assert path.read_text() == before
+
+
+def test_verification_requires_rows_unless_manual(tmp_path, capsys):
+    make_shadow(tmp_path, 5, status="fixed")  # empty scenario_rows
+    report = make_report(tmp_path)
+    rc = run_verify(tmp_path, 5, "--command", "cmd",
+                    "--report", str(report))
+    assert rc != 0
+    assert capsys.readouterr().err
+
+
+def test_verification_manual_path(tmp_path):
+    # The dashboard cannot express every game state — --manual records the
+    # escape path with the evidence ref stored in `report`.
+    make_shadow(tmp_path, 6, status="fixed")
+    rc = run_verify(tmp_path, 6,
+                    "--command", "DashboardTest#testFoo passes",
+                    "--manual",
+                    "--evidence", "junit: DashboardTest#testFoo")
+    assert rc == 0
+    fm, _body = frontmatter_and_body(tmp_path / "ISSUE-6.md")
+    v = fm["verification"]
+    assert v["command"] == "DashboardTest#testFoo passes"
+    assert v["report"] == "junit: DashboardTest#testFoo"
+    assert fm["status"] == "verified"
+
+
+def test_verification_manual_requires_evidence(tmp_path, capsys):
+    path = make_shadow(tmp_path, 12, status="fixed")
+    before = path.read_text()
+    rc = run_verify(tmp_path, 12, "--command", "cmd", "--manual")
+    assert rc != 0
+    assert capsys.readouterr().err
+    assert path.read_text() == before
+
+
+def test_verification_only_from_fixed_states(tmp_path):
+    path = make_shadow(tmp_path, 7, status="reported",
+                       fm_extra={"scenario_rows": ["alpha scenario"]})
+    before = path.read_text()
+    report = make_report(tmp_path)
+    rc = run_verify(tmp_path, 7, "--command", "cmd",
+                    "--report", str(report))
+    assert rc != 0
+    assert path.read_text() == before
+
+
+def test_verification_from_in_progress_and_reopened(tmp_path):
+    for n, status in ((8, "in_progress"), (9, "reopened")):
+        make_shadow(tmp_path, n, status=status,
+                    fm_extra={"scenario_rows": ["alpha scenario"]})
+        report = make_report(tmp_path, filename=f"report{n}.json")
+        rc = run_verify(tmp_path, n, "--command", "cmd",
+                        "--report", str(report))
+        assert rc == 0, status
+        fm, _body = frontmatter_and_body(tmp_path / f"ISSUE-{n}.md")
+        assert fm["status"] == "verified"
+
+
+def test_verification_accepts_absent_assertion(tmp_path):
+    # assertionPassed is legitimately absent when no length assertion was
+    # configured — only an explicit `false` is a failure.
+    make_shadow(tmp_path, 10, status="fixed",
+                fm_extra={"scenario_rows": ["alpha scenario"]})
+    report_data = json.loads((FIXTURES / "report.json").read_text())
+    report_data["runs"][0].pop("assertionPassed")
+    report = tmp_path / "report.json"
+    report.write_text(json.dumps(report_data))
+    rc = run_verify(tmp_path, 10, "--command", "cmd",
+                    "--report", str(report))
+    assert rc == 0
+
+
+def test_verification_dataset_rows_override(tmp_path):
+    # --dataset-rows overrides (and is written into) scenario_rows.
+    make_shadow(tmp_path, 11, status="fixed")
+    report = make_report(tmp_path)
+    rc = run_verify(tmp_path, 11, "--command", "cmd",
+                    "--report", str(report),
+                    "--dataset-rows", "alpha scenario")
+    assert rc == 0
+    fm, _body = frontmatter_and_body(tmp_path / "ISSUE-11.md")
+    assert fm["scenario_rows"] == ["alpha scenario"]
+    assert fm["verification"]["dataset_rows"] == ["alpha scenario"]
