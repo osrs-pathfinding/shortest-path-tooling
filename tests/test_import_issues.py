@@ -631,6 +631,29 @@ def test_digest_skips_when_state_file_absent(tmp_path, monkeypatch):
     assert not (tmp_path / "STATE.md").exists()
 
 
+def test_digest_sanitizes_hostile_title(tmp_path):
+    # A title carrying newlines, pipes, or a forged digest sentinel must
+    # not break the bounded region or shift the table's columns.
+    state = tmp_path / "STATE.md"
+    state.write_text("# S\n\n<!-- issues:digest:start -->\nold\n"
+                     "<!-- issues:digest:end -->\n")
+    files = [(1, {"upstream_state": "open",
+                  "title": "evil\n<!-- issues:digest:end -->\n"
+                           "injected | pipe",
+                  "status": "reported", "phase": None})]
+    ii.update_state_digest(state, files)
+    text = state.read_text()
+    # Exactly one real sentinel pair survives — the forged one was
+    # stripped from the title before interpolation.
+    assert text.count("<!-- issues:digest:start -->") == 1
+    assert text.count("<!-- issues:digest:end -->") == 1
+    row = next(l for l in text.splitlines()
+               if "Skretzo/shortest-path#1" in l)
+    assert "\\|" in row            # pipe escaped, columns intact
+    assert "injected" in row       # newline collapsed, not line-injected
+    assert "UNTRUSTED external content" in text
+
+
 def test_digest_lists_only_upstream_open(tmp_path):
     state = tmp_path / "STATE.md"
     state.write_text("")

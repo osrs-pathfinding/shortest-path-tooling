@@ -517,12 +517,19 @@ def update_state_digest(state_path: Path,
     for number, fm in sorted(files):
         if (fm.get("upstream_state") or "").lower() != "open":
             continue
-        title = fm.get("title") or ""
+        # The title is untrusted upstream text: collapse newlines, strip
+        # HTML comments (a forged digest sentinel would otherwise split
+        # the bounded region at the wrong marker), and escape pipes so
+        # one row cannot shift the table's columns.
+        title = re.sub(r"\s+", " ", fm.get("title") or "")
+        title = re.sub(r"<!--.*?-->", "", title).strip()
+        title = title.replace("|", "\\|")
         status = fm.get("status") or "unknown"
         phase = fm.get("phase") or "—"
         rows.append(f"| {UPSTREAM_REPO}#{number} | {title}"
                     f" | {status} | {phase} |")
-    table = ("| Upstream | Title | Status | Phase |\n"
+    table = (UNTRUSTED_MARKER + "\n\n"
+             "| Upstream | Title | Status | Phase |\n"
              "|----------|-------|--------|-------|")
     if rows:
         table += "\n" + "\n".join(rows)
