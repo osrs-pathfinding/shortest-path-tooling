@@ -326,14 +326,6 @@ def split_sections(body: str) -> Dict[str, str]:
     return out
 
 
-def _indent_section_headings(text: str) -> str:
-    """Indent bare ``## `` lines in upstream text so they can never be
-    parsed as maintainer section structure on a later re-sync."""
-    return "\n".join(
-        " " + l if l.startswith("## ") else l
-        for l in (text or "").splitlines())
-
-
 def demote_headings(text: str) -> str:
     """Demote ``## `` headings inside untrusted text to ``### ``.
 
