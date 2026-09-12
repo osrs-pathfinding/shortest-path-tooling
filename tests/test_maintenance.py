@@ -1377,3 +1377,36 @@ def test_verify_all_pass_summary(tmp_path, monkeypatch, capsys):
     rc = mm.main(["verify"])
     assert rc == 0
     assert "verify: 4/4 tiers passed" in capsys.readouterr().out
+
+
+# ---------- maintenance runbook (docs/maintenance.md) ----------
+
+
+RUNBOOK = ROOT / "docs" / "maintenance.md"
+
+
+def test_runbook_exists_and_names_every_subcommand():
+    assert RUNBOOK.exists()
+    doc = RUNBOOK.read_text()
+    for sub in ("cache", "collision-map", "regions", "bank",
+                "seasonal", "refresh", "probes", "verify"):
+        assert sub in doc, f"runbook never mentions '{sub}'"
+
+
+def test_runbook_documents_three_tiers():
+    doc = RUNBOOK.read_text()
+    for heading in ("Weekly refresh", "New league season",
+                    "Upstream-issue-driven"):
+        assert heading in doc, f"runbook lacks the '{heading}' tier"
+
+
+def test_runbook_no_planning_literal():
+    assert ".planning" not in RUNBOOK.read_text()
+
+
+def test_runbook_states_key_rules():
+    doc = RUNBOOK.read_text()
+    assert "workflow_dispatch" in doc, \
+        "fork-Actions workflow_dispatch-only rule undocumented"
+    assert "Region override" in doc, \
+        "Region override column rule undocumented"
