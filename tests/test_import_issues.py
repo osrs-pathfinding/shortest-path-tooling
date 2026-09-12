@@ -685,6 +685,20 @@ def test_digest_appends_section_when_missing(tmp_path):
     assert "Skretzo/shortest-path#3" in text
 
 
+def test_digest_malformed_sentinel_order_no_crash(tmp_path, capsys):
+    # END before START must not crash the unpack — the write is skipped
+    # with a warning instead of appending a second digest block.
+    state = tmp_path / "STATE.md"
+    original = ("<!-- issues:digest:end -->\nold\n"
+                "<!-- issues:digest:start -->\n")
+    state.write_text(original)
+    files = [(1, {"upstream_state": "open", "title": "t",
+                  "status": "reported", "phase": None})]
+    assert ii.update_state_digest(state, files) is False
+    assert state.read_text() == original
+    assert "malformed" in capsys.readouterr().err
+
+
 def test_digest_skips_when_state_file_absent(tmp_path, monkeypatch):
     out = tmp_path / "issues"
     run_sync(out, monkeypatch,
