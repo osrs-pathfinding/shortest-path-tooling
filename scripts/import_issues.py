@@ -337,6 +337,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     st.add_argument("--phase", default=None)
     st.add_argument("--by", default=None)
 
+    ck = sub.add_parser("check",
+                        help="Lint shadow files and the scenario CSV")
+    ck.add_argument("--output-dir", type=Path, required=True)
+
     args = ap.parse_args(argv)
 
     if args.cmd == "sync":
@@ -345,6 +349,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_list(args)
     if args.cmd == "status":
         return cmd_status(args)
+    if args.cmd == "check":
+        return cmd_check(args)
     return 0
 
 
@@ -428,6 +434,10 @@ def cmd_status(args: argparse.Namespace) -> int:
         note=args.note, phase=args.phase, by=args.by)
     print(message, file=sys.stdout if ok else sys.stderr)
     return 0 if ok else 1
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    return 0
 
 
 def cmd_list(args: argparse.Namespace) -> int:
