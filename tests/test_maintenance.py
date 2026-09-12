@@ -806,3 +806,70 @@ def test_bank_missing_cache_refuses(tmp_path, monkeypatch, capsys):
     assert rc == 1
     assert "maintenance.py cache" in capsys.readouterr().err
     assert gradle_calls(calls) == []
+
+
+# ---------- seasonal subcommand + transports path ----------
+
+
+def load_vsr():
+    """Load scripts/verify_seasonal_regions.py as a module."""
+    import os  # noqa: F401  (kept local: vsr constants are os.path-based)
+    spec = importlib.util.spec_from_file_location(
+        "verify_seasonal_regions",
+        ROOT / "scripts" / "verify_seasonal_regions.py")
+    vsr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(vsr)
+    return vsr
+
+
+def test_transports_path_points_at_submodule():
+    import os
+    vsr = load_vsr()
+    expected = os.path.join(
+        vsr.REPO,
+        "shortest-path/src/main/resources/transports/"
+        "seasonal_transports.tsv")
+    assert vsr.TRANSPORTS == expected
+    assert ".." not in vsr.TRANSPORTS
+
+
+def test_transports_path_resolves_inside_submodule():
+    import os
+    vsr = load_vsr()
+    sub = os.path.realpath(os.path.join(vsr.REPO, "shortest-path"))
+    assert os.path.realpath(vsr.TRANSPORTS).startswith(sub + os.sep)
+
+
+def test_seasonal_invokes_script(tmp_path, monkeypatch):
+    repo, _ = redirect_repo(tmp_path, monkeypatch)
+    calls = []
+
+    def fake_run(cmd, *, cwd=None, timeout=None, binary=False):
+        calls.append((list(cmd), cwd, timeout))
+        return cp(cmd, "Summary: 0 Alacrity\n", rc=2)
+
+    monkeypatch.setattr(mm, "run", fake_run)
+    rc = mm.main(["seasonal"])
+    assert rc == 2
+    assert calls == [([sys.executable,
+                      str(repo / "scripts" /
+                          "verify_seasonal_regions.py")],
+                      repo, mm.SCRIPT_TIMEOUT_SECONDS)]
+
+
+def test_seasonal_does_not_require_branch(tmp_path, monkeypatch):
+    repo, _ = redirect_repo(tmp_path, monkeypatch)
+    calls = []
+
+    def fake_run(cmd, *, cwd=None, timeout=None, binary=False):
+        calls.append(list(cmd))
+        # Even if asked, the submodule is on master — a read-only check
+        # must not consult branch state at all.
+        if cmd[:3] == ["git", "-C", "shortest-path"]:
+            return cp(cmd, "master")
+        return cp(cmd, "Summary: 0 Alacrity\n")
+
+    monkeypatch.setattr(mm, "run", fake_run)
+    rc = mm.main(["seasonal"])
+    assert rc == 0
+    assert not any(c[0] == "git" for c in calls)
