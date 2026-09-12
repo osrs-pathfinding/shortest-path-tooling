@@ -22,7 +22,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -122,7 +122,7 @@ OPTIONAL_COLUMN_GRAMMARS = {
 GH_TIMEOUT_SECONDS = 120
 
 
-def gh_json(args: List[str]) -> list:
+def gh_json(args: List[str]) -> Any:
     try:
         proc = subprocess.run(
             ["gh", *args], capture_output=True, text=True, check=True,
