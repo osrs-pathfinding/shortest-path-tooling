@@ -23,6 +23,11 @@ Subcommands:
                    bank.tsv via rebuild_bank_tsv.py
     seasonal       check seasonal transport region assignments against
                    wiki ground truth (read-only)
+    refresh        run the derivable update chain end-to-end in fixed
+                   order: collision-map -> cache -> regions -> bank ->
+                   seasonal (``--skip-collision`` omits the first step)
+    probes         run every season-discovery cache dumper in
+                   sequence; ``--names-file`` adds the name-driven scans
 """
 
 import argparse
@@ -425,6 +430,123 @@ def cmd_seasonal(args: argparse.Namespace) -> int:
     return do_seasonal(args)
 
 
+# Season-discovery probes: (gradle task, cache-prop prefix,
+# xtea-prop prefix or None, names-file prop or None).  The eight
+# default-tier tasks run unconditionally; NAMES_FILE_TASKS only run
+# when --names-file supplies a canonical destination list.
+PROBE_TASKS: List[Tuple[str, str, Optional[str], Optional[str]]] = [
+    ("leagueIdProbe", "leagueId", "leagueId", None),
+    ("leagueTeleportItemDump", "leagueTeleportItem",
+     "leagueTeleportItem", None),
+    ("leagueAreaStructDump", "leagueAreaStruct", "leagueAreaStruct",
+     None),
+    ("leagueScriptScan", "leagueScript", "leagueScript", None),
+    ("briefcaseEnumProbe", "briefcaseEnum", "briefcaseEnum", None),
+    ("briefcaseParamScriptScan", "briefcaseParam", "briefcaseParam",
+     None),
+    ("briefcaseTeleportTables", "briefcaseTt", None, None),
+    ("sailingAmenityVarbitDump", "sailingAmenity", "sailingAmenity",
+     None),
+]
+
+NAMES_FILE_TASKS: List[Tuple[str, str, Optional[str], Optional[str]]] = [
+    ("briefcaseDestOverlapScan", "briefcaseDest", "briefcaseDest",
+     "briefcaseDestNamesFile"),
+    ("briefcaseStructHunt", "briefcaseStruct", None,
+     "briefcaseStructNamesFile"),
+    ("briefcaseDbRowScan", "briefcaseDb", None,
+     "briefcaseDbNamesFile"),
+]
+
+
+def do_probes(args: argparse.Namespace) -> int:
+    """Run every season-discovery dumper sequentially — each requests
+    an 8 GB heap, so they are deliberately never parallelized.
+    Probes write only to build//stdout, so there is no branch gate.
+    A failing probe is recorded and the rest still run: one broken
+    scan must not hide the remaining discovery output."""
+    try:
+        ensure_cache_ready()
+    except SystemExit as exc:
+        return _precondition_fail(exc)
+
+    tasks = list(PROBE_TASKS)
+    if args.names_file is not None:
+        if not args.names_file.exists():
+            print(f"--names-file {args.names_file} does not exist",
+                  file=sys.stderr)
+            return 1
+        tasks.extend(NAMES_FILE_TASKS)
+
+    failed = []
+    for task, cache_prop, xtea_prop, names_prop in tasks:
+        argv = ["./gradlew", task,
+                f"-P{cache_prop}CacheDir={REPO / 'cache'}"]
+        if xtea_prop:
+            argv.append(f"-P{xtea_prop}XteaPath={REPO / 'keys.json'}")
+        if names_prop:
+            argv.append(f"-P{names_prop}={args.names_file}")
+        proc = run(argv, cwd=REPO, timeout=GRADLE_TIMEOUT_SECONDS)
+        _print_stdout(proc)
+        if proc.returncode != 0:
+            tail = _stderr_tail(proc)
+            if tail:
+                print(tail, file=sys.stderr)
+            failed.append((task, proc.returncode))
+
+    if failed:
+        print("failed probes:", file=sys.stderr)
+        for task, rc in failed:
+            print(f"  {task}: rc={rc}", file=sys.stderr)
+        return 1
+    print("all probes ok")
+    return 0
+
+
+def cmd_probes(args: argparse.Namespace) -> int:
+    return do_probes(args)
+
+
+def do_refresh(args: argparse.Namespace) -> int:
+    """Run the derivable update chain end-to-end in fixed order:
+    collision-map -> cache -> regions -> bank -> seasonal.
+
+    The order is deliberate: rebuild_bank_tsv.py walks the submodule's
+    current collision-map.zip for stand-tile reachability, so the map
+    update must precede ``bank``; ``cache`` precedes every dumper that
+    reads it.  The write-branch gate runs before even the collision
+    step — refresh exists to land data, and on master the ff-merge
+    would advance the wrong branch."""
+    try:
+        require_write_branch()
+        require_clean_submodule()
+    except SystemExit as exc:
+        return _precondition_fail(exc)
+
+    steps = []
+    if not args.skip_collision:
+        # Dispatch through the cmd_* wrapper — it owns the --local
+        # branch to the local runelite pipeline.
+        steps.append(("collision-map", lambda: cmd_collision_map(args)))
+    steps.extend([
+        ("cache", lambda: do_cache()),
+        ("regions", lambda: do_regions(args)),
+        ("bank", lambda: do_bank(args)),
+        ("seasonal", lambda: do_seasonal(args)),
+    ])
+    for name, step in steps:
+        rc = step()
+        if rc != 0:
+            print(f"refresh aborted at {name}", file=sys.stderr)
+            return rc
+    print("refresh complete")
+    return 0
+
+
+def cmd_refresh(args: argparse.Namespace) -> int:
+    return do_refresh(args)
+
+
 def do_collision_map_local(args: argparse.Namespace) -> int:
     """Fallback path: regenerate collision-map.zip locally through the
     runelite pipeline, mirroring the upstream ExtractCollisionMap
@@ -588,6 +710,31 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Verify seasonal transport region assignments against "
              "wiki ground truth")
 
+    rf = sub.add_parser(
+        "refresh",
+        help="Run the derivable update chain end-to-end: "
+             "collision-map -> cache -> regions -> bank -> seasonal")
+    rf.add_argument(
+        "--skip-collision", action="store_true",
+        help="Omit the collision-map step (use when the zip is "
+             "already current)")
+    rf.add_argument(
+        "--local", action="store_true",
+        help="Run the collision step through the local runelite "
+             "pipeline instead of fast-forwarding to upstream")
+    rf.add_argument(
+        "--f2p", action="store_true",
+        help="Force the f2p/regions.tsv copy in the regions step")
+    rf.set_defaults(commit=False)
+
+    pb = sub.add_parser(
+        "probes",
+        help="Run every season-discovery cache dumper in sequence")
+    pb.add_argument(
+        "--names-file", type=Path, default=None,
+        help="Canonical destination-name list (one per line) — also "
+             "enables the three name-driven scans")
+
     args = ap.parse_args(argv)
 
     if args.cmd == "cache":
@@ -600,6 +747,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_bank(args)
     if args.cmd == "seasonal":
         return cmd_seasonal(args)
+    if args.cmd == "refresh":
+        return cmd_refresh(args)
+    if args.cmd == "probes":
+        return cmd_probes(args)
     return 0
 
 
