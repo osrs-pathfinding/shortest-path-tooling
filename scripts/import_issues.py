@@ -927,8 +927,10 @@ def record_verification(path: Path, *, command: str,
     On failure nothing is written and a nonzero-exit message is returned.
     On success the ``verification:`` block is populated and ``status``
     moves to ``verified`` through ``transition_status`` — the only path
-    to that state.  Corrections land as new history events; recorded
-    evidence is never rewritten.
+    to that state.  ``verified`` is not a valid ``verify`` source state,
+    so recorded evidence cannot be rewritten directly: a correction must
+    first reopen the issue and re-verify from an active status, which
+    leaves the correction visible in the append-only history.
     """
     if not path.is_file():
         return False, f"ERROR {path.name}: file not found"
