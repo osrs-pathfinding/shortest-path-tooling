@@ -133,3 +133,77 @@ def test_sync_populates_fix_candidates_frontmatter(tmp_path, monkeypatch):
     assert 99995 in prs
     entry = next(e for e in fm["fix_candidates"] if e["pr"] == 99995)
     assert entry["link"] == "confirmed"
+
+
+def test_shadow_schema_fields(tmp_path, monkeypatch):
+    run_sync(tmp_path, monkeypatch)
+    fm, _body = frontmatter_and_body(tmp_path / "ISSUE-549.md")
+    assert set(fm.keys()) == {
+        "upstream", "url", "title", "upstream_state",
+        "upstream_state_reason", "labels", "author", "created_at",
+        "updated_at", "synced_at", "status", "phase", "fix_candidates",
+        "scenario_rows", "verification", "history",
+    }
+    v = fm["verification"]
+    assert isinstance(v, dict)
+    assert set(v.keys()) == {
+        "command", "dataset_rows", "report", "fix_commit", "fix_pr",
+        "verifier", "verified_at",
+    }
+
+
+def test_shadow_body_sections(tmp_path, monkeypatch):
+    run_sync(tmp_path, monkeypatch)
+    _fm, body = frontmatter_and_body(tmp_path / "ISSUE-549.md")
+    headings = [
+        "## Upstream Report", "## Upstream Comments",
+        "## Normalized Scenario", "## Triage Notes",
+        "## Requirements", "## Acceptance Criteria",
+        "## Canonical References",
+    ]
+    idx = [body.index(h) for h in headings]
+    assert idx == sorted(idx)
+
+
+def test_shadow_upstream_text_fenced(tmp_path, monkeypatch):
+    run_sync(tmp_path, monkeypatch)
+    _fm, body = frontmatter_and_body(tmp_path / "ISSUE-549.md")
+    issue = next(r for r in load_fixture("gh_issue_list.json")
+                 if r["number"] == 549)
+    title = issue["title"]
+    body_line = next(l for l in (issue.get("body") or "").splitlines()
+                     if l.strip())
+    report_idx = body.index("## Upstream Report")
+    scenario_idx = body.index("## Normalized Scenario")
+    upstream_region = body[report_idx:scenario_idx]
+    assert "UNTRUSTED external content" in upstream_region
+    assert title in upstream_region
+    assert body_line in upstream_region
+    # Upstream text must not leak into the maintainer sections.
+    assert title not in body[scenario_idx:]
+    assert body_line not in body[scenario_idx:]
+
+
+def test_shadow_normalized_scenario_table(tmp_path, monkeypatch):
+    run_sync(tmp_path, monkeypatch)
+    _fm, body = frontmatter_and_body(tmp_path / "ISSUE-549.md")
+    section = body.split("## Normalized Scenario", 1)[1].split("## ", 1)[0]
+    for field in ("name", "category", "start", "target", "preset",
+                  "config_overrides", "expected"):
+        assert f"| {field} |" in section
+    assert "CSV row ref:" in section
+    assert "scenarios.csv" in section
+
+
+def test_list_outputs_status_lines(tmp_path, monkeypatch, capsys):
+    run_sync(tmp_path, monkeypatch)
+    capsys.readouterr()  # discard sync output
+    rc = ii.main(["list", "--output-dir", str(tmp_path)])
+    assert rc == 0
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+    issues = load_fixture("gh_issue_list.json")
+    assert len(lines) == len(issues)
+    numbers = [int(l.split()[0].split("-")[1]) for l in lines]
+    assert numbers == sorted(numbers)
+    assert any(l.startswith("ISSUE-549") and "reported" in l
+               for l in lines)
