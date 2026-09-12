@@ -197,6 +197,19 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def current_user() -> str:
+    """Best-effort username for history/verification attribution.
+
+    ``getpass.getuser`` raises in minimal environments (containers, CI)
+    with no USER/LOGNAME env var and no passwd entry — fall back rather
+    than crashing at the last step of an otherwise valid operation.
+    """
+    try:
+        return getpass.getuser()
+    except (OSError, KeyError):
+        return "unknown"
+
+
 def load_shadow(path: Path) -> Tuple[Optional[Dict], str]:
     """Split a shadow file into (frontmatter dict, body text).
 
@@ -727,7 +740,7 @@ def transition_status(path: Path, new_status: str, note: str = "",
         fm["phase"] = phase
     history = list(fm.get("history") or [])
     history.append({"at": now, "event": event,
-                    "by": by or getpass.getuser()})
+                    "by": by or current_user()})
     fm["history"] = history
     # Rewrite only the frontmatter block; `body` is the verbatim suffix of
     # the file after the closing `---`, so writing it back unchanged keeps
@@ -968,7 +981,7 @@ def record_verification(path: Path, *, command: str,
                 return False, f"ERROR {path.name}: {row} — {detail}"
         report_ref = report
     now = now or utc_now_iso()
-    verifier = verifier or getpass.getuser()
+    verifier = verifier or current_user()
     ok, msg = transition_status(path, "verified", by=verifier,
                                 now=now, allow_verified=True)
     if not ok:

@@ -399,6 +399,17 @@ def test_status_missing_file(tmp_path, capsys):
     assert "ISSUE-999.md" in capsys.readouterr().err
 
 
+def test_status_user_fallback_when_getuser_raises(tmp_path, monkeypatch):
+    # Minimal environments (containers, CI) can lack USER/LOGNAME and a
+    # passwd entry — attribution falls back instead of crashing.
+    monkeypatch.setattr(ii.getpass, "getuser",
+                        lambda: (_ for _ in ()).throw(OSError()))
+    make_shadow(tmp_path, 40, status="reported")
+    assert run_status(tmp_path, "40", "triaged") == 0
+    fm, _ = frontmatter_and_body(tmp_path / "ISSUE-40.md")
+    assert fm["history"][-1]["by"] == "unknown"
+
+
 # --------------------------------------------------------------------------
 # check subcommand — shadow lint + scenario CSV lint
 # --------------------------------------------------------------------------
