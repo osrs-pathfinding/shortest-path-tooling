@@ -432,19 +432,6 @@ def render_body(issue: Dict, output_dir: Optional[Path] = None,
     return "\n\n".join(sections) + "\n"
 
 
-def render_shadow(issue: Dict, fix_candidates: List[Dict],
-                  existing: Optional[Tuple[Optional[Dict], str]] = None,
-                  output_dir: Optional[Path] = None,
-                  now: Optional[str] = None) -> str:
-    now = now or utc_now_iso()
-    existing_fm, existing_body = existing or (None, "")
-    fm = build_frontmatter(issue, fix_candidates, existing_fm, now)
-    return ("---\n"
-            + yaml.safe_dump(fm, sort_keys=False, allow_unicode=True)
-            + "---\n\n"
-            + render_body(issue, output_dir, existing_body))
-
-
 def update_shadow(existing: Tuple[Optional[Dict], str], issue: Dict,
                   fix_candidates: List[Dict],
                   output_dir: Optional[Path] = None,
