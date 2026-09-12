@@ -29,7 +29,7 @@ import yaml
 UPSTREAM_REPO = "Skretzo/shortest-path"
 ISSUE_JSON_FIELDS = (
     "number,title,state,stateReason,body,labels,author,"
-    "createdAt,updatedAt,closedAt,comments,url,closedByPullRequestsReferences"
+    "createdAt,updatedAt,closedAt,comments,url"
 )
 PR_JSON_FIELDS = (
     "number,title,state,body,author,headRefName,headRepositoryOwner,"
