@@ -127,6 +127,16 @@ def test_fix_candidate_unrelated_pr_absent(monkeypatch):
     assert 99994 not in all_prs
 
 
+def test_fix_candidate_ignores_foreign_repo_refs(monkeypatch):
+    # PR 530's closingIssuesReferences resolve into
+    # KeiranY/clue-pathing-runelite-plugin — those issue numbers belong to
+    # a different project and must not be counted as confirmed upstream
+    # links.
+    out = stub_prs(monkeypatch)
+    assert 27 not in out and 31 not in out and 34 not in out
+    assert all(e["pr"] != 530 for entries in out.values() for e in entries)
+
+
 def test_sync_populates_fix_candidates_frontmatter(tmp_path, monkeypatch):
     run_sync(tmp_path, monkeypatch)
     fm, _body = frontmatter_and_body(tmp_path / "ISSUE-549.md")

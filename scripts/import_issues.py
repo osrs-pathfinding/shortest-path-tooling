@@ -154,8 +154,18 @@ def fetch_fix_candidates(limit: int = 500) -> Dict[int, List[Dict]]:
         "--json", PR_JSON_FIELDS,
     ])
     out: Dict[int, List[Dict]] = {}
+    upstream_owner, upstream_name = UPSTREAM_REPO.split("/", 1)
     for pr in prs:
-        confirmed = {ref["number"] for ref in pr.get("closingIssuesReferences") or []}
+        # A closingIssuesReferences entry only earns the "confirmed"
+        # trust label when it resolves into the upstream repo itself —
+        # cross-repo references close a different project's issue number.
+        confirmed = {
+            ref["number"]
+            for ref in pr.get("closingIssuesReferences") or []
+            if ((ref.get("repository") or {}).get("owner") or {})
+                .get("login") == upstream_owner
+            and (ref.get("repository") or {}).get("name") == upstream_name
+        }
         heuristic = set(CLOSING_RE.findall(pr.get("body") or ""))
         heuristic |= set(BRANCH_ISSUE_RE.findall(pr.get("headRefName") or ""))
         for n in confirmed | {int(h) for h in heuristic}:

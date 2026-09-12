@@ -594,7 +594,14 @@
     "headRefName": "gutanoth-shortcut",
     "closingIssuesReferences": [
       {
-        "number": 549
+        "number": 549,
+        "repository": {
+          "name": "shortest-path",
+          "owner": {
+            "login": "Skretzo"
+          }
+        },
+        "url": "https://github.com/Skretzo/shortest-path/issues/549"
       }
     ],
     "url": "https://github.com/Skretzo/shortest-path/pull/99995"
