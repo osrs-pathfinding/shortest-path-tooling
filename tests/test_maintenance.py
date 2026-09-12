@@ -873,3 +873,221 @@ def test_seasonal_does_not_require_branch(tmp_path, monkeypatch):
     rc = mm.main(["seasonal"])
     assert rc == 0
     assert not any(c[0] == "git" for c in calls)
+
+
+# ---------- refresh chain + probes ----------
+
+
+def make_gate_run(calls, *, branch="maint-x", upstream="myfork/maint-x",
+                  upstream_rc=0, status_out=""):
+    """fake mm.run answering only the write-gate git probes; any other
+    argv fails the test."""
+    def fake_run(cmd, *, cwd=None, timeout=None, binary=False):
+        calls.append(list(cmd))
+        kind = write_gate_kind(cmd)
+        if kind == "branch":
+            return cp(cmd, branch)
+        if kind == "upstream":
+            return cp(cmd, upstream if upstream_rc == 0 else "",
+                      "" if upstream_rc == 0 else "no upstream",
+                      rc=upstream_rc)
+        if kind == "status":
+            return cp(cmd, status_out)
+        raise AssertionError(f"unexpected argv: {cmd}")
+
+    return fake_run
+
+
+def install_refresh_spies(monkeypatch, results=None):
+    """Replace every refresh step with a call-recording spy that
+    mirrors the callee's real arity — do_cache takes zero parameters,
+    the rest take the args namespace — so a call site with the wrong
+    signature fails instead of being masked.  Returns (events,
+    captured_args)."""
+    events = []
+    captured = {}
+    results = results or {}
+
+    def spy(name):
+        def one_arg(a):
+            events.append(name)
+            captured[name] = a
+            return results.get(name, 0)
+        return one_arg
+
+    monkeypatch.setattr(mm, "do_collision_map", spy("collision"))
+    monkeypatch.setattr(mm, "do_collision_map_local",
+                        spy("collision-local"))
+
+    def cache_spy():
+        events.append("cache")
+        return results.get("cache", 0)
+
+    monkeypatch.setattr(mm, "do_cache", cache_spy)
+    monkeypatch.setattr(mm, "do_regions", spy("regions"))
+    monkeypatch.setattr(mm, "do_bank", spy("bank"))
+    monkeypatch.setattr(mm, "do_seasonal", spy("seasonal"))
+    return events, captured
+
+
+def prepare_refresh(tmp_path, monkeypatch, results=None, **gate_kwargs):
+    repo, _ = redirect_repo(tmp_path, monkeypatch)
+    events, captured = install_refresh_spies(monkeypatch, results)
+    calls = []
+    monkeypatch.setattr(mm, "run", make_gate_run(calls, **gate_kwargs))
+    return events, captured, calls
+
+
+def test_refresh_order(tmp_path, monkeypatch):
+    events, _, _ = prepare_refresh(tmp_path, monkeypatch)
+    rc = mm.main(["refresh"])
+    assert rc == 0
+    assert events == ["collision", "cache", "regions", "bank",
+                      "seasonal"]
+
+
+def test_refresh_args_cover_step_attrs(tmp_path, monkeypatch):
+    _, captured, _ = prepare_refresh(tmp_path, monkeypatch)
+    rc = mm.main(["refresh"])
+    assert rc == 0
+    a = captured["collision"]
+    for attr in ("commit", "local", "f2p", "skip_collision"):
+        assert hasattr(a, attr), f"refresh args missing '{attr}'"
+
+
+def test_refresh_local_forwarded(tmp_path, monkeypatch):
+    events, _, _ = prepare_refresh(tmp_path, monkeypatch)
+    rc = mm.main(["refresh", "--local"])
+    assert rc == 0
+    assert events[0] == "collision-local"
+    assert "collision" not in events
+
+
+def test_refresh_aborts_on_first_failure(tmp_path, monkeypatch, capsys):
+    events, _, _ = prepare_refresh(
+        tmp_path, monkeypatch, {"regions": 1})
+    rc = mm.main(["refresh"])
+    assert rc == 1
+    assert events == ["collision", "cache", "regions"]
+    assert "regions" in capsys.readouterr().err
+
+
+def test_refresh_skip_collision(tmp_path, monkeypatch):
+    events, _, _ = prepare_refresh(tmp_path, monkeypatch)
+    rc = mm.main(["refresh", "--skip-collision"])
+    assert rc == 0
+    assert events == ["cache", "regions", "bank", "seasonal"]
+
+
+def test_refresh_requires_write_branch_up_front(tmp_path, monkeypatch):
+    events, _, _ = prepare_refresh(
+        tmp_path, monkeypatch, branch="master")
+    rc = mm.main(["refresh"])
+    assert rc == 1
+    assert events == []
+
+
+def make_probe_run(calls, *, fail=()):
+    """fake mm.run for the probes subcommand — records each gradle
+    argv; tasks named in ``fail`` exit 1."""
+    def fake_run(cmd, *, cwd=None, timeout=None, binary=False):
+        calls.append((list(cmd), cwd, timeout))
+        assert cmd[0] == "./gradlew", f"non-gradle argv: {cmd}"
+        rc = 1 if cmd[1] in fail else 0
+        return cp(cmd, f"{cmd[1]} output\n", rc=rc)
+
+    return fake_run
+
+
+def prepare_probes_repo(tmp_path, monkeypatch, *, cache_ready=True,
+                        **run_kwargs):
+    repo, _ = redirect_repo(tmp_path, monkeypatch)
+    if cache_ready:
+        (repo / "cache").mkdir()
+        (repo / "keys.json").write_text(
+            (FIXTURES / "keys_patched.json").read_text())
+    calls = []
+    monkeypatch.setattr(mm, "run", make_probe_run(calls, **run_kwargs))
+    return repo, calls
+
+
+def test_probes_default_sequence(tmp_path, monkeypatch):
+    repo, calls = prepare_probes_repo(tmp_path, monkeypatch)
+    rc = mm.main(["probes"])
+    assert rc == 0
+    expected = [
+        ("leagueIdProbe", "leagueId", "leagueId"),
+        ("leagueTeleportItemDump", "leagueTeleportItem",
+         "leagueTeleportItem"),
+        ("leagueAreaStructDump", "leagueAreaStruct", "leagueAreaStruct"),
+        ("leagueScriptScan", "leagueScript", "leagueScript"),
+        ("briefcaseEnumProbe", "briefcaseEnum", "briefcaseEnum"),
+        ("briefcaseParamScriptScan", "briefcaseParam",
+         "briefcaseParam"),
+        ("briefcaseTeleportTables", "briefcaseTt", None),
+        ("sailingAmenityVarbitDump", "sailingAmenity",
+         "sailingAmenity"),
+    ]
+    built = []
+    for task, cache_prop, xtea_prop in expected:
+        argv = ["./gradlew", task,
+                f"-P{cache_prop}CacheDir={repo / 'cache'}"]
+        if xtea_prop:
+            argv.append(f"-P{xtea_prop}XteaPath={repo / 'keys.json'}")
+        built.append(argv)
+    assert [c for c, _, _ in calls] == built
+    for _, cwd, timeout in calls:
+        assert cwd == repo
+        assert timeout == mm.GRADLE_TIMEOUT_SECONDS
+
+
+def test_probes_names_file_unlocks_scans(tmp_path, monkeypatch):
+    repo, calls = prepare_probes_repo(tmp_path, monkeypatch)
+    names = repo / "names.txt"
+    names.write_text("Varrock\n")
+    rc = mm.main(["probes", "--names-file", str(names)])
+    assert rc == 0
+    argv = [c for c, _, _ in calls]
+    assert len(argv) == 11
+    assert argv[8:] == [
+        ["./gradlew", "briefcaseDestOverlapScan",
+         f"-PbriefcaseDestCacheDir={repo / 'cache'}",
+         f"-PbriefcaseDestXteaPath={repo / 'keys.json'}",
+         f"-PbriefcaseDestNamesFile={names}"],
+        ["./gradlew", "briefcaseStructHunt",
+         f"-PbriefcaseStructCacheDir={repo / 'cache'}",
+         f"-PbriefcaseStructNamesFile={names}"],
+        ["./gradlew", "briefcaseDbRowScan",
+         f"-PbriefcaseDbCacheDir={repo / 'cache'}",
+         f"-PbriefcaseDbNamesFile={names}"],
+    ]
+
+
+def test_probes_names_file_must_exist(tmp_path, monkeypatch):
+    repo, calls = prepare_probes_repo(tmp_path, monkeypatch)
+    rc = mm.main(["probes", "--names-file",
+                  str(repo / "missing-names.txt")])
+    assert rc == 1
+    assert calls == []
+
+
+def test_probes_missing_cache_refuses(tmp_path, monkeypatch, capsys):
+    repo, calls = prepare_probes_repo(
+        tmp_path, monkeypatch, cache_ready=False)
+    rc = mm.main(["probes"])
+    assert rc == 1
+    assert calls == []
+    assert "maintenance.py cache" in capsys.readouterr().err
+
+
+def test_probes_failure_continues_and_reports(tmp_path, monkeypatch,
+                                              capsys):
+    repo, calls = prepare_probes_repo(
+        tmp_path, monkeypatch, fail={"leagueScriptScan"})
+    rc = mm.main(["probes"])
+    assert rc == 1
+    # One failing probe must not mask the remaining output.
+    assert len(calls) == 8
+    result = capsys.readouterr()
+    assert "sailingAmenityVarbitDump output" in result.out
+    assert "leagueScriptScan" in result.err
