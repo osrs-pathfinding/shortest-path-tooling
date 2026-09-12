@@ -1,0 +1,602 @@
+[
+  {
+    "author": {
+      "id": "MDQ6VXNlcjQ5MDgxNTIw",
+      "is_bot": false,
+      "login": "pr0f3ss",
+      "name": "Filip Dobrosavljevi\u0107"
+    },
+    "body": "Fixes #509 \r\n\r\nCurrently, the quest cape teleport is valid iff:\r\n\r\n1. quest cape or trimmed cape in inventory, equipment, or bank\r\n2. quest points \u2265 327 (`VarPlayerID.QP`)\r\n\r\nTo keep this check valid, we'd have to update the hardcoded QP (currently 327) whenever Gagex adds a new quest.\r\n\r\nThis PR now requires the requires the (trimmed) cape in inventory, equipment, or bank **and** every quest completed (miniquests excluded), so new quests automatically gate it.",
+    "closingIssuesReferences": [
+      {
+        "id": "I_kwDOGiX-VM8AAAABGeUCyQ",
+        "number": 509,
+        "repository": {
+          "id": "R_kgDOGiX-VA",
+          "name": "shortest-path",
+          "owner": {
+            "id": "MDQ6VXNlcjUzNDkzNjMx",
+            "login": "Skretzo"
+          }
+        },
+        "url": "https://github.com/Skretzo/shortest-path/issues/509"
+      }
+    ],
+    "createdAt": "2026-08-17T12:03:10Z",
+    "headRefName": "fix/509-quest-cape-all-quests",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjQ5MDgxNTIw",
+      "name": "Filip Dobrosavljevi\u0107",
+      "login": "pr0f3ss"
+    },
+    "isDraft": false,
+    "number": 541,
+    "state": "OPEN",
+    "title": "Require all completed quests for the quest point cape teleport.",
+    "updatedAt": "2026-08-17T12:03:10Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/541"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjQ5MDgxNTIw",
+      "is_bot": false,
+      "login": "pr0f3ss",
+      "name": "Filip Dobrosavljevi\u0107"
+    },
+    "body": "Fixes #127 , #496 , #523 .\r\n\r\nCombination staves were already listed as substitutes for each element they provide, but a staff was only allowed to pay one leftover rune type. The `usingStaff` flag was meant to block wielding two different staves (staff of air + staff of water). It was implemented as \u201ca staff was used,\u201d not \u201cthis one staff is in use,\u201d so a mist staff plus law runes could not unlock Falador, and a dust staff plus law runes could not unlock House teleport.\r\n\r\nSpell costs are now paid with runes first, then at most one tome. Any elemental runes still missing must all be covered by the same staff. Also recognize mystic air/water/earth/fire staves as elemental substitutes.\r\n\r\nTests in `TransportItemsSatisfactionTest` cover:\r\n- Reported bugs: mist/mystic mist + law \u2192 Falador; dust/mystic dust + law \u2192 House; smoke + law \u2192 Varrock\r\n- Negative cases: law only is not enough; staff of air + staff of water cannot cover Falador; dust alone cannot cover earth+fire\r\n- Runes plus staff: mist still works if you also have air or water runes\r\n- Staff plus tome: dust staff + tome of fire covers earth+fire\r\n- Two combination staves: dust + lava for earth+fire succeeds\r\n- Mystic air staff + fire + law \u2192 Varrock\r\n- Two tomes cannot pay two elements (only one offhand)\r\n\r\nPathfinderTest: `testFaladorTeleportWithMistStaff`, `testHouseTeleportWithDustStaff`",
+    "closingIssuesReferences": [
+      {
+        "id": "I_kwDOGiX-VM6jUQIK",
+        "number": 127,
+        "repository": {
+          "id": "R_kgDOGiX-VA",
+          "name": "shortest-path",
+          "owner": {
+            "id": "MDQ6VXNlcjUzNDkzNjMx",
+            "login": "Skretzo"
+          }
+        },
+        "url": "https://github.com/Skretzo/shortest-path/issues/127"
+      }
+    ],
+    "createdAt": "2026-08-17T10:02:59Z",
+    "headRefName": "fix/127-combination-staves",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjQ5MDgxNTIw",
+      "name": "Filip Dobrosavljevi\u0107",
+      "login": "pr0f3ss"
+    },
+    "isDraft": false,
+    "number": 540,
+    "state": "OPEN",
+    "title": "Allow one combination staff to cover multiple rune requirements.",
+    "updatedAt": "2026-08-17T10:02:59Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/540"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjQ5MDgxNTIw",
+      "is_bot": false,
+      "login": "pr0f3ss",
+      "name": "Filip Dobrosavljevi\u0107"
+    },
+    "body": "Fixes issue #504 \r\n\r\nBoth [Jungle bush](https://oldschool.runescape.wiki/w/Jungle_Bush) and [Jungle tree](https://oldschool.runescape.wiki/w/Jungle_tree_(dense_Kharazi_Jungle)) require an axe AND machete, so the pathfinder and bank pickup hint now ask for both instead of only one. Before, it falsely required that the bush and tree only required a machete or axe, respectively. \r\n\r\nSince the shortest path is a 2x bush path, it reported that only a machete is required for crossing it even though it requires an axe and machete.\r\n\r\nText from osrs wiki:\r\n> Both an axe and a machete are required to chop the bush. Attempting without an axe will print the message \"You'll need an axe to get through this rough jungle. You don't think it would be a good idea to continue without one you've got the level to use.\" Attempting without a machete will print the message \"You need a machete to cut your way through this dense jungle bush.\"",
+    "closingIssuesReferences": [],
+    "createdAt": "2026-08-17T08:09:24Z",
+    "headRefName": "fix/504-kharazi-axe-machete",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjQ5MDgxNTIw",
+      "name": "Filip Dobrosavljevi\u0107",
+      "login": "pr0f3ss"
+    },
+    "isDraft": false,
+    "number": 539,
+    "state": "OPEN",
+    "title": "Require axe and machete for Kharazi jungle bushes and trees.",
+    "updatedAt": "2026-08-17T11:10:32Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/539"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjQ5MDgxNTIw",
+      "is_bot": false,
+      "login": "pr0f3ss",
+      "name": "Filip Dobrosavljevi\u0107"
+    },
+    "body": "Show Portal Nexus teleport keybinds on the path overlay, similar to Jewellery Box.\n\nKeys are read from the teleport menu and stored per RuneLite profile.\n\nAlso updates a path-length assertion that drifted with the latest collision map.\n\nFixes #535",
+    "closingIssuesReferences": [
+      {
+        "id": "I_kwDOGiX-VM8AAAABMpWHiA",
+        "number": 535,
+        "repository": {
+          "id": "R_kgDOGiX-VA",
+          "name": "shortest-path",
+          "owner": {
+            "id": "MDQ6VXNlcjUzNDkzNjMx",
+            "login": "Skretzo"
+          }
+        },
+        "url": "https://github.com/Skretzo/shortest-path/issues/535"
+      }
+    ],
+    "createdAt": "2026-08-13T18:13:05Z",
+    "headRefName": "fix/535-portal-nexus-keybind-display",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjQ5MDgxNTIw",
+      "name": "Filip Dobrosavljevi\u0107",
+      "login": "pr0f3ss"
+    },
+    "isDraft": false,
+    "number": 536,
+    "state": "OPEN",
+    "title": "Show Portal Nexus keybinds on the path overlay",
+    "updatedAt": "2026-08-13T18:13:05Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/536"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjI0MjM4NTY=",
+      "is_bot": false,
+      "login": "wvanderp",
+      "name": "Wouter van der Plas"
+    },
+    "body": "## Summary\n- add five charter destinations with their Sailing and quest requirements\n- correct charter fares, destination requirements, and unavailable direct routes\n- model paid and unlocked alternatives for Waterbirth Island, Crabclaw Isle, and Slepe\n- fix Kathy Corkat and Lady of the Waves requirements and directionality\n- update charter-count and impossible-route regression tests\n\n## Testing\n- `./gradlew test --tests \"shortestpath.pathfinder.PathfinderTest.testUnreachableDirectCharterRoutes\" --tests \"shortestpath.pathfinder.TransportCountingTest\"`\n- Full suite: 292/293 passed; existing `testArdougneLeverUsedWithoutItemsWhenWildernessAllowed` expected 771 but returned 769.",
+    "closingIssuesReferences": [],
+    "createdAt": "2026-08-13T12:19:43Z",
+    "headRefName": "charters",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjI0MjM4NTY=",
+      "name": "Wouter van der Plas",
+      "login": "wvanderp"
+    },
+    "isDraft": false,
+    "number": 534,
+    "state": "OPEN",
+    "title": "Update charter ships and boat transport requirements",
+    "updatedAt": "2026-08-13T12:27:45Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/534"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjkxMzg0Mjg=",
+      "is_bot": false,
+      "login": "KeiranY",
+      "name": "Keiran Young"
+    },
+    "body": "- Adding Iban's Temple & fixing Death Altar. Fixes https://github.com/KeiranY/clue-pathing-runelite-plugin/issues/34\r\n- Fix landing spot for Ancient Cavern. Fixes https://github.com/KeiranY/clue-pathing-runelite-plugin/issues/27\r\n- Add puro-puro entry from Zanaris. Fixes https://github.com/KeiranY/clue-pathing-runelite-plugin/issues/31\r\n\r\nConsiderations:\r\n- Puro Puro can be entered from the overworld. This is non-deterministic since it moves so I've ignored it.\r\n- Depending on the state of SOTE a different Iban's lair dwarf camp area is used. I've added the exits from this area but not the entrances. This shouldn't be an issue unless trying to path to this specific version.\r\n- I've only included the transports for getting to Iban's lair via the abyss/death altar. This is the fastest way so what most players use but there will likely be some uses for mapping out the other ways in via West Ardy or Tirannwn",
+    "closingIssuesReferences": [
+      {
+        "id": "I_kwDOONiPus7Yajsn",
+        "number": 27,
+        "repository": {
+          "id": "R_kgDOONiPug",
+          "name": "clue-pathing-runelite-plugin",
+          "owner": {
+            "id": "MDQ6VXNlcjkxMzg0Mjg=",
+            "login": "KeiranY"
+          }
+        },
+        "url": "https://github.com/KeiranY/clue-pathing-runelite-plugin/issues/27"
+      },
+      {
+        "id": "I_kwDOONiPus7qYQuH",
+        "number": 31,
+        "repository": {
+          "id": "R_kgDOONiPug",
+          "name": "clue-pathing-runelite-plugin",
+          "owner": {
+            "id": "MDQ6VXNlcjkxMzg0Mjg=",
+            "login": "KeiranY"
+          }
+        },
+        "url": "https://github.com/KeiranY/clue-pathing-runelite-plugin/issues/31"
+      },
+      {
+        "id": "I_kwDOONiPus70lfv6",
+        "number": 34,
+        "repository": {
+          "id": "R_kgDOONiPug",
+          "name": "clue-pathing-runelite-plugin",
+          "owner": {
+            "id": "MDQ6VXNlcjkxMzg0Mjg=",
+            "login": "KeiranY"
+          }
+        },
+        "url": "https://github.com/KeiranY/clue-pathing-runelite-plugin/issues/34"
+      }
+    ],
+    "createdAt": "2026-08-08T23:35:31Z",
+    "headRefName": "master",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjkxMzg0Mjg=",
+      "name": "Keiran Young",
+      "login": "KeiranY"
+    },
+    "isDraft": false,
+    "number": 530,
+    "state": "OPEN",
+    "title": "Add various clue related transports",
+    "updatedAt": "2026-09-10T01:18:13Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/530"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjkwMjIyMTQ0",
+      "is_bot": false,
+      "login": "keadeish",
+      "name": ""
+    },
+    "body": "Added the Trinket of Fairies (28564) teleport to teleportation_items.tsv to allow the shortest path plugin to consider this teleport if the player has a Trinket of Fairies.\r\n\r\nI did not add this to a seasonal CSV as deadman mode has a permanent world. This item won't conflict with anything in normal OSRS as the item is unique to DMM.",
+    "closingIssuesReferences": [],
+    "createdAt": "2026-07-15T10:24:09Z",
+    "headRefName": "master",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjkwMjIyMTQ0",
+      "login": "keadeish"
+    },
+    "isDraft": false,
+    "number": 521,
+    "state": "OPEN",
+    "title": "Added the 'Trinket of Fairies' teleport from Deadman Mode (W345)",
+    "updatedAt": "2026-08-05T20:58:04Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/521"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjI0MjM4NTY=",
+      "is_bot": false,
+      "login": "wvanderp",
+      "name": "Wouter van der Plas"
+    },
+    "body": "I also had a fun night working of snapshot testing.\r\nI let ai take a stab at it, just to get a vibe for what it would look like.\r\nI still need to look at a bit more to see if I fully like the solution\r\n\r\nBut I did make a interesting discovery:\r\nour routing engine is not deterministic.\r\nturns out that hashmaps are not stable between runs.\r\nSo the ordering of equal cost transports would shuffle between runs.\r\nand this causes the search field (how many nodes are visited) and even the solution to change between runs.\r\nIs a small wonder that the length stays the same(although I've not looked that far into the shortcuts the routing engine takes. Because dijkstra always finds the shortest path no matter the order that the graph is presented)\r\n\r\nso the main solution for this is to sort the hashmap\r\n\r\nthen there is the choice for a custom snapshot format.\r\nI wanted something that is closer to human-readable then machine readable.\r\nif we wanted to have a stable machine readable code then we could just hash something and then we have our snapshot.\r\nBut I wanted these snapshots to have a secondary purpose of debugging / pointing us to the right direction.\r\n\r\nI also have some thoughts on the brittleness of snapshots. in general snapshots are a very brittle type of test because it asserts everything in the output.\r\none advantage of this is that it give a lot of coverage, and also new coverage that was not asserted before.\r\nthe larges disadvantage is that if anything changes than the tests fails even if its \"unrelated\" to the test.\r\nbut I think that the tradeoff is positive here because we don't expect the path between Lumbridge and Varrock to change much soon.\r\nand if anything changes then we want to know to check.\r\n\r\nLastly I decided to put these snapshots alongside the regular asserts, just to make sure that the code does not brake.\r\nalthough I would expect that in the future the length style asserts will be slowly removed.\r\n\r\nthe main thinks am still looking at are:\r\n\r\ndo I like the format\r\ndoes it state enough info\r\ndo we want to log more to it\r\ndo i like the location of the resources\r\nDo i want it to have subfolder (probably yes)\r\nwhat impact does the sorting?\r\nare there more test that can use a snapshot?\r\ndo i like Pathfinder pathfinder = assertScenarioPathLengthAndGet( as a pattern where the assert helper returns the pathfinder (no I dont)\r\ndo I like the assert helpers in general...",
+    "closingIssuesReferences": [],
+    "createdAt": "2026-07-08T21:54:59Z",
+    "headRefName": "snapshots",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjI0MjM4NTY=",
+      "name": "Wouter van der Plas",
+      "login": "wvanderp"
+    },
+    "isDraft": true,
+    "number": 517,
+    "state": "OPEN",
+    "title": "Snapshot testing",
+    "updatedAt": "2026-07-21T15:08:40Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/517"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjE3NTc1MjE=",
+      "is_bot": false,
+      "login": "PauloAguiar",
+      "name": "Paulo Henrique Aguiar"
+    },
+    "body": "",
+    "closingIssuesReferences": [],
+    "createdAt": "2026-07-08T06:33:40Z",
+    "headRefName": "fix-blast-furnance-landing-position",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjE3NTc1MjE=",
+      "name": "Paulo Henrique Aguiar",
+      "login": "PauloAguiar"
+    },
+    "isDraft": false,
+    "number": 516,
+    "state": "OPEN",
+    "title": "Fix blast furnace minigame teleport landing position",
+    "updatedAt": "2026-07-08T08:10:50Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/516"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjE3NTc1MjE=",
+      "is_bot": false,
+      "login": "PauloAguiar",
+      "name": "Paulo Henrique Aguiar"
+    },
+    "body": "Two rendering additions, both purely opt-in (existing defaults unchanged):\r\n\r\n- New \"Arrowed line\" path style: consecutive same-direction walking steps compress into straight segments ending in a direction arrowhead; teleport jumps draw dashed. Applied on the scene overlay (arrowheads at direction changes and the path end) and the world map overlay. Arrowhead drawing adapted from Quest Helper's DirectionArrow (BSD 2-Clause, credited).\r\n<img width=\"517\" height=\"428\" alt=\"image\" src=\"https://github.com/user-attachments/assets/ab21ff8a-4492-4506-b10d-43b7c5f7e425\" />\r\n\r\n- Teleport pulse: when the path's next step is a teleport, expanding rings pulse on the tile the player casts from, so the \"use the teleport now\" moment is easy to spot. Toggle + colour in config (on by default).\r\n<img width=\"374\" height=\"364\" alt=\"teleport\" src=\"https://github.com/user-attachments/assets/7820dcbf-e381-4ffe-a101-26d642ccc060\" />\r\n\r\nArrowHeadTest covers tip placement, rotation, colour and transform safety.",
+    "closingIssuesReferences": [],
+    "createdAt": "2026-07-04T19:38:22Z",
+    "headRefName": "arrow-line-style",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjE3NTc1MjE=",
+      "name": "Paulo Henrique Aguiar",
+      "login": "PauloAguiar"
+    },
+    "isDraft": false,
+    "number": 515,
+    "state": "OPEN",
+    "title": "Add arrow-line path style and teleport pulse highlight",
+    "updatedAt": "2026-07-04T19:53:31Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/515"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjI0MjM4NTY=",
+      "is_bot": false,
+      "login": "wvanderp",
+      "name": "Wouter van der Plas"
+    },
+    "body": "partial solve for https://github.com/Skretzo/shortest-path/issues/20\r\n\r\n<img width=\"2529\" height=\"1369\" alt=\"image\" src=\"https://github.com/user-attachments/assets/55ce31fe-5698-47ab-818e-7b1c9b06fb4d\" />\r\n\r\nSolve for `coordinate (1698 3792 0)`\r\n\r\n<img width=\"2287\" height=\"1369\" alt=\"image\" src=\"https://github.com/user-attachments/assets/ef4875f7-a48b-40e3-9160-557343a83de9\" />\r\n\r\nSolve for `coordinate (3085 3569 0)`\r\n\r\n<img width=\"1820\" height=\"939\" alt=\"image\" src=\"https://github.com/user-attachments/assets/be4f9fb3-3ee3-4388-ad97-9930d1ad70cc\" />\r\n\r\nSolve for `cryptic (3295 3934 1)`\r\n\r\n<img width=\"2287\" height=\"1369\" alt=\"image\" src=\"https://github.com/user-attachments/assets/53f28804-a2d8-437a-bcc6-e63f2c797749\" />\r\n\r\n\r\n",
+    "closingIssuesReferences": [],
+    "createdAt": "2026-07-01T22:03:24Z",
+    "headRefName": "grab-bag",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjI0MjM4NTY=",
+      "name": "Wouter van der Plas",
+      "login": "wvanderp"
+    },
+    "isDraft": false,
+    "number": 513,
+    "state": "OPEN",
+    "title": "Grab bag",
+    "updatedAt": "2026-07-08T21:50:49Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/513"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjE2MjUxNDA=",
+      "is_bot": false,
+      "login": "SRLJustin",
+      "name": "Justin"
+    },
+    "body": "",
+    "closingIssuesReferences": [],
+    "createdAt": "2026-06-08T06:25:26Z",
+    "headRefName": "transports",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjE2MjUxNDA=",
+      "name": "Justin",
+      "login": "SRLJustin"
+    },
+    "isDraft": false,
+    "number": 497,
+    "state": "OPEN",
+    "title": "transports: match in-game positions/menu options",
+    "updatedAt": "2026-07-25T08:30:21Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/497"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjQyMTk3MTkz",
+      "is_bot": false,
+      "login": "iprotsiuk",
+      "name": ""
+    },
+    "body": "## Summary\n\nAdds optional Easy Teleports label integration for Shortest Path transport display text. When Easy Teleports is active, its matching item toggle is enabled, and Shortest Path's `Easy teleport names` option is enabled, Shortest Path overlays/tooltips/plugin messages display the user's Easy Teleports destination names instead of the raw teleport option names.\n\nPathfinding behavior is unchanged. This only changes user-facing transport labels.\n\n## Implementation\n\n- Adds `EasyTeleportLabelFormatter`, which maps Shortest Path display labels to Easy Teleports config keys and falls back to the original label when no valid replacement applies.\n- Reads Easy Teleports values through RuneLite's `ConfigManager`; there is no compile-time dependency on Easy Teleports classes.\n- Detects the active Easy Teleports plugin through RuneLite's `Plugin#getName()` API, avoiding reflective annotation access.\n- Caches formatted display labels and clears the cache when Easy Teleports config changes, the Shortest Path option changes, or Easy Teleports starts/stops.\n- Stores the mapping table in `src/main/resources/easy_teleport_labels.txt` so it is not treated as a pathfinding data TSV by the repository TSV validator.\n\n## Mapping Source\n\nThe mapping file documents its sources:\n\n- Shortest Path labels come from `src/main/resources/transports/teleportation_items.tsv` display info values.\n- Easy Teleports config keys come from the separate [`LlemonDuck/easy-teleports`](https://github.com/LlemonDuck/easy-teleports) repo, specifically [`EasyTeleportsConfig`](https://github.com/LlemonDuck/easy-teleports/blob/31e38dbedb512292b0370dc9be0f72df6cd25e1b/src/main/java/com/duckblade/osrs/easyteleports/EasyTeleportsConfig.java) and the [`replacers`](https://github.com/LlemonDuck/easy-teleports/tree/31e38dbedb512292b0370dc9be0f72df6cd25e1b/src/main/java/com/duckblade/osrs/easyteleports/replacers) classes.\n- The Easy Teleports config group is intentionally `easypharaohsceptre`; that is the upstream value from `EasyTeleportsConfig.CONFIG_GROUP`.\n\n## Fallbacks\n\nOriginal Shortest Path labels are preserved when:\n\n- Easy Teleports is not installed or not active.\n- The Shortest Path `Easy teleport names` option is off.\n- The matching Easy Teleports item toggle is off.\n- The replacement value is missing or blank.\n- The Shortest Path label is not specific enough to map to one destination.\n\n## Coverage\n\nIncludes mappings for many Easy Teleports-supported multi-destination items, including achievement diary cape, Kharedst's memoirs / Book of the dead, Pharaoh's sceptre, jewellery, diary rewards, Xeric's talisman, ring of shadows, pendant of ates, giantsoul amulet, and unambiguous max cape entries.\n\n## Testing\n\n- `python3 scripts/check_tsv.py src/main/resources`\n- `JAVA_HOME=/opt/homebrew/opt/openjdk@11 ./gradlew test --tests shortestpath.teleports.EasyTeleportLabelFormatterTest --tests shortestpath.ShortestPathPluginEasyTeleportsTest`\n- `JAVA_HOME=/opt/homebrew/opt/openjdk@11 ./gradlew test`\n- `JAVA_HOME=/opt/homebrew/opt/openjdk@11 ./gradlew check`\n\nFixes #480.\n",
+    "closingIssuesReferences": [
+      {
+        "id": "I_kwDOGiX-VM8AAAABC6oP4Q",
+        "number": 480,
+        "repository": {
+          "id": "R_kgDOGiX-VA",
+          "name": "shortest-path",
+          "owner": {
+            "id": "MDQ6VXNlcjUzNDkzNjMx",
+            "login": "Skretzo"
+          }
+        },
+        "url": "https://github.com/Skretzo/shortest-path/issues/480"
+      }
+    ],
+    "createdAt": "2026-05-21T01:17:03Z",
+    "headRefName": "codex/easy-teleports-labels",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjQyMTk3MTkz",
+      "login": "iprotsiuk"
+    },
+    "isDraft": false,
+    "number": 481,
+    "state": "OPEN",
+    "title": "Use Easy Teleports labels for transport display",
+    "updatedAt": "2026-05-21T16:21:54Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/481"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjE2NjU2MzE1",
+      "is_bot": false,
+      "login": "FIrgolitsch",
+      "name": "Frans Irgolitsch"
+    },
+    "body": "I though of a UX improvement now we having banking properly implemented. I've created an overlay that highlights the items that are required to be picked up:\r\n<img width=\"482\" height=\"515\" alt=\"image\" src=\"https://github.com/user-attachments/assets/ec630856-a621-4636-98e6-fa149a74df20\" />\r\n\r\nI added a new toggle for the feature (default = on) and a colour option.\r\n\r\nI also changed the way the results of BankPickupRequirements are stored. The were recomputed at every frame when the hint was displayed, that was a bit unnecessary. I have introduced a BankPickupResults class that now caches them and gets invalidated when appropriate.\r\n\r\n@Skretzo @mpickering Let me know what you think of this!",
+    "closingIssuesReferences": [],
+    "createdAt": "2026-05-03T21:23:30Z",
+    "headRefName": "bank-highlighting",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjUzNDkzNjMx",
+      "login": "Skretzo"
+    },
+    "isDraft": false,
+    "number": 462,
+    "state": "OPEN",
+    "title": "Bank/inventory/spell highlighting",
+    "updatedAt": "2026-05-12T05:40:24Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/462"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjczNTk5MDIz",
+      "is_bot": false,
+      "login": "nroszko",
+      "name": ""
+    },
+    "body": "## Summary\r\n\r\nThis PR adds per-portal toggles for the POH Portal Nexus and fixes a bug that prevented the Marim Portal from correctly routing to the Ape Atoll bank.\r\n\r\n---\r\n\r\n## Changes\r\n\r\n### Per-portal toggles for POH Portal Nexus\r\n\r\nThe existing `useTeleportationPortalsPoh` toggle controlled all 39 portal destinations as a single unit. Players commonly have fewer than 39 portals built, or prefer to reserve certain portals for manual use. This change adds a collapsed config section **\"POH Portal Nexus Teleports\"** (closed by default) containing one boolean toggle per portal destination, all defaulting to `true`.\r\n\r\n**Simple portals (35 toggles):**\r\nAnnakarl, Arceuus Library, Ardougne, Barbarian Outpost, Barrows, Battlefront, Carrallanger, Catherby, Cemetery, Civitas illa Fortis, Dareeyak, Draynor Manor, Falador, Fenkenstrain's Castle, Fishing Guild, Ghorrock, Harmony Island, Ice Plateau, Kharyrll, Kourend, Lassar, Lumbridge, Lunar Isle, Marim, Mind Altar, Ourania, Paddewwa, Port Khazard, Salve Graveyard, Senntisten, Trollheim, Troll Stronghold, Waterbirth Island, Weiss, West Ardougne\r\n\r\n**Paired portals (3 toggles, one per pair):**\r\nCamelot / Seers' Village, Varrock / Grand Exchange, Watchtower / Yanille\r\n\r\n**Respawn portal (1 toggle):**\r\nCovers all 8 respawn location variants\r\n\r\nThe master `useTeleportationPortalsPoh` toggle still gates everything \u2014 individual toggles are only evaluated when the master is enabled. Under the hood, `PathfinderConfig` builds a `Set<String>` of enabled portal display-info strings during `refresh()` and filters `useTransport()` accordingly.\r\n\r\n> **Default behaviour is unchanged** \u2014 all new toggles default to `true` and the section is collapsed, so existing users see no difference until they open the section to disable specific portals.\r\n\r\n---\r\n\r\n### Fix: Marim Portal destination coordinates (`teleportation_portals_poh.tsv`)\r\n\r\nThe Marim Portal destination was set to `2798 2799 0` (plane 0), which is an unreachable tile inside the Ape Atoll dungeon entrance. The correct landing tile is `2797 2798 1` (plane 1), matching the Ape Atoll Teleport spell destination.\r\n\r\n### Fix: Add Marim (Ape Atoll) staircases (`transports.tsv`)\r\n\r\nWithout registered staircase transports between planes 0 and 1 on Ape Atoll, the pathfinder could reach `2797 2798 1` via the corrected portal but had no route down to the bank at `2780 2783 0`. Added 8 staircase transport entries (4 bidirectional pairs) covering all stair tiles, enabling the pathfinder to descend to plane 0 and walk to the bank. The standard Ape Atoll Teleport spell also benefits from these entries.\r\n\r\n---\r\n\r\n## Files Changed\r\n\r\n| File | Change |\r\n|---|---|\r\n| `ShortestPathConfig.java` | Added `POH Portal Nexus Teleports` config section with 39 boolean toggles; updated positions of all downstream config items |\r\n| `PathfinderConfig.java` | Added `enabledPohNexusPortals` set; populate in `refresh()`; filter in `useTransport()` |\r\n| `teleportation_portals_poh.tsv` | Fixed Marim Portal destination: `2798 2799 0` \u2192 `2797 2798 1` |\r\n| `transports.tsv` | Added 8 Marim staircase transport entries (4 bidirectional pairs, planes 0 \u2194 1) |",
+    "closingIssuesReferences": [],
+    "createdAt": "2026-03-11T02:47:57Z",
+    "headRefName": "poh-portal-nexus-toggles",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjczNTk5MDIz",
+      "login": "nroszko"
+    },
+    "isDraft": false,
+    "number": 377,
+    "state": "OPEN",
+    "title": "Poh portal nexus toggles",
+    "updatedAt": "2026-05-07T13:34:57Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/377"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjI0MjM4NTY=",
+      "is_bot": false,
+      "login": "wvanderp",
+      "name": "Wouter van der Plas"
+    },
+    "body": "I was always adding transports that were already there, but just not shown because of my level.\r\n\r\nSo now it renders all unavailable transports in orange.\r\n\r\n<img width=\"2219\" height=\"1351\" alt=\"image\" src=\"https://github.com/user-attachments/assets/1b28348a-0208-4c1a-a7bc-dd5d27220057\" />\r\n",
+    "closingIssuesReferences": [],
+    "createdAt": "2026-01-28T21:09:45Z",
+    "headRefName": "unavalible-transport-debug",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjI0MjM4NTY=",
+      "name": "Wouter van der Plas",
+      "login": "wvanderp"
+    },
+    "isDraft": false,
+    "number": 349,
+    "state": "OPEN",
+    "title": "Enhance transport rendering: differentiate available and unavailable transports on the map",
+    "updatedAt": "2026-04-24T21:55:00Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/349"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjM3NzIwNzg2",
+      "is_bot": false,
+      "login": "thermaldrg",
+      "name": "Shane"
+    },
+    "body": "This introduces two new toggle options to improve QOL when the shortest path includes a teleport:\r\n\r\n1. **\"Show tiles saved\" toggle** \u2013 Displays how many tiles are saved by using the teleport path compared to walking.\r\n2. **\"Show walkable path\" toggle** \u2013 Optionally shows the full walkable path even when a teleport is offered, giving users visibility into the alternative route.\r\n\r\n",
+    "closingIssuesReferences": [],
+    "createdAt": "2025-07-28T03:51:10Z",
+    "headRefName": "master",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjM3NzIwNzg2",
+      "name": "Shane",
+      "login": "thermaldrg"
+    },
+    "isDraft": false,
+    "number": 176,
+    "state": "OPEN",
+    "title": "Show tiles saved when offering teleports & option to show a walkable path aswell",
+    "updatedAt": "2026-04-24T21:55:00Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/176"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjIyMjkyMDk2",
+      "is_bot": false,
+      "login": "sasoder",
+      "name": "Samuel S\u00f6derberg"
+    },
+    "body": "Fixes #169, maybe some aspect of #120 \r\n\r\nAdds two new features to help players compare different travel options:\r\n\r\n<img width=\"234\" height=\"63\" alt=\"image\" src=\"https://github.com/user-attachments/assets/e4cfd287-0f3f-439c-9150-1e781faa2714\" />\r\n\r\n- Alternative paths: show multiple teleport options after the best path. Configurable count (0-10) via new \"Show alt. paths\" setting.\r\n   <img width=\"296\" height=\"288\" alt=\"image\" src=\"https://github.com/user-attachments/assets/88a11a63-8daf-43aa-8239-3e73870e9dda\" />\r\n\r\n- Path length: all paths can now show their tile distance in parentheses for easier comparison.\r\n  <img width=\"266\" height=\"269\" alt=\"image\" src=\"https://github.com/user-attachments/assets/9eb3dd32-9385-4c41-87ad-e731929a20f0\" />",
+    "closingIssuesReferences": [
+      {
+        "id": "I_kwDOGiX-VM7Bb7g9",
+        "number": 169,
+        "repository": {
+          "id": "R_kgDOGiX-VA",
+          "name": "shortest-path",
+          "owner": {
+            "id": "MDQ6VXNlcjUzNDkzNjMx",
+            "login": "Skretzo"
+          }
+        },
+        "url": "https://github.com/Skretzo/shortest-path/issues/169"
+      }
+    ],
+    "createdAt": "2025-07-27T21:20:53Z",
+    "headRefName": "path-dists-and-alternatives",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjIyMjkyMDk2",
+      "name": "Samuel S\u00f6derberg",
+      "login": "sasoder"
+    },
+    "isDraft": false,
+    "number": 175,
+    "state": "OPEN",
+    "title": "Add alternative routes and tile distance display",
+    "updatedAt": "2026-06-17T10:12:59Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/175"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjIyMzAxNTI=",
+      "is_bot": false,
+      "login": "jocopa3",
+      "name": ""
+    },
+    "body": "This PR is incomplete, namely UI and API is not finalized. I'm publishing it to receive feedback from others.\r\n\r\n## Overview \r\nA common request I see from other plugin developers is wanting some way to interface with shortest path but there currently doesn't exist a way to do so. This PR proposes a potential API that can be exposed to external plugins to allow them to make requests while also allowing users to control which paths are visible and prioritize which plugin paths should override other paths.\r\n\r\n* Plugins may now use an API over the event bus to request paths\r\n  * Currently uses a `HashMap` to transfer data until some form of Plugin Messaging event is added to RuneLite, a la: https://github.com/runelite/runelite/pull/16863\r\n  * Plugins can only modify their own requested paths; they cannot clear/change paths for other plugins.\r\n  * For now, plugins can only request one path at a time. Any new requests overwrite the old one.\r\n  * Similarly, Shortest Path currently only displays one path at a time determined by the priority list and visibility.\r\n  * Shortest Path still processes requests for bookkeeping even if the shortest path plugin is disabled, it just won't do the actual pathfinding unless it's enabled.\r\n  * Shortest Path attempts to respect other plugins requests and provides no option to cancel/clear plugin paths directly, only toggle visibility.\r\n* Refactored how shortest path handles path finding requests internally; all internal requests for pathfinding go through the same `requestPath` code path as external plugins.\r\n* Optimized the `startUp` and `shutDown` functions to avoid redundantly loading data in-case the user toggles the plugin on/off.\r\n* Plugin Panel shows a drag-and-drop list of plugins. Plugins higher-up have a higher priority.\r\n  <img width=\"200\" alt=\"image\" src=\"https://github.com/Skretzo/shortest-path/assets/2230152/8caa8be0-6c42-4adb-81d2-f9b8271695e5\">\r\n* Debug Overlay now shows the path owner:\r\n  <img width=\"200\" alt=\"image\" src=\"https://github.com/Skretzo/shortest-path/assets/2230152/1990fb9c-16b6-41e5-840a-1224181f48ad\">\r\n\r\n### Notes\r\n* Priority list order is not yet saved. Was wondering if it should be saved at all or reset each time the client starts up\r\n* All icons for UI are placeholders until I can either make new assets or find some with an agreeable license.\r\n* Navigation Button currently uses [marker.png](https://github.com/Skretzo/shortest-path/blob/74a8f15d19c4b1138a0c09bfdb089cd93982f8c7/src/main/resources/marker.png) as the plugin's icon; open to ideas for something better to use.\r\n\r\n### Video Demo\r\nVideo demonstrates that shortest-path's normal functions still work as expected, but also that other plugins (e.x. Quest Helper) can interface with it. Plugins can be re-ordered and paths hidden via the side panel. Shortest Path still tracks request/clear commands even if it's disabled so that the data remains current the next time it's enabled.\r\n\r\nhttps://github.com/Skretzo/shortest-path/assets/2230152/33622cee-eed8-49d2-9b52-a416f0a0bee7\r\n\r\n## API\r\n\r\nThis initial proposal is meant to implement the bare minimum feature-set most people want and that can be easily maintained going forward. Additional features like changing pathfinding options, drawing multiple paths, changing path colors, etc., are out of the intended scope of this PR.\r\n\r\nPlugins interface over the `EventBus` by passing a hashmap of type `HashMap<String, Object>` containing the required parameters. Any invalid requests or requests with invalid/missing parameters are ignored and a debug message printed. For simplicity, the API is entirely one-way communication and Shortest Path does not send responses or acknowledgements back to requesters. Here is a [working example class](https://gist.github.com/jocopa3/c3260fd3443ec2c07d9a61b915f4a3ff) that external plugins can use directly to interface with shortest path or use as a reference.\r\n\r\nInternally, the API side is handled by `ShortestPathAPI.java`. It validates that the objects received are the correct types and prints debug messages when it receives invalid requests or parameters; these messages can be seen in logs or when RuneLite is run with the `--debug` argument.\r\n\r\n### Required Parameters \r\n\r\nThere are a few parameters that are required in all events:\r\nKey | Type | Description\r\n| --- | --- | --- |\r\n`plugin` | Plugin | Required. A reference to the plugin making the path requests.\r\n`command` | String | Required. Must start with `shortestpath:` followed by the command.\r\n\r\n### Commands\r\n* `request-path`: Asks shortest path to try and draw a path from the player's position or start point to the target point. The requested path will only be drawn if no other plugin has an active path or the requesting plugin is higher on the user's priority list than other plugins with active paths.\r\n* `clear-path`: Clears any paths set by the requesting plugin; does not affect other plugins paths.\r\n\r\nSome commands may have additional parameters as listed below.\r\n\r\n**`request-path` Command:**\r\nKey | Type | Description\r\n| --- | --- | --- |\r\n`target` | WorldPoint | Required. The world point for where the path ends.\r\n`start` | WorldPoint | Optional. The world point that marks where the path should start. If missing or `null`, then the player's position is used as the start point.\r\n`hide-marker` | Boolean | Optional. If the key exists and value is `true`, shortest path won't draw the target \"marker\" overlay on the world map. This is useful to plugins like Quest Helper that already draw their own world map marker.",
+    "closingIssuesReferences": [],
+    "createdAt": "2023-08-02T20:18:01Z",
+    "headRefName": "plugin_integration",
+    "headRepositoryOwner": {
+      "id": "MDQ6VXNlcjIyMzAxNTI=",
+      "login": "jocopa3"
+    },
+    "isDraft": true,
+    "number": 48,
+    "state": "OPEN",
+    "title": "Create an interface for external plugins",
+    "updatedAt": "2026-04-24T21:55:00Z",
+    "url": "https://github.com/Skretzo/shortest-path/pull/48"
+  },
+  {
+    "author": {
+      "login": "fixture-bot"
+    },
+    "headRepositoryOwner": {
+      "login": "fixture-bot"
+    },
+    "isDraft": false,
+    "state": "OPEN",
+    "createdAt": "2026-09-10T00:00:00Z",
+    "updatedAt": "2026-09-10T00:00:00Z",
+    "number": 99993,
+    "title": "Synthetic branch-only fix PR",
+    "body": null,
+    "headRefName": "fix/99992-widget-alignment",
+    "closingIssuesReferences": [],
+    "url": "https://github.com/Skretzo/shortest-path/pull/99993"
+  },
+  {
+    "author": {
+      "login": "fixture-bot"
+    },
+    "headRepositoryOwner": {
+      "login": "fixture-bot"
+    },
+    "isDraft": false,
+    "state": "OPEN",
+    "createdAt": "2026-09-10T00:00:00Z",
+    "updatedAt": "2026-09-10T00:00:00Z",
+    "number": 99994,
+    "title": "Synthetic unrelated refactor",
+    "body": "Internal cleanup, does not address any report.",
+    "headRefName": "cleanup-internals",
+    "closingIssuesReferences": [],
+    "url": "https://github.com/Skretzo/shortest-path/pull/99994"
+  },
+  {
+    "author": {
+      "login": "fixture-bot"
+    },
+    "headRepositoryOwner": {
+      "login": "fixture-bot"
+    },
+    "isDraft": false,
+    "state": "OPEN",
+    "createdAt": "2026-09-10T00:00:00Z",
+    "updatedAt": "2026-09-10T00:00:00Z",
+    "number": 99995,
+    "title": "Synthetic confirmed link to issue 549",
+    "body": "Maps the Gu'Tanoth shortcut.\n\nCloses #549",
+    "headRefName": "gutanoth-shortcut",
+    "closingIssuesReferences": [
+      {
+        "number": 549
+      }
+    ],
+    "url": "https://github.com/Skretzo/shortest-path/pull/99995"
+  }
+]

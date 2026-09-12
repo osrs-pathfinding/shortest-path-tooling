@@ -28,14 +28,22 @@ def load_fixture(name):
     return json.loads((FIXTURES / name).read_text())
 
 
-def run_sync(tmp_path, monkeypatch, issues=None, extra_args=None):
-    if issues is None:
-        issues = load_fixture("gh_issue_list.json")
-    monkeypatch.setattr(ii, "gh_json", lambda args: issues)
+def run_sync(tmp_path, monkeypatch, issues=None, prs=None, extra_args=None):
+    def dispatch(args):
+        if args[:2] == ["pr", "list"]:
+            return prs if prs is not None else load_fixture("gh_pr_list.json")
+        return issues if issues is not None else load_fixture("gh_issue_list.json")
+    monkeypatch.setattr(ii, "gh_json", dispatch)
     argv = ["sync", "--output-dir", str(tmp_path)]
     if extra_args:
         argv.extend(extra_args)
     return ii.main(argv)
+
+
+def stub_prs(monkeypatch):
+    monkeypatch.setattr(
+        ii, "gh_json", lambda args: load_fixture("gh_pr_list.json"))
+    return ii.fetch_fix_candidates()
 
 
 def frontmatter_and_body(path):
@@ -84,3 +92,44 @@ def test_sync_empty_body_and_comments(tmp_path, monkeypatch):
     assert path.is_file()
     fm, _body = frontmatter_and_body(path)
     assert fm["status"] == "reported"
+
+
+def test_fix_candidate_confirmed_link(monkeypatch):
+    out = stub_prs(monkeypatch)
+    assert 509 in out
+    entry = next(e for e in out[509] if e["pr"] == 541)
+    assert entry["link"] == "confirmed"
+    assert entry["url"] == "https://github.com/Skretzo/shortest-path/pull/541"
+    assert entry["author"] == "pr0f3ss"
+    assert entry["branch"] == "fix/509-quest-cape-all-quests"
+
+
+def test_fix_candidate_heuristic_body_link(monkeypatch):
+    # Live-verified gap: body says "Fixes issue #504" but GitHub produced
+    # no closingIssuesReferences entry.
+    out = stub_prs(monkeypatch)
+    assert 504 in out
+    entry = next(e for e in out[504] if e["pr"] == 539)
+    assert entry["link"] == "heuristic"
+
+
+def test_fix_candidate_heuristic_branch_link(monkeypatch):
+    out = stub_prs(monkeypatch)
+    assert 99992 in out
+    entry = next(e for e in out[99992] if e["pr"] == 99993)
+    assert entry["link"] == "heuristic"
+
+
+def test_fix_candidate_unrelated_pr_absent(monkeypatch):
+    out = stub_prs(monkeypatch)
+    all_prs = [e["pr"] for entries in out.values() for e in entries]
+    assert 99994 not in all_prs
+
+
+def test_sync_populates_fix_candidates_frontmatter(tmp_path, monkeypatch):
+    run_sync(tmp_path, monkeypatch)
+    fm, _body = frontmatter_and_body(tmp_path / "ISSUE-549.md")
+    prs = [e["pr"] for e in fm["fix_candidates"]]
+    assert 99995 in prs
+    entry = next(e for e in fm["fix_candidates"] if e["pr"] == 99995)
+    assert entry["link"] == "confirmed"

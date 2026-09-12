@@ -69,6 +69,11 @@ def fetch_issue(number: int) -> Dict:
     ])
 
 
+def fetch_fix_candidates(limit: int = 500) -> Dict[int, List[Dict]]:
+    """Map issue number -> PRs that (maybe) fix it."""
+    return {}
+
+
 def shadow_path(output_dir: Path, number: int) -> Path:
     return output_dir / f"ISSUE-{number}.md"   # number-only: injection-proof
 
