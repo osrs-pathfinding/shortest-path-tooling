@@ -10,6 +10,7 @@ cache.  The script is loaded via importlib because ``scripts/`` has no
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -443,6 +444,10 @@ def prepare_local(tmp_path, monkeypatch, *, cache_ready=True,
     run seam.  Returns (repo, submodule, calls)."""
     repo, submodule = redirect_repo(tmp_path, monkeypatch)
     monkeypatch.setattr(mm, "check_tools", lambda names: None)
+    # The pipeline copies real inputs out of collision-map-update/ —
+    # mirror the directory into the scratch repo.
+    shutil.copytree(ROOT / "collision-map-update",
+                    repo / "collision-map-update")
     resources = submodule / "src" / "main" / "resources"
     resources.mkdir(parents=True)
     if existing_zip:

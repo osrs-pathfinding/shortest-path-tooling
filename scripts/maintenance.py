@@ -236,7 +236,173 @@ def do_collision_map(args: argparse.Namespace) -> int:
     return 0
 
 
+def require_write_branch() -> None:
+    """Refuse data writes unless the submodule sits on a myfork feature
+    branch — regenerated data must land on the fork and PR upstream,
+    never on detached HEAD, master, or a branch tracking origin."""
+    branch = run(["git", "-C", "shortest-path", "rev-parse",
+                  "--abbrev-ref", "HEAD"],
+                 timeout=GIT_TIMEOUT_SECONDS).stdout.strip()
+    if branch == "HEAD":
+        raise SystemExit(
+            "submodule is on a detached HEAD — create a feature branch "
+            "first (`git -C shortest-path checkout -b <name>`)")
+    if branch == "master":
+        raise SystemExit(
+            "data commits must land on a myfork feature branch, not "
+            "master — create one first")
+    up = run(["git", "-C", "shortest-path", "rev-parse", "--abbrev-ref",
+              "@{u}"], timeout=GIT_TIMEOUT_SECONDS)
+    if up.returncode == 0:
+        upstream = up.stdout.strip()
+        if not upstream.startswith("myfork/"):
+            raise SystemExit(
+                f"submodule branch tracks '{upstream}' — data commits "
+                f"must land on a branch tracking myfork")
+    else:
+        print("warning: branch has no upstream — push to myfork before "
+              "committing data", file=sys.stderr)
+
+
+def ensure_cache_ready(fetch: bool = False) -> None:
+    """Guarantee ./cache and a patched keys.json exist.
+
+    The keys patch is applied unconditionally — it is idempotent, so it
+    also repairs a manually downloaded, still-unpatched keys.json.
+    """
+    cache_dir = REPO / "cache"
+    keys_path = REPO / "keys.json"
+    if not cache_dir.is_dir() or not keys_path.exists():
+        if not fetch:
+            raise SystemExit(
+                "cache/ and keys.json are required — run "
+                "`maintenance.py cache` first")
+        if do_cache() != 0:
+            raise SystemExit("cache download failed")
+    patch_keys_json(keys_path)
+
+
+def do_collision_map_local(args: argparse.Namespace) -> int:
+    """Fallback path: regenerate collision-map.zip locally through the
+    runelite pipeline, mirroring the upstream ExtractCollisionMap
+    workflow's six steps.  All scratch state lives under ``build/``."""
+    require_write_branch()
+    require_clean_submodule()
+    ensure_cache_ready(fetch=True)
+
+    build = REPO / "build"
+    build.mkdir(parents=True, exist_ok=True)
+    new_zip = (SUBMODULE / "src" / "main" / "resources" /
+               "collision-map.zip")
+    old_zip = build / "old-collision-map.zip"
+    if new_zip.exists():
+        # Preserve the outgoing artifact before anything can overwrite
+        # it — it is the diff baseline at the end of the pipeline.
+        shutil.copy2(new_zip, old_zip)
+
+    work = build / "runelite-work"
+    runelite = work / "runelite"
+    if (runelite / ".git").exists():
+        run(["git", "-C", str(runelite), "fetch", "--depth", "1",
+             "origin", "master"], timeout=GIT_TIMEOUT_SECONDS)
+        run(["git", "-C", str(runelite), "reset", "--hard",
+             "FETCH_HEAD"], timeout=GIT_TIMEOUT_SECONDS)
+    else:
+        work.mkdir(parents=True, exist_ok=True)
+        run(["git", "clone", "--depth", "1",
+             "https://github.com/runelite/runelite", str(runelite)],
+            timeout=DOWNLOAD_TIMEOUT_SECONDS)
+
+    cache_mod = runelite / "cache"
+    shutil.copyfile(
+        REPO / "collision-map-update" / "CollisionMapDumper.java",
+        cache_mod / "src" / "main" / "java" / "net" / "runelite" /
+        "cache" / "CollisionMapDumper.java")
+    shutil.copyfile(
+        REPO / "collision-map-update" / "build.gradle.kts.patch",
+        cache_mod / "build.gradle.kts.patch")
+    check = run(["git", "apply", "--check", "build.gradle.kts.patch"],
+                cwd=cache_mod, timeout=GIT_TIMEOUT_SECONDS)
+    if check.returncode != 0:
+        reverse = run(["git", "apply", "--reverse", "--check",
+                       "build.gradle.kts.patch"],
+                      cwd=cache_mod, timeout=GIT_TIMEOUT_SECONDS)
+        if reverse.returncode == 0:
+            print("build.gradle.kts.patch already applied — skipping")
+        else:
+            print("git apply --check failed for "
+                  "build.gradle.kts.patch:", file=sys.stderr)
+            tail = _stderr_tail(check)
+            if tail:
+                print(tail, file=sys.stderr)
+            return 1
+    else:
+        run(["git", "apply", "build.gradle.kts.patch"],
+            cwd=cache_mod, timeout=GIT_TIMEOUT_SECONDS)
+
+    # The patch pins a Java 11 toolchain; Gradle toolchain
+    # auto-provisioning resolves it when only a newer JDK is installed.
+    print("note: the runelite build uses a Java 11 toolchain — Gradle "
+          "auto-provisions it on first run")
+    proc = run([str(runelite / "gradlew"), ":cache:shadowJar", "-x",
+                "test", "--dependency-verification=off"],
+               cwd=runelite, timeout=RUNELITE_BUILD_TIMEOUT_SECONDS)
+    if proc.returncode != 0:
+        print("runelite :cache:shadowJar failed:", file=sys.stderr)
+        tail = _stderr_tail(proc)
+        if tail:
+            print(tail, file=sys.stderr)
+        return 1
+
+    jars = list((cache_mod / "build" / "libs").glob("*-all.jar"))
+    if len(jars) != 1:
+        libs = cache_mod / "build" / "libs"
+        print(f"expected exactly one *-all.jar under {libs}, "
+              f"found {len(jars)}", file=sys.stderr)
+        return 1
+    jar = build / "cache.jar"
+    shutil.copyfile(jars[0], jar)
+
+    output_dir = build / "collision-output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    proc = run(["java", "-jar", str(jar),
+                "--cachedir", str(REPO / "cache"),
+                "--xteapath", str(REPO / "keys.json"),
+                "--outputdir", str(output_dir)],
+               timeout=JAVA_DUMPER_TIMEOUT_SECONDS)
+    if proc.returncode != 0:
+        print("CollisionMapDumper failed:", file=sys.stderr)
+        tail = _stderr_tail(proc)
+        if tail:
+            print(tail, file=sys.stderr)
+        return 1
+
+    proc = run(["zip", "-r", "collision-map.zip", "."],
+               cwd=output_dir, timeout=SCRIPT_TIMEOUT_SECONDS)
+    if proc.returncode != 0:
+        print("zip of collision map output failed:", file=sys.stderr)
+        tail = _stderr_tail(proc)
+        if tail:
+            print(tail, file=sys.stderr)
+        return 1
+    shutil.move(str(output_dir / "collision-map.zip"), str(new_zip))
+
+    if old_zip.exists():
+        diff = run([sys.executable,
+                    str(REPO / "scripts" / "compare_collision_maps.py"),
+                    str(old_zip), str(new_zip)],
+                   timeout=SCRIPT_TIMEOUT_SECONDS)
+        if diff.stdout:
+            print(diff.stdout,
+                  end="" if diff.stdout.endswith("\n") else "\n")
+    print("review the diff, then commit on your myfork feature branch "
+          "and open a PR upstream")
+    return 0
+
+
 def cmd_collision_map(args: argparse.Namespace) -> int:
+    if args.local:
+        return do_collision_map_local(args)
     return do_collision_map(args)
 
 
