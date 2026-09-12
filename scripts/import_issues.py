@@ -770,12 +770,21 @@ def lint_scenarios(csv_path: Path,
     seen_names: set = set()
     if not csv_path.is_file():
         return errors, seen_names
-    data_lines = [(i + 1, l) for i, l in
-                  enumerate(csv_path.read_text().splitlines())
-                  if l.strip() and not l.startswith("#")]
-    if not data_lines:
+    raw_lines = csv_path.read_text().splitlines()
+    if not raw_lines:
         return errors, seen_names
-    head_lineno, head_line = data_lines[0]
+    # The dashboard loader reads the literal first line as the header —
+    # `#`/blank skipping applies only to data rows, so a leading comment
+    # or blank line misparses as a TSV/clue header instead of linting
+    # clean.
+    head_lineno, head_line = 1, raw_lines[0]
+    if not head_line.strip() or head_line.lstrip().startswith("#"):
+        errors.append(
+            "line 1: the loader reads the literal first line as the CSV "
+            "header — leading blank or comment lines misparse")
+        return errors, seen_names
+    data_lines = [(i + 1, l) for i, l in enumerate(raw_lines)
+                  if i > 0 and l.strip() and not l.startswith("#")]
     header = [h.strip() for h in head_line.split(",")]
     for c in SCENARIO_REQUIRED_COLUMNS:
         if c not in header:
@@ -789,7 +798,7 @@ def lint_scenarios(csv_path: Path,
     col = {name: i for i, name in enumerate(header)}
     preset_col = "preset" if "preset" in col else "teleports"
 
-    for lineno, line in data_lines[1:]:
+    for lineno, line in data_lines:
         fields = [f.strip() for f in line.split(",")]
         if len(fields) != len(header):
             errors.append(

@@ -470,6 +470,16 @@ def test_check_scenario_rows_crossref(tmp_path, capsys):
     assert "42" in out
 
 
+def test_check_scenario_leading_comment_line(tmp_path, capsys):
+    # The dashboard loader reads the literal first line as the header —
+    # a leading comment must not lint clean while the loader misparses.
+    csv = tmp_path / "scenarios.csv"
+    csv.write_text("# comment first\n" + SCENARIO_HEADER + "\n"
+                   + scenario_row() + "\n")
+    assert run_check(tmp_path) != 0
+    assert "line 1" in capsys.readouterr().out
+
+
 def test_check_scenario_header_columns(tmp_path, capsys):
     make_scenarios_csv(tmp_path, [scenario_row(
         category="collision-control")],
