@@ -19,8 +19,9 @@ import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import yaml
 
@@ -72,6 +73,124 @@ def shadow_path(output_dir: Path, number: int) -> Path:
     return output_dir / f"ISSUE-{number}.md"   # number-only: injection-proof
 
 
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def load_shadow(path: Path) -> Tuple[Optional[Dict], str]:
+    """Split a shadow file into (frontmatter dict, body text).
+
+    Returns (None, "") when the file is missing or has no frontmatter.
+    Frontmatter is parsed with yaml.safe_load only -- shadow files embed
+    untrusted upstream text and must never be a code-execution surface.
+    """
+    if not path.is_file():
+        return None, ""
+    text = path.read_text()
+    if not text.startswith("---"):
+        return None, text
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return None, text
+    try:
+        fm = yaml.safe_load(parts[1])
+    except yaml.YAMLError:
+        fm = None
+    return (fm if isinstance(fm, dict) else None), parts[2]
+
+
+def build_frontmatter(issue: Dict, fix_candidates: List[Dict],
+                      existing: Optional[Dict], now: str) -> Dict:
+    """Frontmatter for one shadow file.
+
+    Upstream-owned fields (title, state, labels, fix candidates) are
+    rebuilt from the fetched issue on every sync.  Maintainer-owned
+    fields (status, phase, scenario rows, verification evidence, and the
+    history log) are carried over from the existing file so a re-sync
+    never clobbers triage work.
+    """
+    number = int(issue["number"])
+    fm: Dict = {
+        "upstream": f"{UPSTREAM_REPO}#{number}",
+        "url": issue.get("url"),
+        "title": issue.get("title") or "",
+        "upstream_state": (issue.get("state") or "").lower() or None,
+        "upstream_state_reason": issue.get("stateReason") or None,
+        "labels": [l.get("name") for l in (issue.get("labels") or [])
+                   if isinstance(l, dict) and l.get("name")],
+        "author": (issue.get("author") or {}).get("login"),
+        "created_at": issue.get("createdAt"),
+        "updated_at": issue.get("updatedAt"),
+        "synced_at": now,
+        "status": "reported",
+        "phase": None,
+        "fix_candidates": fix_candidates or [],
+        "history": [{"at": now, "event": "imported", "by": "import_issues.py"}],
+    }
+    if existing:
+        for key in ("status", "phase", "scenario_rows", "verification"):
+            if key in existing:
+                fm[key] = existing[key]
+        history = list(existing.get("history") or [])
+        history.append({"at": now, "event": "synced", "by": "import_issues.py"})
+        fm["history"] = history
+    return fm
+
+
+def render_body(issue: Dict) -> str:
+    """Markdown body: upstream text verbatim inside UNTRUSTED-marked
+    sections so downstream agents treat it as data, never instructions."""
+    title = issue.get("title") or "(no title)"
+    body_text = issue.get("body") or ""
+    comments = issue.get("comments") or []
+
+    report = [
+        "## Upstream Report",
+        "",
+        UNTRUSTED_MARKER,
+        "",
+        f"### {title}",
+        "",
+    ]
+    if body_text:
+        # Four-backtick fence: a triple-backtick inside the report cannot
+        # close the block early.
+        report += ["````", body_text, "````"]
+    else:
+        report += ["(no body)"]
+
+    csec = ["## Upstream Comments", "", UNTRUSTED_MARKER, ""]
+    if comments:
+        for c in comments[-5:]:          # newest five
+            login = (c.get("author") or {}).get("login") or "unknown"
+            csec.append(f"— {login}, {c.get('createdAt')}")
+            csec.append("")
+            csec += ["````", c.get("body") or "", "````", ""]
+    else:
+        csec.append("(no comments)")
+
+    return "\n".join(report) + "\n\n" + "\n".join(csec).rstrip() + "\n"
+
+
+def render_shadow(issue: Dict, fix_candidates: List[Dict],
+                  existing: Optional[Dict] = None, now: Optional[str] = None) -> str:
+    now = now or utc_now_iso()
+    fm = build_frontmatter(issue, fix_candidates, existing, now)
+    return ("---\n"
+            + yaml.safe_dump(fm, sort_keys=False, allow_unicode=True)
+            + "---\n\n"
+            + render_body(issue))
+
+
+def write_shadow(output_dir: Path, issue: Dict,
+                 fix_candidates: List[Dict]) -> Path:
+    number = int(issue["number"])
+    path = shadow_path(output_dir, number)
+    existing_fm, _body = load_shadow(path)
+    path.write_text(render_shadow(issue, fix_candidates, existing_fm))
+    return path
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -90,7 +209,36 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     args = ap.parse_args(argv)
 
-    # Subcommand dispatch is implemented incrementally.
+    if args.cmd == "sync":
+        return cmd_sync(args)
+    if args.cmd == "list":
+        print("list: not implemented yet", file=sys.stderr)
+        return 1
+    return 0
+
+
+def cmd_sync(args: argparse.Namespace) -> int:
+    if args.issue is not None:
+        issues = [fetch_issue(args.issue)]
+    else:
+        issues = fetch_issues(args.state, args.limit)
+
+    planned: List[Tuple[Path, Dict]] = []
+    for issue in issues:
+        number = issue.get("number")
+        if number is None:
+            continue
+        planned.append((shadow_path(args.output_dir, int(number)), issue))
+
+    if args.dry_run:
+        for path, _issue in planned:
+            print(f"would write {path.name}")
+        return 0
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    for path, issue in planned:
+        write_shadow(args.output_dir, issue, fix_candidates=[])
+        print(f"wrote {path.name}")
     return 0
 
 
