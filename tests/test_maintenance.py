@@ -1091,3 +1091,289 @@ def test_probes_failure_continues_and_reports(tmp_path, monkeypatch,
     result = capsys.readouterr()
     assert "sailingAmenityVarbitDump output" in result.out
     assert "leagueScriptScan" in result.err
+
+
+# ---------- verify subcommand ----------
+
+
+DASHBOARD_CSVS = [
+    "clue_locations_full.csv",
+    "collision-map-issues.csv",
+    "f2p_routes.csv",
+    "quetzal_whistle_routes.csv",
+    "routes.csv",
+    "seasonal_briefcase_routes.csv",
+    "unit-tests.csv",
+]
+
+
+def make_run_record(name="alpha scenario", reached=True,
+                    assertion_passed=True, assertion_message=None):
+    """A report.json run record in the DashboardBundlePublisher
+    shape."""
+    return {"name": name, "reached": reached, "pathLength": 12,
+            "assertionPassed": assertion_passed,
+            "assertionMessage": assertion_message,
+            "stats": {"elapsedNanos": 123456}}
+
+
+def write_report(path, runs):
+    """Write a report.json with the given run records."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"runs": runs}))
+    return path
+
+
+def test_scan_report_flags_unreachable_and_failed_assertion(tmp_path):
+    report = write_report(tmp_path / "report.json", [
+        make_run_record("gone", reached=False),
+        make_run_record("bad", assertion_passed=False,
+                        assertion_message="expected 10 got 12"),
+        make_run_record("fine"),
+    ])
+    failures = mm.scan_report(report)
+    assert "gone: unreachable" in failures
+    assert "bad: expected 10 got 12" in failures
+    assert len(failures) == 2
+
+
+def test_scan_report_missing_or_malformed_fails_closed(tmp_path):
+    missing = tmp_path / "nope" / "report.json"
+    failures = mm.scan_report(missing)
+    assert failures and str(missing) in failures[0]
+    bad = tmp_path / "report.json"
+    bad.write_text('{"runs": [')
+    failures = mm.scan_report(bad)
+    assert failures and str(bad) in failures[0]
+
+
+def make_verify_run(repo, calls, *, datasets=None, compile_rc=0,
+                    lint_rc=0, runs_for=None, missing_reports=(),
+                    ls_tree_rc=0,
+                    gitlink="160000 commit deadbeefcafe\tshortest-path",
+                    show_bytes=b"OLDZIP", show_rc=0,
+                    diff_stdout="EDGE TOTALS\n", diff_rc=0):
+    """fake mm.run for the verify subcommand — answers git ls-files /
+    ls-tree / show, every gradle tier, and the compare script; writes a
+    report.json bundle under build/ for each dashboard run."""
+    if datasets is None:
+        datasets = DASHBOARD_CSVS
+
+    def fake_run(cmd, *, cwd=None, timeout=None, binary=False):
+        calls.append((list(cmd), cwd))
+        if cmd[:2] == ["git", "ls-files"]:
+            return cp(cmd, "".join(
+                f"src/test/resources/dashboard/{d}\n"
+                for d in datasets))
+        if cmd[:3] == ["git", "ls-tree", "HEAD"]:
+            return cp(cmd, gitlink, rc=ls_tree_rc)
+        if cmd[:4] == ["git", "-C", "shortest-path", "show"]:
+            assert binary is True, "git show of a zip must be binary"
+            return subprocess.CompletedProcess(
+                cmd, show_rc, show_bytes, b"")
+        if cmd[:2] == ["./gradlew", "dashboard"]:
+            dataset = next(a.split("=", 1)[1] for a in cmd
+                           if a.startswith("-PdashboardDataset="))
+            csv = dataset.rsplit("/", 1)[-1]
+            slug = Path(csv).stem.lower().replace("_", "-")
+            runs = (runs_for(csv) if runs_for
+                    else [make_run_record(csv)])
+            if csv not in missing_reports:
+                write_report(
+                    repo / "build" / "reports" /
+                    "pathfinder-dashboard" / slug / "report.json", runs)
+            return cp(cmd, f"dashboard {csv}\n")
+        if cmd[:2] == ["./gradlew", "compileTestJava"]:
+            return cp(cmd, rc=compile_rc)
+        if cmd[:4] == ["./gradlew", "-p", "shortest-path", "test"]:
+            return cp(cmd, rc=lint_rc)
+        if cmd[0] == sys.executable:
+            return cp(cmd, diff_stdout, rc=diff_rc)
+        raise AssertionError(f"unexpected argv: {cmd}")
+
+    return fake_run
+
+
+def prepare_verify(tmp_path, monkeypatch, *, new_zip=b"OLDZIP",
+                   **run_kwargs):
+    """Common verify setup: redirected repo + the submodule's worktree
+    collision-map.zip.  Returns (repo, submodule, calls)."""
+    repo, submodule = redirect_repo(tmp_path, monkeypatch)
+    resources = submodule / "src" / "main" / "resources"
+    resources.mkdir(parents=True)
+    if new_zip is not None:
+        (resources / "collision-map.zip").write_bytes(new_zip)
+    calls = []
+    monkeypatch.setattr(
+        mm, "run", make_verify_run(repo, calls, **run_kwargs))
+    return repo, submodule, calls
+
+
+def verify_kind(cmd):
+    """Bucket a recorded argv into the verify tier it belongs to."""
+    if cmd[:2] == ["./gradlew", "dashboard"]:
+        return "dashboard"
+    if cmd[:2] == ["./gradlew", "compileTestJava"]:
+        return "compile"
+    if cmd[:4] == ["./gradlew", "-p", "shortest-path", "test"]:
+        return "lint"
+    if cmd[0] == sys.executable:
+        return "compare"
+    return "git"
+
+
+def test_verify_derives_datasets_from_git_ls_files(tmp_path,
+                                                   monkeypatch):
+    repo, _, calls = prepare_verify(tmp_path, monkeypatch)
+    rc = mm.main(["verify"])
+    assert rc == 0
+    dashboards = [c for c, _ in calls
+                  if c[:2] == ["./gradlew", "dashboard"]]
+    assert len(dashboards) == 7
+    for cmd in dashboards:
+        assert "-PdashboardProfile=false" in cmd
+    swept = sorted(
+        next(a for a in c if a.startswith("-PdashboardDataset="))
+        .split("=", 1)[1] for c in dashboards)
+    assert swept == sorted(
+        f"/dashboard/{name}" for name in DASHBOARD_CSVS)
+    # The gitignored scratch dataset can never enter the sweep — the
+    # list comes from git ls-files, not a directory glob.
+    assert not any("debug.csv" in a for c in dashboards for a in c)
+
+
+def test_verify_overlay_flags(tmp_path, monkeypatch):
+    repo, _, calls = prepare_verify(tmp_path, monkeypatch)
+    rc = mm.main(["verify"])
+    assert rc == 0
+    by_dataset = {}
+    for cmd, _ in calls:
+        if cmd[:2] != ["./gradlew", "dashboard"]:
+            continue
+        name = next(a for a in cmd
+                    if a.startswith("-PdashboardDataset=")).rsplit(
+                        "/", 1)[-1]
+        by_dataset[name] = cmd
+    assert "-PdashboardSeasonal=true" in \
+        by_dataset["seasonal_briefcase_routes.csv"]
+    assert "-PdashboardF2p=true" in by_dataset["f2p_routes.csv"]
+    assert not any("dashboardSeasonal" in a
+                   for a in by_dataset["routes.csv"])
+    assert not any("dashboardF2p" in a
+                   for a in by_dataset["routes.csv"])
+
+
+def test_verify_compile_failure_marks_tier_but_continues(
+        tmp_path, monkeypatch, capsys):
+    repo, _, calls = prepare_verify(tmp_path, monkeypatch,
+                                    compile_rc=1)
+    rc = mm.main(["verify"])
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "FAIL compile" in out
+    # A red tier must not hide the rest — every later tier still ran.
+    assert any(c[:4] == ["./gradlew", "-p", "shortest-path", "test"]
+               for c, _ in calls)
+    assert any(c[:2] == ["./gradlew", "dashboard"] for c, _ in calls)
+    assert any(c[:3] == ["git", "ls-tree", "HEAD"] for c, _ in calls)
+
+
+def test_verify_missing_report_fails_tier(tmp_path, monkeypatch,
+                                          capsys):
+    repo, _, calls = prepare_verify(
+        tmp_path, monkeypatch, missing_reports=DASHBOARD_CSVS)
+    rc = mm.main(["verify"])
+    assert rc == 1
+    assert "FAIL dashboard" in capsys.readouterr().out
+
+
+def test_verify_edge_diff_identity_passes(tmp_path, monkeypatch,
+                                          capsys):
+    repo, _, calls = prepare_verify(
+        tmp_path, monkeypatch, show_bytes=b"OLDZIP", new_zip=b"OLDZIP")
+    rc = mm.main(["verify"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "no edge changes" in out
+    # Identical zips pass without invoking the compare script.
+    assert not any(c[0] == sys.executable for c, _ in calls)
+
+
+def test_verify_edge_diff_override_args(tmp_path, monkeypatch):
+    repo, _, calls = prepare_verify(tmp_path, monkeypatch)
+    a = tmp_path / "a.zip"
+    b = tmp_path / "b.zip"
+    a.write_bytes(b"AAAA")
+    b.write_bytes(b"BBBB")
+    rc = mm.main(["verify", "--old-zip", str(a),
+                  "--new-zip", str(b)])
+    assert rc == 0
+    # Overrides skip the gitlink baseline derivation entirely.
+    assert not any(c[:3] == ["git", "ls-tree", "HEAD"]
+                   for c, _ in calls)
+    assert not any(c[:4] == ["git", "-C", "shortest-path", "show"]
+                   for c, _ in calls)
+    compare = next(c for c, _ in calls
+                   if c[0] == sys.executable)
+    assert compare[1].endswith("compare_collision_maps.py")
+    assert compare[2] == str(a)
+    assert compare[3] == str(b)
+
+
+def test_verify_zip_args_both_or_neither(tmp_path, monkeypatch):
+    repo, _, calls = prepare_verify(tmp_path, monkeypatch)
+    a = tmp_path / "a.zip"
+    a.write_bytes(b"AAAA")
+    with pytest.raises(SystemExit) as exc:
+        mm.main(["verify", "--old-zip", str(a)])
+    assert exc.value.code == 2
+    # argparse rejected the half-pair before any tier ran.
+    assert calls == []
+
+
+def test_verify_skip_flags(tmp_path, monkeypatch):
+    repo, _, calls = prepare_verify(tmp_path / "a", monkeypatch)
+    assert mm.main(["verify", "--skip-dashboard"]) == 0
+    assert not any(c[:2] == ["./gradlew", "dashboard"]
+                   for c, _ in calls)
+
+    repo, _, calls = prepare_verify(tmp_path / "b", monkeypatch)
+    assert mm.main(["verify", "--skip-compile"]) == 0
+    assert not any(c[:2] == ["./gradlew", "compileTestJava"]
+                   for c, _ in calls)
+
+    repo, _, calls = prepare_verify(tmp_path / "c", monkeypatch)
+    assert mm.main(["verify", "--skip-lint"]) == 0
+    assert not any(c[:4] == ["./gradlew", "-p", "shortest-path",
+                             "test"] for c, _ in calls)
+
+    repo, _, calls = prepare_verify(tmp_path / "d", monkeypatch)
+    assert mm.main(["verify", "--skip-diff"]) == 0
+    assert not any(c[:3] == ["git", "ls-tree", "HEAD"]
+                   for c, _ in calls)
+    assert not any(c[0] == sys.executable for c, _ in calls)
+
+
+def test_verify_returns_nonzero_on_any_tier_failure(
+        tmp_path, monkeypatch, capsys):
+    def runs_for(csv):
+        if csv == "routes.csv":
+            return [make_run_record("broken route", reached=False)]
+        return [make_run_record(csv)]
+
+    repo, _, calls = prepare_verify(
+        tmp_path, monkeypatch, runs_for=runs_for)
+    rc = mm.main(["verify"])
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "FAIL dashboard" in out
+    assert "broken route: unreachable" in out
+    assert "tiers passed" in out
+
+
+def test_verify_all_pass_summary(tmp_path, monkeypatch, capsys):
+    repo, _, calls = prepare_verify(
+        tmp_path, monkeypatch, show_bytes=b"OLDZIP", new_zip=b"OLDZIP")
+    rc = mm.main(["verify"])
+    assert rc == 0
+    assert "verify: 4/4 tiers passed" in capsys.readouterr().out
