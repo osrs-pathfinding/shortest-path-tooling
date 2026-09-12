@@ -495,7 +495,6 @@ def test_resync_updates_upstream_preserves_maintainer(tmp_path, monkeypatch):
     # Re-sync with changed upstream data.
     changed = dict(fixture_issue("gh_issue_list_all.json", 549))
     changed["title"] = "Retitled upstream report"
-    capsys.readouterr()
     run_sync(tmp_path, monkeypatch, [changed],
              extra_args=["--no-digest"])
     fm, body = frontmatter_and_body(path)
@@ -607,7 +606,6 @@ def test_sync_writes_digest_to_derived_state_file(tmp_path, monkeypatch):
     state = tmp_path / "STATE.md"
     state.write_text("# State\n")
     issues = load_fixture("gh_issue_list_all.json")
-    capsys.readouterr()
     rc = run_sync(out, monkeypatch, issues)
     assert rc == 0
     text = state.read_text()

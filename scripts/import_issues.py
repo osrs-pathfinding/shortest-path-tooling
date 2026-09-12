@@ -239,7 +239,8 @@ def build_frontmatter(issue: Dict, fix_candidates: List[Dict],
             if key in existing:
                 fm[key] = existing[key]
         history = list(existing.get("history") or [])
-        history.append({"at": now, "event": "synced", "by": "import_issues.py"})
+        history.append({"at": now, "event": "re-synced",
+                        "by": "import_issues.py"})
         fm["history"] = history
     return fm
 
@@ -347,14 +348,73 @@ def render_shadow(issue: Dict, fix_candidates: List[Dict],
             + render_body(issue, output_dir, existing_body))
 
 
+def update_shadow(existing: Tuple[Optional[Dict], str], issue: Dict,
+                  fix_candidates: List[Dict],
+                  output_dir: Optional[Path] = None,
+                  now: Optional[str] = None) -> Tuple[Dict, str]:
+    """Merge fresh upstream data into an existing shadow file.
+
+    Returns the new ``(frontmatter, body)`` pair without writing: only
+    upstream-owned frontmatter fields are rebuilt from ``issue`` while
+    maintainer-owned fields (status, phase, scenario rows, verification,
+    history) and maintainer body sections carry over verbatim.
+    """
+    existing_fm, existing_body = existing
+    now = now or utc_now_iso()
+    return (build_frontmatter(issue, fix_candidates, existing_fm, now),
+            render_body(issue, output_dir, existing_body))
+
+
+def upstream_closure_signal(fm: Dict, number: int) -> Optional[str]:
+    """Translate upstream closure signals into maintainer-facing hints.
+
+    Mutates ``fm`` — appends the matching history event and, for a
+    reopened upstream issue whose local status is terminal, flips the
+    status to ``reopened``.  The mapping is deliberately conservative:
+    closures surface as suggestions rather than automatic status changes,
+    and no PR-link field is required to trust the signal.
+    """
+    reason = fm.get("upstream_state_reason")
+    state = (fm.get("upstream_state") or "").lower()
+    status = fm.get("status")
+    history = fm.setdefault("history", [])
+    now = utc_now_iso()
+    if state == "closed" and reason in ("NOT_PLANNED", "COMPLETED"):
+        suggestion = "wontfix" if reason == "NOT_PLANNED" else "closed"
+        history.append({"at": now, "event": f"upstream-closed: {reason}",
+                        "by": "import_issues.py"})
+        return (f"ISSUE-{number}: upstream closed {reason}"
+                f" — suggest {suggestion}")
+    if reason == "REOPENED" and status in ("closed", "verified"):
+        fm["status"] = "reopened"
+        history.append({"at": now,
+                        "event": f"status: {status} -> reopened (upstream)",
+                        "by": "import_issues.py"})
+        return f"ISSUE-{number}: upstream reopened — status set to reopened"
+    return None
+
+
 def write_shadow(output_dir: Path, issue: Dict,
-                 fix_candidates: List[Dict]) -> Path:
+                 fix_candidates: List[Dict]) -> Tuple[Path, Optional[str]]:
+    """Write ``ISSUE-<N>.md``, re-syncing when the file already exists.
+
+    Returns ``(path, upstream_note)`` — the note is a maintainer-facing
+    hint when an upstream closure signal fired, else ``None``.
+    """
     number = int(issue["number"])
     path = shadow_path(output_dir, number)
     existing = load_shadow(path)
-    path.write_text(render_shadow(issue, fix_candidates, existing,
-                                  output_dir=output_dir))
-    return path
+    if existing[0] is not None:
+        fm, body = update_shadow(existing, issue, fix_candidates,
+                                 output_dir=output_dir)
+    else:
+        fm = build_frontmatter(issue, fix_candidates, None, utc_now_iso())
+        body = render_body(issue, output_dir, "")
+    note = upstream_closure_signal(fm, number)
+    path.write_text("---\n"
+                    + yaml.safe_dump(fm, sort_keys=False, allow_unicode=True)
+                    + "---\n\n" + body)
+    return path, note
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -404,8 +464,59 @@ def main(argv: Optional[List[str]] = None) -> int:
     return 0
 
 
-def update_state_digest(state_path: Path, files) -> bool:
-    return False
+DIGEST_START = "<!-- issues:digest:start -->"
+DIGEST_END = "<!-- issues:digest:end -->"
+
+
+def update_state_digest(state_path: Path,
+                        files: List[Tuple[int, Dict]]) -> bool:
+    """Regenerate the bounded open-issue digest inside a state file.
+
+    When the sentinels are present the table between them is replaced and
+    every byte outside them is preserved; when they are absent a bounded
+    ``## Open Issues`` section is appended; when the file does not exist
+    nothing is created.  Only issues whose upstream state is ``open`` are
+    listed, sorted by issue number.  Returns True when a write happened.
+    """
+    if not state_path.is_file():
+        return False
+    rows = []
+    for number, fm in sorted(files):
+        if (fm.get("upstream_state") or "").lower() != "open":
+            continue
+        title = fm.get("title") or ""
+        status = fm.get("status") or "unknown"
+        phase = fm.get("phase") or "—"
+        rows.append(f"| {UPSTREAM_REPO}#{number} | {title}"
+                    f" | {status} | {phase} |")
+    table = ("| Upstream | Title | Status | Phase |\n"
+             "|----------|-------|--------|-------|")
+    if rows:
+        table += "\n" + "\n".join(rows)
+    text = state_path.read_text()
+    if DIGEST_START in text and DIGEST_END in text:
+        pre, rest = text.split(DIGEST_START, 1)
+        _old, post = rest.split(DIGEST_END, 1)
+        new_text = (pre + DIGEST_START + "\n" + table + "\n"
+                    + DIGEST_END + post)
+    else:
+        if text and not text.endswith("\n"):
+            text += "\n"
+        new_text = (text + "\n## Open Issues\n\n" + DIGEST_START + "\n"
+                    + table + "\n" + DIGEST_END + "\n")
+    state_path.write_text(new_text)
+    return True
+
+
+def scan_shadows(output_dir: Path) -> List[Tuple[int, Dict]]:
+    """Load ``(number, frontmatter)`` for every shadow file in a dir."""
+    files: List[Tuple[int, Dict]] = []
+    for path in output_dir.glob("ISSUE-*.md"):
+        m = re.match(r"ISSUE-(\d+)\.md$", path.name)
+        fm, _body = load_shadow(path)
+        if m and fm:
+            files.append((int(m.group(1)), fm))
+    return files
 
 
 def cmd_sync(args: argparse.Namespace) -> int:
@@ -430,8 +541,15 @@ def cmd_sync(args: argparse.Namespace) -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for path, issue in planned:
         candidates = fix_map.get(int(issue["number"]), [])
-        write_shadow(args.output_dir, issue, fix_candidates=candidates)
+        _path, note = write_shadow(args.output_dir, issue,
+                                   fix_candidates=candidates)
         print(f"wrote {path.name}")
+        if note:
+            print(note)
+    if not args.no_digest:
+        state_path = args.state_file or (
+            args.output_dir.parent / "STATE.md")
+        update_state_digest(state_path, scan_shadows(args.output_dir))
     return 0
 
 
