@@ -16,6 +16,11 @@ Subcommands:
                    an edge diff of the new artifact for review;
                    ``--local`` regenerates the zip through the local
                    runelite pipeline instead
+    regions        regenerate the league + f2p region TSVs from the
+                   cache and copy them into the submodule (the f2p copy
+                   is gated on a plugin-side consumer or ``--f2p``)
+    bank           regenerate bank tile placements and merge them into
+                   bank.tsv via rebuild_bank_tsv.py
 """
 
 import argparse
@@ -24,7 +29,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 REPO = Path(__file__).resolve().parent.parent
 SUBMODULE = REPO / "shortest-path"
@@ -282,6 +287,123 @@ def ensure_cache_ready(fetch: bool = False) -> None:
     patch_keys_json(keys_path)
 
 
+def _precondition_fail(exc: SystemExit) -> int:
+    """Convert a precondition helper's SystemExit into a subcommand
+    return code, preserving its message on stderr."""
+    print(exc.code if isinstance(exc.code, str)
+          else "precondition failed", file=sys.stderr)
+    return 1
+
+
+def _print_stdout(proc: subprocess.CompletedProcess) -> None:
+    if proc.stdout:
+        print(proc.stdout, end="" if proc.stdout.endswith("\n") else "\n")
+
+
+def f2p_consumer_present() -> bool:
+    """True when the plugin side can consume f2p/regions.tsv — either
+    the resources directory already exists or an F2p* class exists in
+    the submodule's main sources.  The region dump is forward-looking
+    tooling: until the consumer lands, the output stays staged in
+    build/ instead of being committed as dead data."""
+    if (SUBMODULE / "src/main/resources/f2p").is_dir():
+        return True
+    java_root = SUBMODULE / "src/main/java"
+    return java_root.is_dir() and any(java_root.rglob("F2p*.java"))
+
+
+def do_regions(args: argparse.Namespace) -> int:
+    """Regenerate leagues/regions.tsv + f2p/regions.tsv from the cache
+    and copy them into the submodule.  The league copy is unconditional
+    (the plugin already ships that file); the f2p copy only runs when a
+    plugin-side consumer exists or ``--f2p`` forces it."""
+    try:
+        ensure_cache_ready()
+        require_write_branch()
+        require_clean_submodule()
+    except SystemExit as exc:
+        return _precondition_fail(exc)
+
+    proc = run(["./gradlew", "leagueRegionDump",
+                f"-PleagueRegionsCacheDir={REPO / 'cache'}",
+                f"-PleagueRegionsXteaPath={REPO / 'keys.json'}"],
+               cwd=REPO, timeout=GRADLE_TIMEOUT_SECONDS)
+    _print_stdout(proc)
+    if proc.returncode != 0:
+        tail = _stderr_tail(proc)
+        if tail:
+            print(tail, file=sys.stderr)
+        return proc.returncode
+    shutil.copyfile(REPO / "build" / "league-regions" / "regions.tsv",
+                    SUBMODULE / "src/main/resources/leagues/regions.tsv")
+    print("updated shortest-path/src/main/resources/leagues/regions.tsv")
+
+    proc = run(["./gradlew", "f2pRegionDump",
+                f"-Pf2pRegionsCacheDir={REPO / 'cache'}",
+                f"-Pf2pRegionsXteaPath={REPO / 'keys.json'}"],
+               cwd=REPO, timeout=GRADLE_TIMEOUT_SECONDS)
+    _print_stdout(proc)
+    if proc.returncode != 0:
+        tail = _stderr_tail(proc)
+        if tail:
+            print(tail, file=sys.stderr)
+        return proc.returncode
+
+    if args.f2p or f2p_consumer_present():
+        f2p_dir = SUBMODULE / "src/main/resources/f2p"
+        f2p_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO / "build" / "f2p-regions" / "regions.tsv",
+                        f2p_dir / "regions.tsv")
+        print("updated shortest-path/src/main/resources/f2p/regions.tsv")
+    else:
+        print("f2p regions.tsv staged at build/f2p-regions/regions.tsv "
+              "— plugin-side F2P consumer not merged yet; pass --f2p "
+              "to force the copy")
+    return 0
+
+
+def cmd_regions(args: argparse.Namespace) -> int:
+    return do_regions(args)
+
+
+def do_bank(args: argparse.Namespace) -> int:
+    """Regenerate bank tile placements and merge them into bank.tsv.
+    The dump must write to its default output path — that is exactly
+    the PLACEMENTS_TSV constant rebuild_bank_tsv.py reads, so no
+    ``-PbankTileOutput`` override is passed."""
+    try:
+        ensure_cache_ready()
+        require_write_branch()
+        require_clean_submodule()
+    except SystemExit as exc:
+        return _precondition_fail(exc)
+
+    proc = run(["./gradlew", "bankTileDump",
+                f"-PbankTileCacheDir={REPO / 'cache'}",
+                f"-PbankTileXteaPath={REPO / 'keys.json'}"],
+               cwd=REPO, timeout=GRADLE_TIMEOUT_SECONDS)
+    _print_stdout(proc)
+    if proc.returncode != 0:
+        tail = _stderr_tail(proc)
+        if tail:
+            print(tail, file=sys.stderr)
+        return proc.returncode
+
+    proc = run([sys.executable,
+                str(REPO / "scripts" / "rebuild_bank_tsv.py")],
+               cwd=REPO, timeout=SCRIPT_TIMEOUT_SECONDS)
+    _print_stdout(proc)
+    if proc.returncode != 0:
+        tail = _stderr_tail(proc)
+        if tail:
+            print(tail, file=sys.stderr)
+    return proc.returncode
+
+
+def cmd_bank(args: argparse.Namespace) -> int:
+    return do_bank(args)
+
+
 def do_collision_map_local(args: argparse.Namespace) -> int:
     """Fallback path: regenerate collision-map.zip locally through the
     runelite pipeline, mirroring the upstream ExtractCollisionMap
@@ -426,12 +548,30 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--commit", action="store_true",
         help="Commit the submodule gitlink bump after the diff")
 
+    rg = sub.add_parser(
+        "regions",
+        help="Regenerate league + f2p region TSVs and copy them into "
+             "the submodule")
+    rg.add_argument(
+        "--f2p", action="store_true",
+        help="Force the f2p/regions.tsv copy even without a "
+             "plugin-side consumer")
+
+    sub.add_parser(
+        "bank",
+        help="Regenerate bank tile placements and merge them into "
+             "bank.tsv")
+
     args = ap.parse_args(argv)
 
     if args.cmd == "cache":
         return cmd_cache(args)
     if args.cmd == "collision-map":
         return cmd_collision_map(args)
+    if args.cmd == "regions":
+        return cmd_regions(args)
+    if args.cmd == "bank":
+        return cmd_bank(args)
     return 0
 
 
