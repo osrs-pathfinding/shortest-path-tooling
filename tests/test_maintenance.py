@@ -1355,6 +1355,19 @@ def test_verify_derives_datasets_from_git_ls_files(tmp_path,
     assert not any("debug.csv" in a for c in dashboards for a in c)
 
 
+def test_verify_datasets_ignore_non_csv(tmp_path, monkeypatch):
+    # A committed README/.gitignore under dashboard/ is not a dataset.
+    repo, _, calls = prepare_verify(
+        tmp_path, monkeypatch,
+        datasets=["routes.csv", "README.md", ".gitignore"])
+    rc = mm.main(["verify"])
+    assert rc == 0
+    dashboards = [c for c, _ in calls
+                  if c[:2] == ["./gradlew", "dashboard"]]
+    assert len(dashboards) == 1
+    assert "-PdashboardDataset=/dashboard/routes.csv" in dashboards[0]
+
+
 def test_verify_overlay_flags(tmp_path, monkeypatch):
     repo, _, calls = prepare_verify(tmp_path, monkeypatch)
     rc = mm.main(["verify"])

@@ -776,10 +776,12 @@ def dashboard_datasets() -> List[str]:
     """
     proc = run(["git", "ls-files", "src/test/resources/dashboard/"],
                cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
+    # Only *.csv files are datasets — a committed README/.gitignore
+    # under dashboard/ must not become a phantom bundle.
     return sorted(
         Path(line).name
         for line in (proc.stdout or "").splitlines()
-        if line.strip())
+        if line.strip().endswith(".csv"))
 
 
 def do_verify(args: argparse.Namespace) -> int:
