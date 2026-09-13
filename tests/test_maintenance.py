@@ -73,6 +73,16 @@ def test_run_timeout_exits_cleanly(monkeypatch):
         mm.run(["git", "status"])
 
 
+def test_run_missing_command_exits_cleanly(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        raise FileNotFoundError(cmd[0])
+
+    monkeypatch.setattr(mm.subprocess, "run", fake_run)
+    with pytest.raises(SystemExit) as exc:
+        mm.run(["definitely-not-a-real-binary"])
+    assert "command not found" in str(exc.value)
+
+
 def test_run_binary_mode(monkeypatch):
     calls = {}
 
@@ -562,6 +572,30 @@ def test_collision_map_local_cleans_stale_output(tmp_path, monkeypatch):
     new_zip = (submodule / "src" / "main" / "resources" /
                "collision-map.zip")
     assert new_zip.read_bytes() == b"NEWZIP"
+
+
+def test_collision_map_local_checks_tools_first(tmp_path, monkeypatch):
+    # git/java/zip are required up front — a missing binary must abort
+    # before the submodule gates, not crash mid-pipeline.
+    repo, _, _ = prepare_local(tmp_path, monkeypatch)
+    seen = []
+    monkeypatch.setattr(mm, "check_tools", seen.append)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    assert seen == [["git", "java", "zip"]]
+
+
+def test_collision_map_local_missing_tool_aborts(tmp_path, monkeypatch):
+    repo, _, calls = prepare_local(tmp_path, monkeypatch)
+
+    def missing(names):
+        raise SystemExit(f"missing required tools: {names[0]}")
+
+    monkeypatch.setattr(mm, "check_tools", missing)
+    with pytest.raises(SystemExit):
+        mm.main(["collision-map", "--local"])
+    # The tool gate runs before any subprocess call.
+    assert calls == []
 
 
 def test_collision_map_local_refuses_master(tmp_path, monkeypatch):

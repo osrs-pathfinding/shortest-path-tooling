@@ -71,6 +71,10 @@ def run(cmd: List[str], *, cwd: Optional[Path] = None,
         # not hang the whole maintenance run without a diagnostic.
         raise SystemExit(
             f"{cmd[0]} timed out after {timeout}s") from None
+    except FileNotFoundError:
+        # A missing binary (java, zip, ./gradlew, ...) must exit with a
+        # diagnostic, not a raw traceback mid-pipeline.
+        raise SystemExit(f"{cmd[0]}: command not found") from None
 
 
 def _stderr_tail(proc: subprocess.CompletedProcess, lines: int = 8) -> str:
@@ -575,6 +579,7 @@ def do_collision_map_local(args: argparse.Namespace) -> int:
     """Fallback path: regenerate collision-map.zip locally through the
     runelite pipeline, mirroring the upstream ExtractCollisionMap
     workflow's six steps.  All scratch state lives under ``build/``."""
+    check_tools(["git", "java", "zip"])
     require_write_branch()
     require_clean_submodule()
     ensure_cache_ready(fetch=True)
