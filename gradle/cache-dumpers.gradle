@@ -1,4 +1,10 @@
 // --- Cache dumpers ---
+//
+// Every Test task in this file forces re-execution via
+// `outputs.upToDateWhen { false }`. The dumpers read ./cache and
+// keys.json through -P property strings, which Gradle does not
+// fingerprint as inputs — without the override an UP-TO-DATE skip
+// after a cache refresh would silently serve stale output.
 
 // Dumps bank-related object placements (Bank booth / Bank chest / Bank table /
 // deposit box / GE booth) from an OSRS cache to a TSV. Pair with
@@ -22,6 +28,9 @@ tasks.register('bankTileDump', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/BankTileDumperTest.class'
     systemProperty 'bankTiles.dump', 'true'
     systemProperty 'bankTiles.cacheDir', bankTileCacheDir.get()
@@ -64,6 +73,9 @@ tasks.register('sailingAmenityVarbitDump', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/SailingAmenityVarbitDumperTest.class'
     systemProperty 'sailing.amenity.dump', 'true'
     systemProperty 'sailing.amenity.cacheDir', sailingAmenityCacheDir.get()
@@ -107,6 +119,9 @@ tasks.register('leagueRegionDump', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/LeagueRegionDumperTest.class'
     systemProperty 'league.regions.dump', 'true'
     systemProperty 'league.regions.cacheDir', leagueRegionsCacheDir.get()
@@ -158,6 +173,9 @@ tasks.register('f2pRegionDump', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/F2pRegionDumperTest.class'
     systemProperty 'f2p.regions.dump', 'true'
     systemProperty 'f2p.regions.cacheDir', f2pRegionsCacheDir.get()
@@ -199,6 +217,9 @@ tasks.register('leagueIdProbe', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/LeagueIdProbeTest.class'
     systemProperty 'league.id.probe', 'true'
     systemProperty 'league.id.cacheDir', leagueIdCacheDir.get()
@@ -227,6 +248,9 @@ tasks.register('briefcaseEnumProbe', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/BriefcaseEnumProbeTest.class'
     systemProperty 'briefcase.enum.probe', 'true'
     systemProperty 'briefcase.enum.cacheDir', briefcaseEnumCacheDir.get()
@@ -252,6 +276,9 @@ tasks.register('leagueTeleportItemDump', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/LeagueTeleportItemDumperTest.class'
     systemProperty 'league.teleport.item.dump', 'true'
     systemProperty 'league.teleport.item.cacheDir', leagueTeleportItemCacheDir.get()
@@ -276,6 +303,9 @@ tasks.register('leagueAreaStructDump', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/LeagueAreaStructDumperTest.class'
     systemProperty 'league.area.struct.dump', 'true'
     systemProperty 'league.area.struct.cacheDir', leagueAreaStructCacheDir.get()
@@ -300,6 +330,9 @@ tasks.register('leagueScriptScan', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/LeagueScriptScannerTest.class'
     systemProperty 'league.script.scan', 'true'
     systemProperty 'league.script.cacheDir', leagueScriptCacheDir.get()
@@ -327,6 +360,9 @@ tasks.register('transportAnchorDrift', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/TransportAnchorDriftTest.class'
     systemProperty 'transport.drift.scan', 'true'
     systemProperty 'transport.drift.cacheDir', transportDriftCacheDir.get()
@@ -354,6 +390,9 @@ tasks.register('briefcaseDestOverlapScan', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/BriefcaseDestOverlapScanTest.class'
     systemProperty 'briefcase.dest.scan', 'true'
     systemProperty 'briefcase.dest.cacheDir', briefcaseDestCacheDir.get()
@@ -379,6 +418,9 @@ tasks.register('briefcaseStructHunt', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/BriefcaseStructHuntTest.class'
     systemProperty 'briefcase.struct.hunt', 'true'
     systemProperty 'briefcase.struct.cacheDir', briefcaseStructCacheDir.get()
@@ -403,6 +445,9 @@ tasks.register('briefcaseParamScriptScan', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/BriefcaseParamScriptScanTest.class'
     systemProperty 'briefcase.param.scan', 'true'
     systemProperty 'briefcase.param.cacheDir', briefcaseParamCacheDir.get()
@@ -427,6 +472,9 @@ tasks.register('briefcaseDbRowScan', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/BriefcaseDbRowScanTest.class'
     systemProperty 'briefcase.db.scan', 'true'
     systemProperty 'briefcase.db.cacheDir', briefcaseDbCacheDir.get()
@@ -448,6 +496,9 @@ tasks.register('briefcaseTeleportTables', Test) {
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
+    // Inputs (./cache, keys.json) are -P strings Gradle cannot
+    // fingerprint — never let an UP-TO-DATE skip serve stale output.
+    outputs.upToDateWhen { false }
     include 'shortestpath/dump/BriefcaseTeleportTablesTest.class'
     systemProperty 'briefcase.tt.scan', 'true'
     systemProperty 'briefcase.tt.cacheDir', briefcaseTtCacheDir.get()
