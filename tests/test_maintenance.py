@@ -1728,7 +1728,7 @@ def test_validate_advisory_never_gates(tmp_path, monkeypatch, capsys):
         check_stdout={"destinations":
                       "=== Destination walkability (2 findings) ===\n"
                       "  a.tsv:1 1 2 3 Bank\n"})
-    monkeypatch.setattr(mm, "VALIDATE_ADVISORY_CHECKS", ("destinations",))
+    assert "destinations" in mm.VALIDATE_ADVISORY_CHECKS
     rc = mm.main(["validate"])
     out = capsys.readouterr().out
     assert rc == 0
@@ -1737,6 +1737,30 @@ def test_validate_advisory_never_gates(tmp_path, monkeypatch, capsys):
     # denominator of the summary.
     n = len(mm.VALIDATE_HARD_CHECKS)
     assert f"validate: {n}/{n} checks passed" in out
+
+
+def test_validate_destinations_skip_flag(tmp_path, monkeypatch, capsys):
+    repo, _, calls = prepare_validate(tmp_path, monkeypatch)
+    rc = mm.main(["validate", "--skip-destinations"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "SKIP destinations" in out
+    leaf_names = [validate_kind(c) for c, _ in calls]
+    assert "destinations" not in leaf_names
+    # Hard checks are unaffected by the advisory skip flag.
+    assert sorted(leaf_names) == sorted(mm.VALIDATE_HARD_CHECKS)
+
+
+def test_validate_destinations_advisory_rc_ignored(tmp_path,
+                                                 monkeypatch, capsys):
+    # Even a nonzero leaf rc on an advisory check cannot move the
+    # overall exit code.
+    prepare_validate(tmp_path, monkeypatch,
+                     check_rc={"destinations": 1})
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "ADVISORY destinations" in out
 
 
 def test_validate_skip_flags(tmp_path, monkeypatch, capsys):

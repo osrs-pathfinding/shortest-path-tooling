@@ -306,3 +306,95 @@ def test_regions_consistency_clean(tmp_path, monkeypatch):
                 ls_files=["src/main/resources/leagues/regions.tsv"])
     monkeypatch.setattr(vd, "BBOX_TSV", bboxes)
     assert vd.CHECKS["regions"]() == []
+
+
+# ---------- destinations advisory check ----------
+
+
+def _exceptions_file(path, rows):
+    path.write_text("# destination walkability exceptions\n"
+                    + "\n".join(rows) + ("\n" if rows else ""))
+
+
+def _destination_fixture(plugin, rows):
+    return _write_tsv(
+        plugin, "src/main/resources/destinations/game_features/bank.tsv",
+        ["Destination", "Info", "Skills", "Quests", "Varbits",
+         "VarPlayers"],
+        rows)
+
+
+def test_destinations_advisory_lists_blocked_tiles(tmp_path,
+                                                 monkeypatch):
+    vd = load_vd()
+    plugin = tmp_path / "sp"
+    rel = _destination_fixture(plugin, [
+        "1950 2570 0\tBlocked Bank\t\t\t\t",
+        "1921 2561 0\tOpen Bank\t\t\t\t",
+    ])
+    zp = _mini_zip(tmp_path / "collision-map.zip",
+                   {"30_40": [(1, 1, 0, 0)]})
+    exc = tmp_path / "exceptions.tsv"
+    _exceptions_file(exc, [])
+    _patch_leaf(vd, monkeypatch, plugin, ls_files=[rel], zip_path=zp)
+    monkeypatch.setattr(vd, "DESTINATION_EXCEPTIONS", exc)
+    findings = vd.CHECKS["destinations"]()
+    # The blocked tile is a finding naming file:line, tile and Info;
+    # the walkable tile is not.
+    assert any(f.startswith(f"{rel}:2") and "1950 2570 0" in f
+               and "Blocked Bank" in f for f in findings)
+    assert not any("Open Bank" in f for f in findings)
+
+
+def test_destinations_exceptions_suppress(tmp_path, monkeypatch):
+    vd = load_vd()
+    plugin = tmp_path / "sp"
+    rel = _destination_fixture(plugin, [
+        "1950 2570 0\tBlocked Bank\t\t\t\t",
+    ])
+    zp = _mini_zip(tmp_path / "collision-map.zip",
+                   {"30_40": [(1, 1, 0, 0)]})
+    exc = tmp_path / "exceptions.tsv"
+    _exceptions_file(exc, ["1950 2570 0\tarrival animation relocates "
+                           "the player"])
+    _patch_leaf(vd, monkeypatch, plugin, ls_files=[rel], zip_path=zp)
+    monkeypatch.setattr(vd, "DESTINATION_EXCEPTIONS", exc)
+    assert vd.CHECKS["destinations"]() == []
+
+
+def test_destinations_never_gates(tmp_path, monkeypatch, capsys):
+    vd = load_vd()
+    plugin = tmp_path / "sp"
+    rel = _destination_fixture(plugin, [
+        "1950 2570 0\tBlocked Bank\t\t\t\t",
+    ])
+    zp = _mini_zip(tmp_path / "collision-map.zip",
+                   {"30_40": [(1, 1, 0, 0)]})
+    exc = tmp_path / "exceptions.tsv"
+    _exceptions_file(exc, [])
+    _patch_leaf(vd, monkeypatch, plugin, ls_files=[rel], zip_path=zp)
+    monkeypatch.setattr(vd, "DESTINATION_EXCEPTIONS", exc)
+    rc = vd.main(["destinations"])
+    out = capsys.readouterr().out
+    # Advisory findings print under their own section and the leaf
+    # still exits 0 — the gate is the orchestrator's hard checks.
+    assert rc == 0
+    assert "Destination walkability" in out
+    assert "Summary:" in out
+
+
+def test_exceptions_file_malformed_row(tmp_path, monkeypatch):
+    vd = load_vd()
+    plugin = tmp_path / "sp"
+    rel = _destination_fixture(plugin, ["1950 2570 0\tB\t\t\t\t"])
+    zp = _mini_zip(tmp_path / "collision-map.zip",
+                   {"30_40": [(1, 1, 0, 0)]})
+    _patch_leaf(vd, monkeypatch, plugin, ls_files=[rel], zip_path=zp)
+    for bad in ("not-a-coord\tsome reason",
+                "1950 2570 0",            # no reason cell
+                "1950 2570 0\t"):         # empty reason
+        exc = tmp_path / "exceptions.tsv"
+        _exceptions_file(exc, [bad])
+        monkeypatch.setattr(vd, "DESTINATION_EXCEPTIONS", exc)
+        with pytest.raises(SystemExit):
+            vd.CHECKS["destinations"]()
