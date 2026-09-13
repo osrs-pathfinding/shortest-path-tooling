@@ -298,7 +298,7 @@ tasks.register('leagueScriptScan', Test) {
     systemProperty 'league.script.scan', 'true'
     systemProperty 'league.script.cacheDir', leagueScriptCacheDir.get()
     systemProperty 'league.script.xteaPath', leagueScriptXteaPath.get()
-    systemProperty 'league.script.outPath', "${buildDir}/league-scripts.txt"
+    systemProperty 'league.script.outPath', "${layout.buildDirectory.get()}/league-scripts.txt"
     jvmArgs = ['-Xms1g', '-Xmx8g']
     testLogging { showStandardStreams = true }
     doFirst {
@@ -325,7 +325,7 @@ tasks.register('briefcaseDestOverlapScan', Test) {
     systemProperty 'briefcase.dest.cacheDir', briefcaseDestCacheDir.get()
     systemProperty 'briefcase.dest.xteaPath', briefcaseDestXteaPath.get()
     systemProperty 'briefcase.dest.namesFile', briefcaseDestNamesFile.get()
-    systemProperty 'briefcase.dest.outPath', "${buildDir}/briefcase-dest-overlap.txt"
+    systemProperty 'briefcase.dest.outPath', "${layout.buildDirectory.get()}/briefcase-dest-overlap.txt"
     jvmArgs = ['-Xms1g', '-Xmx8g']
     testLogging { showStandardStreams = true }
     doFirst {
@@ -349,7 +349,7 @@ tasks.register('briefcaseStructHunt', Test) {
     systemProperty 'briefcase.struct.hunt', 'true'
     systemProperty 'briefcase.struct.cacheDir', briefcaseStructCacheDir.get()
     systemProperty 'briefcase.struct.namesFile', briefcaseStructNamesFile.get()
-    systemProperty 'briefcase.struct.outPath', "${buildDir}/briefcase-struct-hunt.txt"
+    systemProperty 'briefcase.struct.outPath', "${layout.buildDirectory.get()}/briefcase-struct-hunt.txt"
     jvmArgs = ['-Xms1g', '-Xmx8g']
     testLogging { showStandardStreams = true }
     doFirst {
@@ -373,7 +373,7 @@ tasks.register('briefcaseParamScriptScan', Test) {
     systemProperty 'briefcase.param.scan', 'true'
     systemProperty 'briefcase.param.cacheDir', briefcaseParamCacheDir.get()
     systemProperty 'briefcase.param.xteaPath', briefcaseParamXteaPath.get()
-    systemProperty 'briefcase.param.outPath', "${buildDir}/briefcase-param-scripts.txt"
+    systemProperty 'briefcase.param.outPath', "${layout.buildDirectory.get()}/briefcase-param-scripts.txt"
     jvmArgs = ['-Xms1g', '-Xmx8g']
     testLogging { showStandardStreams = true }
     doFirst {
@@ -397,7 +397,7 @@ tasks.register('briefcaseDbRowScan', Test) {
     systemProperty 'briefcase.db.scan', 'true'
     systemProperty 'briefcase.db.cacheDir', briefcaseDbCacheDir.get()
     systemProperty 'briefcase.db.namesFile', briefcaseDbNamesFile.get()
-    systemProperty 'briefcase.db.outPath', "${buildDir}/briefcase-dbrow.txt"
+    systemProperty 'briefcase.db.outPath', "${layout.buildDirectory.get()}/briefcase-dbrow.txt"
     jvmArgs = ['-Xms1g', '-Xmx8g']
     testLogging { showStandardStreams = true }
     doFirst {
@@ -417,7 +417,7 @@ tasks.register('briefcaseTeleportTables', Test) {
     include 'shortestpath/dump/BriefcaseTeleportTablesTest.class'
     systemProperty 'briefcase.tt.scan', 'true'
     systemProperty 'briefcase.tt.cacheDir', briefcaseTtCacheDir.get()
-    systemProperty 'briefcase.tt.outPath', "${buildDir}/briefcase-teleport-tables.txt"
+    systemProperty 'briefcase.tt.outPath', "${layout.buildDirectory.get()}/briefcase-teleport-tables.txt"
     jvmArgs = ['-Xms1g', '-Xmx8g']
     testLogging { showStandardStreams = true }
     doFirst {
