@@ -315,6 +315,34 @@ tasks.register('leagueScriptScan', Test) {
 }
 
 
+// Scans committed transport anchors against the live cache for object/menu drift.
+// Advisory: findings go to build/transport-drift.txt, never a hard gate.
+def transportDriftCacheDir = providers.gradleProperty('transportDriftCacheDir').orElse('')
+def transportDriftXteaPath = providers.gradleProperty('transportDriftXteaPath').orElse('')
+
+tasks.register('transportAnchorDrift', Test) {
+    group = 'cache dumpers'
+    description = 'Scans committed transport anchors against the live cache for object/menu drift (advisory). ' +
+            'Required: -PtransportDriftCacheDir=<cache dir>, -PtransportDriftXteaPath=<keys.json>.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dump/TransportAnchorDriftTest.class'
+    systemProperty 'transport.drift.scan', 'true'
+    systemProperty 'transport.drift.cacheDir', transportDriftCacheDir.get()
+    systemProperty 'transport.drift.xteaPath', transportDriftXteaPath.get()
+    systemProperty 'transport.drift.tsvDir', "${rootDir}/shortest-path/src/main/resources".toString()
+    systemProperty 'transport.drift.outPath', "${layout.buildDirectory.get()}/transport-drift.txt".toString()
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging { showStandardStreams = true }
+    doFirst {
+        if (transportDriftCacheDir.get().isEmpty() || transportDriftXteaPath.get().isEmpty()) {
+            throw new GradleException("transportAnchorDrift requires -PtransportDriftCacheDir and -PtransportDriftXteaPath.")
+        }
+    }
+}
+
+
 // Scans all enums for overlap with a canonical destination-name list (one per line).
 def briefcaseDestCacheDir = providers.gradleProperty('briefcaseDestCacheDir').orElse('')
 def briefcaseDestXteaPath = providers.gradleProperty('briefcaseDestXteaPath').orElse('')
