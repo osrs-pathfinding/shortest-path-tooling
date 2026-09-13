@@ -242,11 +242,27 @@ def do_collision_map(args: argparse.Namespace) -> int:
         short = run(["git", "-C", "shortest-path", "rev-parse",
                      "--short", "HEAD"],
                     timeout=GIT_TIMEOUT_SECONDS).stdout.strip()
-        run(["git", "add", "shortest-path"], cwd=REPO,
-            timeout=GIT_TIMEOUT_SECONDS)
-        run(["git", "commit", "-m",
+        add = run(["git", "add", "shortest-path"], cwd=REPO,
+                  timeout=GIT_TIMEOUT_SECONDS)
+        if add.returncode != 0:
+            print("git add shortest-path failed:", file=sys.stderr)
+            tail = _stderr_tail(add)
+            if tail:
+                print(tail, file=sys.stderr)
+            return 1
+        commit = run(
+            ["git", "commit", "-m",
              f"chore: update shortest-path submodule to {short}"],
             cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
+        if commit.returncode != 0:
+            # A failed hook or "nothing to commit" must surface — an
+            # unchecked failure here silently loses the gitlink bump.
+            print("git commit of the gitlink bump failed:",
+                  file=sys.stderr)
+            tail = _stderr_tail(commit)
+            if tail:
+                print(tail, file=sys.stderr)
+            return 1
     else:
         print()
         print("Next steps:")

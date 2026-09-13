@@ -219,7 +219,8 @@ def make_collision_run(calls, *, status_out="", heads=("oldsha", "newsha"),
                        fetch_rc=0, merge_rc=0, show_bytes=b"ZIPBYTES",
                        show_rc=0, show_stderr=b"",
                        diff_stdout="EDGE TOTALS\n",
-                       diff_rc=0, short="newsha1"):
+                       diff_rc=0, short="newsha1",
+                       add_rc=0, commit_rc=0):
     """fake mm.run for the primary submodule-bump path."""
     remaining = list(heads)
 
@@ -243,8 +244,11 @@ def make_collision_run(calls, *, status_out="", heads=("oldsha", "newsha"),
             assert binary is True, "git show of a zip must be binary"
             return subprocess.CompletedProcess(
                 cmd, show_rc, show_bytes, show_stderr)
-        if kind in ("add", "commit"):
-            return cp(cmd)
+        if kind == "add":
+            return cp(cmd, stderr="add failed", rc=add_rc)
+        if kind == "commit":
+            return cp(cmd, stderr="hook declined the commit",
+                      rc=commit_rc)
         if kind == "compare":
             return cp(cmd, diff_stdout, rc=diff_rc)
         raise AssertionError(f"unexpected argv: {cmd}")
@@ -347,6 +351,20 @@ def test_collision_map_commit_flag(tmp_path, monkeypatch):
     assert add == ["git", "add", "shortest-path"]
     assert commit == ["git", "commit", "-m",
                       "chore: update shortest-path submodule to abc1234"]
+
+
+def test_collision_map_commit_failures_return_1(tmp_path, monkeypatch,
+                                                capsys):
+    # A failed `git add` or `git commit` (hook, git error) must
+    # surface — an unchecked failure silently loses the gitlink bump.
+    for i, kwargs in enumerate(({"add_rc": 1}, {"commit_rc": 1})):
+        repo, _ = redirect_repo(tmp_path / str(i), monkeypatch)
+        calls = []
+        monkeypatch.setattr(
+            mm, "run", make_collision_run(calls, **kwargs))
+        rc = mm.main(["collision-map", "--commit"])
+        assert rc == 1
+        assert "failed" in capsys.readouterr().err
 
 
 def test_collision_map_no_commit_prints_hint(tmp_path, monkeypatch,
