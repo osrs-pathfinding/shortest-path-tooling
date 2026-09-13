@@ -1643,12 +1643,27 @@ def load_vd():
     return vd
 
 
-def make_validate_run(repo, calls, *, check_rc=None, check_stdout=None):
-    """fake mm.run for the validate subcommand — answers one
-    ``validate_data.py <check>`` argv per leaf check, recording every
-    invocation; anything else is a bug in the dispatch surface."""
+def make_validate_run(repo, calls, *, check_rc=None, check_stdout=None,
+                      fetch_rc=0, fetch_stderr="",
+                      caches=None, curl_rc=0, curl_stdout=None,
+                      auto_commit="2026-09-10T01:18:05Z",
+                      auto_commit_rc=0,
+                      ahead="", ahead_rc=0,
+                      drift_rc=0, drift_stdout="drift output\n",
+                      probe_rc=0,
+                      seasonal_stdout="Summary: 0 Alacrity\n",
+                      seasonal_rc=0):
+    """fake mm.run for the validate subcommand — answers the leaf
+    checks, the freshness git/curl probes, the drift Gradle task, and
+    the season leaf + league probes, all keyed by argv content.
+    Defaults produce the happy path: a live-cache timestamp behind the
+    last upstream auto-commit and no collision commits ahead of the
+    pin."""
     check_rc = check_rc or {}
     check_stdout = check_stdout or {}
+    if caches is None:
+        caches = [{"game": "oldschool", "environment": "live",
+                   "id": 2695, "timestamp": "2026-09-08T10:30:08Z"}]
 
     def fake_run(cmd, *, cwd=None, timeout=None, binary=False):
         calls.append((list(cmd), cwd))
@@ -1657,15 +1672,49 @@ def make_validate_run(repo, calls, *, check_rc=None, check_stdout=None):
             name = cmd[2]
             return cp(cmd, check_stdout.get(name, ""),
                       rc=check_rc.get(name, 0))
+        if (cmd[0] == sys.executable and len(cmd) >= 2
+                and cmd[1].endswith("verify_seasonal_regions.py")):
+            return cp(cmd, seasonal_stdout, rc=seasonal_rc)
+        if cmd[:4] == ["git", "-C", "shortest-path", "fetch"]:
+            return cp(cmd, stderr=fetch_stderr, rc=fetch_rc)
+        if cmd[:4] == ["git", "-C", "shortest-path", "log"]:
+            if "HEAD..upstream/master" in cmd:
+                return cp(cmd, ahead, rc=ahead_rc)
+            return cp(cmd, auto_commit, rc=auto_commit_rc)
+        if cmd[:2] == ["curl", "-s"]:
+            out = (json.dumps(caches) if curl_stdout is None
+                   else curl_stdout)
+            return cp(cmd, out, rc=curl_rc)
+        if cmd[:2] == ["./gradlew", "transportAnchorDrift"]:
+            return cp(cmd, drift_stdout, rc=drift_rc)
+        if cmd[:2] == ["./gradlew", "leagueAreaStructDump"]:
+            return cp(cmd, "area struct dump\n", rc=probe_rc)
+        if cmd[:2] == ["./gradlew", "leagueScriptScan"]:
+            return cp(cmd, "script scan\n", rc=probe_rc)
         raise AssertionError(f"unexpected argv: {cmd}")
 
     return fake_run
 
 
-def prepare_validate(tmp_path, monkeypatch, **run_kwargs):
+def prepare_validate(tmp_path, monkeypatch, *, marker=False,
+                     cache_ready=False, **run_kwargs):
     """Common validate setup: redirected repo + recording fake run.
     Returns (repo, submodule, calls)."""
     repo, submodule = redirect_repo(tmp_path, monkeypatch)
+    # The marker constant binds at module load to the real repo —
+    # repoint it at the scratch tree so the committed file can never
+    # leak into tests.
+    marker_path = repo / "src" / "test" / "resources" / "season_active"
+    monkeypatch.setattr(mm, "SEASON_MARKER", marker_path,
+                        raising=False)
+    if marker:
+        marker_path.parent.mkdir(parents=True, exist_ok=True)
+        marker_path.write_text("# gates the season tier\n"
+                               "Demonic Pacts\n")
+    if cache_ready:
+        (repo / "cache").mkdir()
+        (repo / "keys.json").write_text(
+            (FIXTURES / "keys_patched.json").read_text())
     calls = []
     monkeypatch.setattr(
         mm, "run", make_validate_run(repo, calls, **run_kwargs))
@@ -1673,11 +1722,46 @@ def prepare_validate(tmp_path, monkeypatch, **run_kwargs):
 
 
 def validate_kind(cmd):
-    """Bucket a recorded argv into the validate leaf check it runs."""
+    """Bucket a recorded argv into the validate step it runs."""
     if (cmd[0] == sys.executable and len(cmd) >= 3
             and cmd[1].endswith("validate_data.py")):
         return cmd[2]
+    if (cmd[0] == sys.executable and len(cmd) >= 2
+            and cmd[1].endswith("verify_seasonal_regions.py")):
+        return "seasonal-leaf"
+    if cmd[:4] == ["git", "-C", "shortest-path", "fetch"]:
+        return "fetch"
+    if cmd[:4] == ["git", "-C", "shortest-path", "log"]:
+        return "log-pin" if "HEAD..upstream/master" in cmd \
+            else "log-auto"
+    if cmd[:2] == ["curl", "-s"]:
+        return "curl"
+    if cmd[0] == "./gradlew":
+        return f"gradle:{cmd[1]}"
     return "other"
+
+
+def leaf_names(calls):
+    """The validate_data.py leaf checks a recorded run invoked."""
+    return [c[2] for c, _ in calls
+            if c[0] == sys.executable and len(c) >= 3
+            and c[1].endswith("validate_data.py")]
+
+
+def hard_names():
+    return [n for n, _ in mm.VALIDATE_HARD_CHECKS]
+
+
+def advisory_names():
+    return [n for n, _ in mm.VALIDATE_ADVISORY_CHECKS]
+
+
+def hard_leaf_names():
+    return [n for n, k in mm.VALIDATE_HARD_CHECKS if k == "leaf"]
+
+
+def advisory_leaf_names():
+    return [n for n, k in mm.VALIDATE_ADVISORY_CHECKS if k == "leaf"]
 
 
 def test_validate_registered_and_dispatches(tmp_path, monkeypatch,
@@ -1696,14 +1780,13 @@ def test_validate_leaf_invocation_per_check(tmp_path, monkeypatch):
     repo, _, calls = prepare_validate(tmp_path, monkeypatch)
     rc = mm.main(["validate"])
     assert rc == 0
-    leaf_names = [validate_kind(c) for c, _ in calls]
-    expected = (list(mm.VALIDATE_HARD_CHECKS)
-                + list(mm.VALIDATE_ADVISORY_CHECKS))
-    assert leaf_names == expected
+    names = leaf_names(calls)
+    expected = hard_leaf_names() + advisory_leaf_names()
+    assert names == expected
     for cmd, cwd in calls:
-        assert cmd[0] == sys.executable
-        assert cmd[1].endswith("validate_data.py")
-        assert cwd == repo
+        if (cmd[0] == sys.executable and len(cmd) >= 3
+                and cmd[1].endswith("validate_data.py")):
+            assert cwd == repo
 
 
 def test_validate_hard_failure_gates_rc(tmp_path, monkeypatch, capsys):
@@ -1716,10 +1799,9 @@ def test_validate_hard_failure_gates_rc(tmp_path, monkeypatch, capsys):
     assert rc == 1
     assert "FAIL tsv-structure" in out
     # A failed leaf must not stop later checks — every registered
-    # check is still invoked exactly once.
-    leaf_names = [validate_kind(c) for c, _ in calls]
-    assert leaf_names == (list(mm.VALIDATE_HARD_CHECKS)
-                          + list(mm.VALIDATE_ADVISORY_CHECKS))
+    # leaf check is still invoked exactly once.
+    assert leaf_names(calls) == \
+        hard_leaf_names() + advisory_leaf_names()
 
 
 def test_validate_advisory_never_gates(tmp_path, monkeypatch, capsys):
@@ -1728,7 +1810,7 @@ def test_validate_advisory_never_gates(tmp_path, monkeypatch, capsys):
         check_stdout={"destinations":
                       "=== Destination walkability (2 findings) ===\n"
                       "  a.tsv:1 1 2 3 Bank\n"})
-    assert "destinations" in mm.VALIDATE_ADVISORY_CHECKS
+    assert "destinations" in advisory_names()
     rc = mm.main(["validate"])
     out = capsys.readouterr().out
     assert rc == 0
@@ -1745,10 +1827,10 @@ def test_validate_destinations_skip_flag(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "SKIP destinations" in out
-    leaf_names = [validate_kind(c) for c, _ in calls]
-    assert "destinations" not in leaf_names
-    # Hard checks are unaffected by the advisory skip flag.
-    assert sorted(leaf_names) == sorted(mm.VALIDATE_HARD_CHECKS)
+    names = leaf_names(calls)
+    assert "destinations" not in names
+    # Hard leaf checks are unaffected by the advisory skip flag.
+    assert sorted(names) == sorted(hard_leaf_names())
 
 
 def test_validate_destinations_advisory_rc_ignored(tmp_path,
@@ -1770,12 +1852,11 @@ def test_validate_skip_flags(tmp_path, monkeypatch, capsys):
     assert rc == 0
     assert "SKIP tsv-structure" in out
     # The skipped check's leaf call is the only one removed — every
-    # other registered check still ran exactly once.
-    leaf_names = [validate_kind(c) for c, _ in calls]
-    assert "tsv-structure" not in leaf_names
-    assert sorted(leaf_names) == sorted(
-        n for n in (list(mm.VALIDATE_HARD_CHECKS)
-                    + list(mm.VALIDATE_ADVISORY_CHECKS))
+    # other registered leaf check still ran exactly once.
+    names = leaf_names(calls)
+    assert "tsv-structure" not in names
+    assert sorted(names) == sorted(
+        n for n in (hard_leaf_names() + advisory_leaf_names())
         if n != "tsv-structure")
     # The denominator counts only ran hard checks.
     n = len(mm.VALIDATE_HARD_CHECKS) - 1
@@ -1847,6 +1928,195 @@ def test_validate_data_structure_check_clean(tmp_path, monkeypatch,
     out = capsys.readouterr().out
     assert rc == 0
     assert "Summary:" in out
+
+
+# ---------- validate: freshness hard check ----------
+
+
+def test_freshness_happy_path(tmp_path, monkeypatch, capsys):
+    _, _, calls = prepare_validate(tmp_path, monkeypatch)
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert "PASS freshness" in out
+    # Both timestamps print either way — they are the diagnostic.
+    assert "2026-09-08" in out and "2026-09-10" in out
+    kinds = [validate_kind(c) for c, _ in calls]
+    assert "fetch" in kinds and "curl" in kinds
+    assert "log-auto" in kinds and "log-pin" in kinds
+
+
+def test_freshness_dead_ci(tmp_path, monkeypatch, capsys):
+    # No "Update collision map" commits on upstream/master — the weekly
+    # regeneration CI is dead and that must be a hard failure.
+    prepare_validate(tmp_path, monkeypatch, auto_commit="")
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "FAIL freshness" in out
+    assert "auto-commit" in out
+
+
+def test_freshness_missed_bump(tmp_path, monkeypatch, capsys):
+    # Latest live cache is more than a weekly cadence newer than the
+    # last auto-commit — upstream ran but skipped the bump.
+    prepare_validate(
+        tmp_path, monkeypatch,
+        caches=[{"game": "oldschool", "environment": "live",
+                 "id": 1, "timestamp": "2026-09-25T00:00:00Z"}])
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "FAIL freshness" in out
+    assert "days" in out
+
+
+def test_freshness_stale_pin(tmp_path, monkeypatch, capsys):
+    # Collision-map commits on upstream/master that the submodule pin
+    # lacks — the gitlink needs bumping.
+    prepare_validate(tmp_path, monkeypatch,
+                     ahead="deadbeefcafe\nbeefcafe1234\n")
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "FAIL freshness" in out
+    assert "behind upstream/master" in out
+
+
+def test_freshness_fails_closed(tmp_path, monkeypatch, capsys):
+    # Every unresolvable input is a FAIL naming what could not be
+    # determined — never a silent pass.
+    cases = (
+        ({"fetch_rc": 128, "fetch_stderr": "fatal: unreachable"},
+         "upstream"),
+        ({"curl_rc": 7}, "caches.json"),
+        ({"curl_stdout": "{not json"}, "caches.json"),
+        ({"caches": []}, "caches.json"),
+    )
+    for i, (kwargs, needle) in enumerate(cases):
+        prepare_validate(tmp_path / str(i), monkeypatch, **kwargs)
+        rc = mm.main(["validate"])
+        out = capsys.readouterr().out
+        assert rc == 1, kwargs
+        assert "FAIL freshness" in out, kwargs
+        assert needle in out, (kwargs, needle)
+
+
+def test_freshness_missing_tool_is_finding(tmp_path, monkeypatch,
+                                           capsys):
+    prepare_validate(tmp_path, monkeypatch)
+
+    def missing(names):
+        raise SystemExit(f"missing required tools: {names[0]}")
+
+    monkeypatch.setattr(mm, "check_tools", missing)
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "FAIL freshness" in out
+    assert "curl" in out
+
+
+# ---------- validate: drift advisory tier ----------
+
+
+def test_drift_skip_by_default(tmp_path, monkeypatch, capsys):
+    _, _, calls = prepare_validate(tmp_path, monkeypatch,
+                                   cache_ready=True)
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert "SKIP drift" in out
+    assert "--drift" in out
+    assert not any(c[0] == "./gradlew" for c, _ in calls)
+
+
+def test_drift_advisory(tmp_path, monkeypatch, capsys):
+    repo, _, calls = prepare_validate(tmp_path, monkeypatch,
+                                      cache_ready=True)
+    rc = mm.main(["validate", "--drift"])
+    out = capsys.readouterr().out
+    argv = next(c for c, _ in calls
+                if c[:2] == ["./gradlew", "transportAnchorDrift"])
+    assert argv == ["./gradlew", "transportAnchorDrift",
+                    f"-PtransportDriftCacheDir={repo / 'cache'}",
+                    f"-PtransportDriftXteaPath={repo / 'keys.json'}"]
+    assert "ADVISORY drift" in out
+    assert "build/transport-drift.txt" in out
+
+
+def test_drift_advisory_detector_error_never_counts(
+        tmp_path, monkeypatch, capsys):
+    # A failing detector still reports ADVISORY — the exit code is
+    # unreachable for the drift tier.
+    repo, _, calls = prepare_validate(tmp_path, monkeypatch,
+                                      cache_ready=True, drift_rc=1)
+    rc = mm.main(["validate", "--drift"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "ADVISORY drift" in out
+    assert "detector error" in out
+
+
+def test_drift_no_cache_advises_preparation(tmp_path, monkeypatch,
+                                            capsys):
+    _, _, calls = prepare_validate(tmp_path, monkeypatch,
+                                   cache_ready=False)
+    rc = mm.main(["validate", "--drift"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "ADVISORY drift" in out
+    assert "maintenance.py cache" in out
+    assert not any(c[0] == "./gradlew" for c, _ in calls)
+
+
+# ---------- validate: season advisory tier ----------
+
+
+def test_season_skip_and_gate(tmp_path, monkeypatch, capsys):
+    # Ungated: no flag, no marker -> SKIP with the enablement hint.
+    _, _, calls = prepare_validate(tmp_path / "a", monkeypatch)
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert "SKIP season" in out
+    assert "--season-active" in out or "season_active" in out
+    kinds = [validate_kind(c) for c, _ in calls]
+    assert "seasonal-leaf" not in kinds
+
+    # Flag on + cache present: wiki leaf then both league probes,
+    # everything advisory.
+    repo, _, calls = prepare_validate(tmp_path / "b", monkeypatch,
+                                      cache_ready=True)
+    rc = mm.main(["validate", "--season-active"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "ADVISORY season" in out
+    kinds = [validate_kind(c) for c, _ in calls]
+    assert "seasonal-leaf" in kinds
+    assert "gradle:leagueAreaStructDump" in kinds
+    assert "gradle:leagueScriptScan" in kinds
+    assert "leagues_regions.tsv" in out
+
+    # The committed marker gates the tier on without the flag; with no
+    # cache the probes are skipped but the tier stays advisory.
+    _, _, calls = prepare_validate(tmp_path / "c", monkeypatch,
+                                   marker=True)
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "ADVISORY season" in out
+    # The marker's season label reaches the report line.
+    assert "Demonic Pacts" in out
+    kinds = [validate_kind(c) for c, _ in calls]
+    assert "seasonal-leaf" in kinds
+    assert "gradle:leagueAreaStructDump" not in kinds
+    assert "maintenance.py cache" in out
+
+
+def test_season_flagless_marker_absent_never_calls_gradle(
+        tmp_path, monkeypatch):
+    _, _, calls = prepare_validate(tmp_path, monkeypatch,
+                                   cache_ready=True)
+    mm.main(["validate"])
+    assert not any(c[0] == "./gradlew" for c, _ in calls)
 
 
 # ---------- maintenance runbook (docs/maintenance.md) ----------
