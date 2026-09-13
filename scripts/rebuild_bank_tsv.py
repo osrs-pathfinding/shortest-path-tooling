@@ -261,7 +261,11 @@ def has_existing_tile_within(
 
 def load_bank_tsv():
     rows = []
-    for raw in BANK_TSV.read_text().splitlines():
+    try:
+        lines = BANK_TSV.read_text().splitlines()
+    except OSError as exc:
+        sys.exit(f"cannot read {BANK_TSV}: {exc.strerror or exc}")
+    for lineno, raw in enumerate(lines, 1):
         if raw.startswith("#") or not raw.strip():
             continue
         parts = raw.split("\t")
@@ -270,7 +274,12 @@ def load_bank_tsv():
         dest = parts[0].split()
         if len(dest) != 3:
             continue
-        rows.append((int(dest[0]), int(dest[1]), int(dest[2]),
+        try:
+            tile = (int(dest[0]), int(dest[1]), int(dest[2]))
+        except ValueError:
+            sys.exit(f"{BANK_TSV}:{lineno}: malformed destination "
+                     f"{parts[0]!r}")
+        rows.append((*tile,
                      parts[1].strip(), parts[2].strip(),
                      parts[3].strip(), parts[4].strip(), parts[5].strip()))
     return rows
@@ -278,23 +287,33 @@ def load_bank_tsv():
 
 def load_placements():
     out = []
-    with PLACEMENTS_TSV.open() as f:
-        for row in csv.DictReader(f, delimiter="\t"):
-            if "deposit" in row["name"].lower():
-                continue
-            if int(row["regionId"]) in EXCLUDED_REGIONS:
-                continue
-            out.append({
-                "id": int(row["id"]),
-                "name": row["name"],
-                "x": int(row["x"]),
-                "y": int(row["y"]),
-                "plane": int(row["plane"]),
-                "orientation": int(row["orientation"]),
-                "type": int(row["type"]),
-                "sizeX": int(row.get("sizeX", "1") or "1"),
-                "sizeY": int(row.get("sizeY", "1") or "1"),
-            })
+    try:
+        f = PLACEMENTS_TSV.open()
+    except OSError as exc:
+        sys.exit(f"cannot read {PLACEMENTS_TSV}: {exc.strerror or exc}")
+    with f:
+        reader = csv.DictReader(f, delimiter="\t")
+        for row in reader:
+            try:
+                name = row["name"]
+                if "deposit" in name.lower():
+                    continue
+                if int(row["regionId"]) in EXCLUDED_REGIONS:
+                    continue
+                out.append({
+                    "id": int(row["id"]),
+                    "name": name,
+                    "x": int(row["x"]),
+                    "y": int(row["y"]),
+                    "plane": int(row["plane"]),
+                    "orientation": int(row["orientation"]),
+                    "type": int(row["type"]),
+                    "sizeX": int(row.get("sizeX", "1") or "1"),
+                    "sizeY": int(row.get("sizeY", "1") or "1"),
+                })
+            except (KeyError, TypeError, ValueError, AttributeError):
+                sys.exit(f"{PLACEMENTS_TSV}:{reader.line_num}: "
+                         f"malformed placement row {row!r}")
     return out
 
 
