@@ -722,6 +722,21 @@ def test_collision_map_local_old_zip_preserved(tmp_path, monkeypatch):
     assert compare[2] == str(old_zip)
 
 
+def test_collision_map_local_no_baseline_no_diff_message(
+        tmp_path, monkeypatch, capsys):
+    # With no prior collision-map.zip there is no diff — the closing
+    # message must not claim there is one.
+    repo, _, calls = prepare_local(
+        tmp_path, monkeypatch, existing_zip=False)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    kinds = [local_kind(c) for c, _ in calls]
+    assert "compare" not in kinds
+    out = capsys.readouterr().out
+    assert "no previous collision-map.zip" in out
+    assert "review the diff" not in out
+
+
 def test_collision_map_local_missing_cache_downloads_first(
         tmp_path, monkeypatch):
     repo, _, calls = prepare_local(
@@ -1572,6 +1587,15 @@ def test_verify_all_pass_summary(tmp_path, monkeypatch, capsys):
     rc = mm.main(["verify"])
     assert rc == 0
     assert "verify: 4/4 tiers passed" in capsys.readouterr().out
+
+
+def test_verify_summary_counts_only_ran_tiers(tmp_path, monkeypatch,
+                                              capsys):
+    repo, _, calls = prepare_verify(tmp_path, monkeypatch)
+    rc = mm.main(["verify", "--skip-dashboard"])
+    assert rc == 0
+    # A skipped tier shrinks the denominator — 3/3 on a green run.
+    assert "verify: 3/3 tiers passed" in capsys.readouterr().out
 
 
 # ---------- maintenance runbook (docs/maintenance.md) ----------

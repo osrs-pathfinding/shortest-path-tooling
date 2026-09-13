@@ -490,7 +490,7 @@ NAMES_FILE_TASKS: List[Tuple[str, str, Optional[str], Optional[str]]] = [
 def do_probes(args: argparse.Namespace) -> int:
     """Run every season-discovery dumper sequentially — each requests
     an 8 GB heap, so they are deliberately never parallelized.
-    Probes write only to build//stdout, so there is no branch gate.
+    Probes write only to build/ and stdout, so there is no branch gate.
     A failing probe is recorded and the rest still run: one broken
     scan must not hide the remaining discovery output."""
     try:
@@ -726,8 +726,12 @@ def do_collision_map_local(args: argparse.Namespace) -> int:
         if diff.stdout:
             print(diff.stdout,
                   end="" if diff.stdout.endswith("\n") else "\n")
-    print("review the diff, then commit on your myfork feature branch "
-          "and open a PR upstream")
+        print("review the diff, then commit on your myfork feature "
+              "branch and open a PR upstream")
+    else:
+        # No baseline artifact existed — nothing was diffed.
+        print("no previous collision-map.zip to diff against — commit "
+              "on your myfork feature branch and open a PR upstream")
     return 0
 
 
@@ -910,7 +914,7 @@ def do_verify(args: argparse.Namespace) -> int:
         else:
             passed += 1
             print(f"PASS {name}")
-    print(f"verify: {passed}/4 tiers passed")
+    print(f"verify: {passed}/{len(tiers)} tiers passed")
     return 1 if failed else 0
 
 

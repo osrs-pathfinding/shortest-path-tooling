@@ -133,7 +133,8 @@ python3 scripts/maintenance.py verify [--skip-compile] [--skip-lint] \
 
 The post-update compatibility gate — four tiers, all always run (a red
 tier never hides the rest), printing `PASS`/`FAIL` per tier and a final
-`verify: n/4 tiers passed` line; exit code is nonzero when any tier fails:
+`verify: n/m tiers passed` line (m = the tiers that ran); exit code is
+nonzero when any tier fails:
 
 1. `compileTestJava` — the same compile gate CI runs.
 2. `./gradlew -p shortest-path test` — the submodule's test suite
