@@ -56,11 +56,13 @@ For the datasets and when to use each, see [docs/dashboard-design.md](docs/dashb
 The `shortest-path` submodule is pinned to a specific commit. To update it to the latest plugin master:
 
 ```bash
-git submodule update --remote shortest-path
-git add shortest-path
-git commit -m "Update shortest-path submodule"
-git push
+python3 scripts/maintenance.py collision-map
 ```
+
+This fast-forwards the submodule to `origin/master`, prints an edge diff
+of the new `collision-map.zip` for review, and stages the gitlink bump
+with `--commit`. Do not use `git submodule update --remote` — it checks
+out a detached HEAD, which the data-writing subcommands refuse.
 
 ## Cache dumpers
 
