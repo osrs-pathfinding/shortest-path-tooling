@@ -1082,21 +1082,32 @@ def _check_freshness() -> Tuple[List[str], Optional[str]]:
             f"collision map missed its weekly bump — the newest "
             f"live cache is {gap.days} days newer than the last "
             f"auto-commit")
-    ahead = run(["git", "-C", "shortest-path", "log",
-                 "HEAD..upstream/master",
-                 f"--grep={_AUTO_COMMIT_GREP}", "--format=%H"],
-                cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
-    if ahead.returncode != 0:
-        findings.append("cannot compare the submodule pin against "
-                        "upstream/master")
+    # The check measures the *recorded pin* — the commit the
+    # superproject's gitlink points at — not the worktree HEAD, which
+    # can sit on a feature branch or ahead of an uncommitted bump.
+    tree = run(["git", "ls-tree", "HEAD", "shortest-path"],
+               cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
+    fields = (tree.stdout or "").split()
+    if (tree.returncode != 0 or len(fields) < 3
+            or fields[1] != "commit"):
+        findings.append("could not resolve the pinned submodule "
+                        "gitlink via git ls-tree")
     else:
-        commits = [l for l in (ahead.stdout or "").splitlines()
-                   if l.strip()]
-        if commits:
-            findings.append(
-                f"submodule pin is {len(commits)} collision-map "
-                f"commits behind upstream/master — bump the gitlink "
-                f"per docs/maintenance.md")
+        ahead = run(["git", "-C", "shortest-path", "log",
+                     f"{fields[2]}..upstream/master",
+                     f"--grep={_AUTO_COMMIT_GREP}", "--format=%H"],
+                    cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
+        if ahead.returncode != 0:
+            findings.append("cannot compare the submodule pin against "
+                            "upstream/master")
+        else:
+            commits = [l for l in (ahead.stdout or "").splitlines()
+                       if l.strip()]
+            if commits:
+                findings.append(
+                    f"submodule pin is {len(commits)} collision-map "
+                    f"commits behind upstream/master — bump the gitlink "
+                    f"per docs/maintenance.md")
     return findings, detail
 
 

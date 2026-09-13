@@ -1739,6 +1739,8 @@ def make_validate_run(repo, calls, *, check_rc=None, check_stdout=None,
                       auto_commit="2026-09-10T01:18:05Z",
                       auto_commit_rc=0,
                       ahead="", ahead_rc=0,
+                      gitlink="160000 commit deadbeefcafe\tshortest-path",
+                      ls_tree_rc=0,
                       drift_rc=0, drift_stdout="drift output\n",
                       probe_rc=0,
                       seasonal_stdout="Summary: 0 Alacrity\n",
@@ -1767,8 +1769,10 @@ def make_validate_run(repo, calls, *, check_rc=None, check_stdout=None,
             return cp(cmd, seasonal_stdout, rc=seasonal_rc)
         if cmd[:4] == ["git", "-C", "shortest-path", "fetch"]:
             return cp(cmd, stderr=fetch_stderr, rc=fetch_rc)
+        if cmd[:3] == ["git", "ls-tree", "HEAD"]:
+            return cp(cmd, gitlink, rc=ls_tree_rc)
         if cmd[:4] == ["git", "-C", "shortest-path", "log"]:
-            if "HEAD..upstream/master" in cmd:
+            if any(a.endswith("..upstream/master") for a in cmd):
                 return cp(cmd, ahead, rc=ahead_rc)
             return cp(cmd, auto_commit, rc=auto_commit_rc)
         if cmd[:2] == ["curl", "-s"]:
@@ -1821,8 +1825,11 @@ def validate_kind(cmd):
         return "seasonal-leaf"
     if cmd[:4] == ["git", "-C", "shortest-path", "fetch"]:
         return "fetch"
+    if cmd[:3] == ["git", "ls-tree", "HEAD"]:
+        return "ls-tree"
     if cmd[:4] == ["git", "-C", "shortest-path", "log"]:
-        return "log-pin" if "HEAD..upstream/master" in cmd \
+        return "log-pin" if any(
+            a.endswith("..upstream/master") for a in cmd) \
             else "log-auto"
     if cmd[:2] == ["curl", "-s"]:
         return "curl"
@@ -2081,6 +2088,9 @@ def test_freshness_fails_closed(tmp_path, monkeypatch, capsys):
         ({"curl_rc": 7}, "caches.json"),
         ({"curl_stdout": "{not json"}, "caches.json"),
         ({"caches": []}, "caches.json"),
+        ({"ls_tree_rc": 128}, "gitlink"),
+        ({"gitlink": "040000 tree deadbeefcafe\tshortest-path"},
+         "gitlink"),
     )
     for i, (kwargs, needle) in enumerate(cases):
         prepare_validate(tmp_path / str(i), monkeypatch, **kwargs)
