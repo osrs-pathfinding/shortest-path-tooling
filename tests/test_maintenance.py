@@ -1530,6 +1530,23 @@ def test_verify_edge_diff_override_args(tmp_path, monkeypatch):
     assert compare[3] == str(b)
 
 
+def test_verify_gitlink_must_be_a_commit(tmp_path, monkeypatch,
+                                         capsys):
+    # If shortest-path were ever tracked as a plain tree, the gitlink
+    # SHA would be a tree — report the real problem instead of a
+    # confusing "could not extract" from git show.
+    repo, _, calls = prepare_verify(
+        tmp_path, monkeypatch,
+        gitlink="040000 tree deadbeefcafe\tshortest-path")
+    rc = mm.main(["verify"])
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "FAIL diff" in out
+    assert "gitlink" in out
+    assert not any(c[:4] == ["git", "-C", "shortest-path", "show"]
+                   for c, _ in calls)
+
+
 def test_verify_zip_args_both_or_neither(tmp_path, monkeypatch):
     repo, _, calls = prepare_verify(tmp_path, monkeypatch)
     a = tmp_path / "a.zip"

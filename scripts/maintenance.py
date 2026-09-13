@@ -860,7 +860,12 @@ def do_verify(args: argparse.Namespace) -> int:
             tree = run(["git", "ls-tree", "HEAD", "shortest-path"],
                        cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
             fields = (tree.stdout or "").split()
-            if tree.returncode != 0 or len(fields) < 3:
+            # fields[1] must be "commit" — a plain tree entry would
+            # mean shortest-path is no longer a submodule, and
+            # git show of a tree SHA would fail with a confusing
+            # "could not extract" instead of this diagnostic.
+            if (tree.returncode != 0 or len(fields) < 3
+                    or fields[1] != "commit"):
                 failures.append(
                     "could not resolve the pinned submodule gitlink "
                     "via git ls-tree")
