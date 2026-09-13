@@ -27,6 +27,7 @@ never commit to the wrong place.
 | `refresh` | the ordered chain: collision-map -> cache -> regions -> bank -> seasonal |
 | `probes` | the 11 season-discovery dump tasks (8 default + 3 name-driven) |
 | `verify` | `compileTestJava` + submodule `test` + `dashboard` sweep + edge-diff |
+| `validate` | `scripts/validate_data.py` deterministic checks + advisory destinations |
 
 Run any subcommand with `--help` for its flags.
 
@@ -153,6 +154,37 @@ nonzero when any tier fails:
    override both sides.
 
 Evidence stays under `build/` — `verify` writes no committed log.
+
+### `validate`
+
+```bash
+python3 scripts/maintenance.py validate [--skip-tsv-structure] \
+    [--skip-collision-zip] [--skip-walkability] [--skip-bbox] \
+    [--skip-regions] [--skip-destinations]
+```
+
+The data-quality gate — every check runs even after a failure, printing
+`PASS`/`FAIL`/`ADVISORY`/`SKIP` per check and a `validate: n/m checks
+passed` line (n/m = the hard checks that ran). All checks are cache-free
+and read-only against committed data, enumerated via
+`git -C shortest-path ls-files` so gitignored scratch can never enter
+the gate:
+
+- `tsv-structure` — header cells, coordinate format, short rows and
+  one-sided permutation sets across committed transport/destination TSVs.
+- `collision-zip` — entry names, blob plane counts and region-count
+  sanity on the committed `collision-map.zip`.
+- `walkability` — transport endpoints that are unreachable under the
+  plugin's pathing model (no flags, no walkable neighbour, no transport
+  edge reaching them).
+- `bbox` — seasonal transport endpoints classifying NEUTRAL against the
+  curated league-region bboxes without a `Region override`.
+- `regions` — generated `leagues/regions.tsv` vs the zip surface and
+  the curated-bbox classifier.
+- `destinations` (advisory) — destination TSV targets blocked on the
+  committed zip, minus `src/test/resources/destination_walkability_exceptions.tsv`.
+  Findings triage into that exceptions file; advisory output never
+  moves the exit code.
 
 ## Suggested workflows
 

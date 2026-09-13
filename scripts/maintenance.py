@@ -941,7 +941,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
 # failed count — keep the two registries disjoint.
 VALIDATE_HARD_CHECKS: Tuple[str, ...] = (
     "tsv-structure", "collision-zip", "walkability", "bbox", "regions")
-VALIDATE_ADVISORY_CHECKS: Tuple[str, ...] = ()
+VALIDATE_ADVISORY_CHECKS: Tuple[str, ...] = ("destinations",)
 
 
 def do_validate(args: argparse.Namespace) -> int:

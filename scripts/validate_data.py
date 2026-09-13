@@ -35,6 +35,8 @@ REPO = HERE.parent
 PLUGIN = REPO / "shortest-path"
 RESOURCES = "src/main/resources"
 BBOX_TSV = REPO / "src" / "test" / "resources" / "leagues_regions.tsv"
+DESTINATION_EXCEPTIONS = (REPO / "src" / "test" / "resources"
+                          / "destination_walkability_exceptions.tsv")
 COLLISION_ZIP = PLUGIN / RESOURCES / "collision-map.zip"
 REGIONS_TSV = PLUGIN / RESOURCES / "leagues" / "regions.tsv"
 SEASONAL_TSV = PLUGIN / RESOURCES / "transports" / "seasonal_transports.tsv"
@@ -389,6 +391,67 @@ def check_regions():
     return findings
 
 
+def _load_exceptions(path):
+    """Curated (x, y, z) suppression set for the destinations check.
+
+    Rows are ``X Y Z<TAB>reason``; ``#`` and blank lines are comments.
+    A malformed row fails closed — a suppression that might be a typo
+    must never silently apply.
+    """
+    tiles = set()
+    try:
+        lines = path.read_text().splitlines()
+    except OSError as exc:
+        sys.exit(f"cannot read {path}: {exc.strerror or exc}")
+    for lineno, line in enumerate(lines, 1):
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        cell, _, reason = s.partition("\t")
+        if not COORD_RE.match(cell.strip()) or not reason.strip():
+            sys.exit(f"{path}:{lineno}: malformed exception row {s!r}")
+        tiles.add(tuple(int(p) for p in cell.split()))
+    return tiles
+
+
+def check_destinations():
+    """Advisory: destination TSV targets blocked on the committed zip.
+
+    Flags every committed destinations/**/*.tsv row whose Destination
+    tile has no cardinal movement flags — the drift surface for moved
+    or deleted content — minus the curated exceptions list.  Advisory
+    by design: by-design unreachable tiles (NPC-serviced banks,
+    adjacent-interaction objects) are legitimate, so findings triage
+    into the exceptions file rather than gating.
+    """
+    cmap = CollisionMap(COLLISION_ZIP)
+    exceptions = _load_exceptions(DESTINATION_EXCEPTIONS)
+    findings = []
+    rels = _git_ls_files(f"{RESOURCES}/destinations")
+    for rel in sorted(r for r in rels if r.endswith(".tsv")):
+        headers, hln, rows = _parse_tsv(PLUGIN / rel)
+        if headers is None:
+            continue
+        if "Destination" not in headers:
+            findings.append(
+                f"{rel}:{hln}: missing Destination column")
+            continue
+        di = headers.index("Destination")
+        ii = headers.index("Info") if "Info" in headers else -1
+        for lineno, fields in rows:
+            if di >= len(fields):
+                continue
+            cell = fields[di].strip()
+            if not _concrete(cell):
+                continue
+            x, y, z = (int(p) for p in cell.split())
+            if (x, y, z) in exceptions or not cmap.is_blocked(x, y, z):
+                continue
+            info = fields[ii].strip() if 0 <= ii < len(fields) else ""
+            findings.append(f"{rel}:{lineno}: {cell} {info}".rstrip())
+    return findings
+
+
 # name -> check function returning a list of finding strings.
 CHECKS = {
     "tsv-structure": check_tsv_structure,
@@ -396,10 +459,14 @@ CHECKS = {
     "walkability": check_walkability,
     "bbox": check_bbox,
     "regions": check_regions,
+    "destinations": check_destinations,
 }
 
 # Checks whose findings are reported but never move the exit code.
-ADVISORY_CHECKS = frozenset()
+ADVISORY_CHECKS = frozenset({"destinations"})
+
+# Section titles for advisory check output.
+SECTION_TITLES = {"destinations": "Destination walkability"}
 
 
 def main(argv=None):
@@ -416,8 +483,10 @@ def main(argv=None):
         findings = CHECKS[name]()
         total += len(findings)
         if name in ADVISORY_CHECKS:
+            title = SECTION_TITLES.get(name, name)
+            print(f"=== {title} ({len(findings)} findings) ===")
             for finding in findings:
-                print(finding)
+                print(f"  {finding}")
         else:
             for finding in findings:
                 print(f"FAIL {finding}")

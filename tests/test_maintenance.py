@@ -1859,7 +1859,7 @@ def test_runbook_exists_and_names_every_subcommand():
     assert RUNBOOK.exists()
     doc = RUNBOOK.read_text()
     for sub in ("cache", "collision-map", "regions", "bank",
-                "seasonal", "refresh", "probes", "verify"):
+                "seasonal", "refresh", "probes", "verify", "validate"):
         assert sub in doc, f"runbook never mentions '{sub}'"
 
 

@@ -1,0 +1,19 @@
+# Destination walkability exceptions — curated suppression list for the
+# advisory destinations check in scripts/validate_data.py.
+#
+# The check flags every destination TSV target that is blocked (has no
+# cardinal movement flags) on the committed collision-map.zip. Some
+# destinations are unreachable by design: NPC-serviced banks with no
+# standable booth tile, tiles the player interacts with from an adjacent
+# tile, arrival spots the game relocates you off, or instanced interiors
+# the committed map does not cover. Listing a tile here suppresses the
+# advisory finding for exactly that tile — nothing else.
+#
+# Row contract: "X Y Z<TAB>reason" — the coordinate in the same
+# space-separated three-part form the Destination column uses, then a
+# human reason explaining why the tile is by-design unreachable. A row
+# without both parts is a malformed line and fails the check closed
+# (scripts refuse to silently ignore a suppression that might be a typo).
+#
+# Curate entries as findings are triaged; this file starts empty.
+#
