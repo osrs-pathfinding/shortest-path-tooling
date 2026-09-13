@@ -40,6 +40,7 @@ import json
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -935,30 +936,241 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return do_verify(args)
 
 
-# Deterministic data-validation checks, each run as one leaf
-# invocation of scripts/validate_data.py.  Hard checks gate the exit
-# code; advisory checks report findings but can never reach the
-# failed count — keep the two registries disjoint.
-VALIDATE_HARD_CHECKS: Tuple[str, ...] = (
-    "tsv-structure", "collision-zip", "walkability", "bbox", "regions")
-VALIDATE_ADVISORY_CHECKS: Tuple[str, ...] = ("destinations",)
+# Deterministic data-validation checks.  Each entry is a (name, kind)
+# pair: "leaf" invokes scripts/validate_data.py <name>; "internal"
+# calls a module function in INTERNAL_CHECKS returning (findings,
+# report detail); "drift" and "season" are the flag-gated advisory
+# runners below.  Hard checks gate the exit code; advisory checks
+# report findings but can never reach the failed count — keep the two
+# registries disjoint.
+VALIDATE_HARD_CHECKS: Tuple[Tuple[str, str], ...] = (
+    ("tsv-structure", "leaf"), ("collision-zip", "leaf"),
+    ("walkability", "leaf"), ("bbox", "leaf"), ("regions", "leaf"),
+    ("freshness", "internal"))
+VALIDATE_ADVISORY_CHECKS: Tuple[Tuple[str, str], ...] = (
+    ("destinations", "leaf"), ("drift", "drift"), ("season", "season"))
+
+CACHES_JSON_URL = "https://archive.openrs2.org/caches.json"
+SEASON_MARKER = REPO / "src" / "test" / "resources" / "season_active"
+# Upstream's weekly ExtractCollisionMap run auto-commits under this
+# subject; the freshness check anchors on it.
+_AUTO_COMMIT_GREP = "Update collision map"
+# The league probes the season tier runs when a cache is prepared —
+# the same (task, cache-prop, xtea-prop) tuple shape do_probes uses.
+SEASON_PROBE_TASKS: List[Tuple[str, str, Optional[str],
+                               Optional[str]]] = [
+    p for p in PROBE_TASKS
+    if p[0] in ("leagueAreaStructDump", "leagueScriptScan")]
+
+
+def _check_freshness() -> Tuple[List[str], Optional[str]]:
+    """Collision-map currency check: compare the newest live-cache
+    timestamp in caches.json against the newest upstream auto-commit,
+    then check the submodule pin is not behind upstream/master.
+
+    Fails closed — every unresolvable input (missing curl, an
+    unreachable upstream remote, an unparseable caches.json, an empty
+    auto-commit history) produces a finding naming what could not be
+    determined rather than a silent pass.  Returns (findings, detail);
+    detail carries both timestamps so the report line is diagnostic
+    either way."""
+    try:
+        check_tools(["curl"])
+    except SystemExit as exc:
+        return ([exc.code if isinstance(exc.code, str)
+                 else "missing required tools"], None)
+    fetch = run(["git", "-C", "shortest-path", "fetch", "upstream"],
+                cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
+    if fetch.returncode != 0:
+        tail = _stderr_tail(fetch)
+        suffix = f": {tail.splitlines()[-1]}" if tail else ""
+        return ([f"cannot fetch the upstream remote{suffix}"], None)
+    proc = run(["curl", "-s", CACHES_JSON_URL], cwd=REPO,
+               timeout=SCRIPT_TIMEOUT_SECONDS)
+    if proc.returncode != 0:
+        return ([f"cannot fetch {CACHES_JSON_URL} "
+                 f"(curl exited {proc.returncode})"], None)
+    try:
+        entries = json.loads(proc.stdout or "")
+    except json.JSONDecodeError:
+        return ([f"cannot parse {CACHES_JSON_URL} as JSON"], None)
+    if not isinstance(entries, list):
+        return ([f"unexpected shape in {CACHES_JSON_URL} "
+                 "(expected a JSON list)"], None)
+    timestamps = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if (entry.get("game") != "oldschool"
+                or entry.get("environment") != "live"):
+            continue
+        ts = entry.get("timestamp")
+        if ts is None:  # documented nullable field
+            continue
+        try:
+            timestamps.append(datetime.fromisoformat(ts))
+        except (TypeError, ValueError):
+            return ([f"unparseable timestamp {ts!r} in "
+                     f"{CACHES_JSON_URL}"], None)
+    if not timestamps:
+        return ([f"no live oldschool caches with timestamps in "
+                 f"{CACHES_JSON_URL}"], None)
+    latest_cache = max(timestamps)
+
+    log = run(["git", "-C", "shortest-path", "log", "upstream/master",
+               f"--grep={_AUTO_COMMIT_GREP}", "-1", "--format=%cI"],
+              cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
+    if log.returncode != 0:
+        tail = _stderr_tail(log)
+        suffix = f": {tail.splitlines()[-1]}" if tail else ""
+        return ([f"cannot read upstream/master history{suffix}"],
+                None)
+    auto = (log.stdout or "").strip()
+    if not auto:
+        return (["no 'Update collision map' auto-commit on "
+                 "upstream/master — upstream's weekly regeneration "
+                 "CI may be dead"], None)
+    try:
+        last_commit = datetime.fromisoformat(auto)
+    except ValueError:
+        return ([f"unparseable auto-commit date {auto!r}"], None)
+    detail = (f"latest cache {latest_cache.isoformat()}, "
+              f"last auto-commit {last_commit.isoformat()}")
+
+    findings = []
+    try:
+        gap = latest_cache - last_commit
+    except TypeError:
+        # One timestamp naive, the other aware — incomparable.
+        return ([f"incomparable timestamps {latest_cache} vs "
+                 f"{last_commit}"], detail)
+    if gap > timedelta(days=7):
+        findings.append(
+            f"collision map missed its weekly bump — the newest "
+            f"live cache is {gap.days} days newer than the last "
+            f"auto-commit")
+    ahead = run(["git", "-C", "shortest-path", "log",
+                 "HEAD..upstream/master",
+                 f"--grep={_AUTO_COMMIT_GREP}", "--format=%H"],
+                cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
+    if ahead.returncode != 0:
+        findings.append("cannot compare the submodule pin against "
+                        "upstream/master")
+    else:
+        commits = [l for l in (ahead.stdout or "").splitlines()
+                   if l.strip()]
+        if commits:
+            findings.append(
+                f"submodule pin is {len(commits)} collision-map "
+                f"commits behind upstream/master — bump the gitlink "
+                f"per docs/maintenance.md")
+    return findings, detail
+
+
+# Internal hard-check runners: name -> zero-arg callable returning
+# (findings, report detail).
+INTERNAL_CHECKS = {"freshness": _check_freshness}
+
+
+def _run_drift(args: argparse.Namespace) -> Tuple[str, str]:
+    """The opt-in cache-diff detector tier: runs transportAnchorDrift
+    only when explicitly requested and a prepared cache exists —
+    routine validate stays download-free.  Returns a (status, detail)
+    pair for the report loop."""
+    if not getattr(args, "drift", False):
+        return ("skip", " — pass --drift to run the cache-diff "
+                        "detector")
+    if not ((REPO / "cache").is_dir()
+            and (REPO / "keys.json").exists()):
+        return ("advisory",
+                "skipped — cache/ and keys.json required (run "
+                "maintenance.py cache)")
+    proc = run(["./gradlew", "transportAnchorDrift",
+                f"-PtransportDriftCacheDir={REPO / 'cache'}",
+                f"-PtransportDriftXteaPath={REPO / 'keys.json'}"],
+               cwd=REPO, timeout=GRADLE_TIMEOUT_SECONDS)
+    _print_stdout(proc)
+    if proc.returncode != 0:
+        tail = _stderr_tail(proc)
+        if tail:
+            print(tail, file=sys.stderr)
+        return ("advisory", f"detector error rc={proc.returncode}")
+    return ("advisory", "report at build/transport-drift.txt")
+
+
+def _season_label() -> Optional[str]:
+    """First non-comment line of the committed season marker — the
+    league name reported alongside the tier's output."""
+    try:
+        for line in SEASON_MARKER.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                return line
+    except OSError:
+        pass
+    return None
+
+
+def _run_season(args: argparse.Namespace) -> Tuple[str, str]:
+    """The gated league-season tier: the wiki cross-check always, the
+    two league cache probes when a prepared cache exists.  Gated on
+    --season-active or the committed marker — between seasons the
+    checks go silent or noisy, so they only ever feed the runbook."""
+    if not (getattr(args, "season_active", False)
+            or SEASON_MARKER.exists()):
+        return ("skip",
+                " — no active league season (pass --season-active or "
+                "commit src/test/resources/season_active)")
+    label = _season_label()
+    proc = run([sys.executable,
+                str(REPO / "scripts" / "verify_seasonal_regions.py")],
+               cwd=REPO, timeout=SCRIPT_TIMEOUT_SECONDS)
+    _print_stdout(proc)
+    if (REPO / "cache").is_dir() and (REPO / "keys.json").exists():
+        for task, cache_prop, xtea_prop, _ in SEASON_PROBE_TASKS:
+            argv = ["./gradlew", task,
+                    f"-P{cache_prop}CacheDir={REPO / 'cache'}"]
+            if xtea_prop:
+                argv.append(
+                    f"-P{xtea_prop}XteaPath={REPO / 'keys.json'}")
+            probe = run(argv, cwd=REPO,
+                        timeout=GRADLE_TIMEOUT_SECONDS)
+            _print_stdout(probe)
+        print("diff probe output against "
+              "src/test/resources/leagues_regions.tsv per "
+              "docs/maintenance.md")
+        detail = "wiki cross-check + league probes ran"
+    else:
+        detail = ("wiki cross-check ran — cache absent, league "
+                  "probes skipped (run maintenance.py cache)")
+    if label:
+        detail = f"{label}: {detail}"
+    return ("advisory", detail)
 
 
 def do_validate(args: argparse.Namespace) -> int:
-    """Run the registered data-validation checks through the leaf
-    script.
+    """Run the registered data-validation checks.
 
     Every check runs even when an earlier one fails — like the
-    verify tiers, the maintainer wants the whole picture.  Only
-    hard-check results count toward the exit code; advisory checks
-    print their findings and report ADVISORY regardless of rc.
+    verify tiers, the maintainer wants the whole picture.  Leaf checks
+    invoke validate_data.py; internal checks call a module function
+    returning (findings, detail); the drift and season advisory tiers
+    are flag/marker-gated runners that can never reach the exit code.
+    Only hard-check results count toward the exit code.
     """
     leaf = REPO / "scripts" / "validate_data.py"
-    results = {}       # ran hard checks: name -> list of failure lines
-    advisory_ran = []  # ran advisory checks (rc never counted)
+    results = {}   # ran hard checks: name -> list of failure lines
+    details = {}   # ran hard checks: name -> report-line detail
+    advisory = {}  # advisory checks: name -> (status, detail)
 
-    for name in VALIDATE_HARD_CHECKS:
+    for name, kind in VALIDATE_HARD_CHECKS:
         if getattr(args, "skip_" + name.replace("-", "_")):
+            continue
+        if kind == "internal":
+            findings, detail = INTERNAL_CHECKS[name]()
+            results[name] = findings
+            if detail:
+                details[name] = detail
             continue
         proc = run([sys.executable, str(leaf), name],
                    cwd=REPO, timeout=SCRIPT_TIMEOUT_SECONDS)
@@ -973,17 +1185,22 @@ def do_validate(args: argparse.Namespace) -> int:
                 (lines[-1] if lines else
                  f"validate_data.py {name} exited {proc.returncode}")]
 
-    for name in VALIDATE_ADVISORY_CHECKS:
+    for name, kind in VALIDATE_ADVISORY_CHECKS:
         if getattr(args, "skip_" + name.replace("-", "_")):
             continue
-        proc = run([sys.executable, str(leaf), name],
-                   cwd=REPO, timeout=SCRIPT_TIMEOUT_SECONDS)
-        _print_stdout(proc)
-        advisory_ran.append(name)
+        if kind == "leaf":
+            proc = run([sys.executable, str(leaf), name],
+                       cwd=REPO, timeout=SCRIPT_TIMEOUT_SECONDS)
+            _print_stdout(proc)
+            advisory[name] = ("advisory", "")
+        elif kind == "drift":
+            advisory[name] = _run_drift(args)
+        elif kind == "season":
+            advisory[name] = _run_season(args)
 
     failed = 0
     passed = 0
-    for name in VALIDATE_HARD_CHECKS:
+    for name, _kind in VALIDATE_HARD_CHECKS:
         if name not in results:
             print(f"SKIP {name}")
             continue
@@ -993,12 +1210,25 @@ def do_validate(args: argparse.Namespace) -> int:
             print(f"FAIL {name}: {failures[0]}")
             for extra in failures[1:]:
                 print(f"  {extra}")
+            if details.get(name):
+                print(f"  {details[name]}")
         else:
             passed += 1
-            print(f"PASS {name}")
-    for name in VALIDATE_ADVISORY_CHECKS:
-        print(f"ADVISORY {name}" if name in advisory_ran
-              else f"SKIP {name}")
+            line = f"PASS {name}"
+            if details.get(name):
+                line += f": {details[name]}"
+            print(line)
+    for name, _kind in VALIDATE_ADVISORY_CHECKS:
+        entry = advisory.get(name)
+        if entry is None:
+            print(f"SKIP {name}")
+            continue
+        status, detail = entry
+        if status == "skip":
+            print(f"SKIP {name}{detail}")
+        else:
+            print(f"ADVISORY {name}"
+                  + (f": {detail}" if detail else ""))
     print(f"validate: {passed}/{len(results)} checks passed")
     return 1 if failed else 0
 
@@ -1117,8 +1347,26 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--skip-regions", action="store_true",
         help="Omit the generated leagues/regions.tsv consistency check")
     vd.add_argument(
+        "--skip-freshness", action="store_true",
+        help="Omit the collision-map freshness check (caches.json "
+             "vs upstream auto-commit)")
+    vd.add_argument(
         "--skip-destinations", action="store_true",
         help="Omit the advisory destination-walkability check")
+    vd.add_argument(
+        "--drift", action="store_true",
+        help="Run the cache-backed transport-anchor drift detector "
+             "(requires a prepared cache/ + keys.json)")
+    vd.add_argument(
+        "--season-active", action="store_true",
+        help="Run the league-season tier even without the committed "
+             "src/test/resources/season_active marker")
+    vd.add_argument(
+        "--skip-drift", action="store_true",
+        help="Omit the drift tier entirely")
+    vd.add_argument(
+        "--skip-season", action="store_true",
+        help="Omit the season tier entirely")
 
     args = ap.parse_args(argv)
 

@@ -1,0 +1,8 @@
+# League-season gate for `maintenance.py validate`.
+#
+# While this file is committed (or --season-active is passed) the
+# `season` advisory tier runs the wiki cross-check plus the league
+# cache probes when a prepared cache is present. Commit it when a
+# league season starts; delete it when the season ends. The first
+# non-comment line names the season for the report output.
+Demonic Pacts
