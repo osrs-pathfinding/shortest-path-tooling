@@ -419,7 +419,8 @@ def local_kind(cmd):
 def make_local_run(repo, calls, *, branch="maint-x",
                    upstream="myfork/maint-x", upstream_rc=0,
                    status_out="", download_rc=0,
-                   apply_check_rc=0, reverse_check_rc=1,
+                   fetch_rc=0, reset_rc=0, clone_rc=0,
+                   apply_check_rc=0, reverse_check_rc=1, apply_rc=0,
                    shadow_rc=0, java_rc=0, zip_rc=0,
                    diff_stdout="EDGE TOTALS\n"):
     """fake mm.run for the --local pipeline; fabricates the filesystem
@@ -446,20 +447,23 @@ def make_local_run(repo, calls, *, branch="maint-x",
                 (FIXTURES / "keys_raw.json").read_text())
             return cp(cmd, rc=download_rc)
         if kind == "clone":
-            target = Path(cmd[-1])
-            (target / "cache" / "src" / "main" / "java" / "net" /
-             "runelite" / "cache").mkdir(parents=True)
-            (target / ".git").mkdir()
-            return cp(cmd)
-        if kind in ("fetch", "reset"):
-            return cp(cmd)
+            if clone_rc == 0:
+                target = Path(cmd[-1])
+                (target / "cache" / "src" / "main" / "java" / "net" /
+                 "runelite" / "cache").mkdir(parents=True)
+                (target / ".git").mkdir()
+            return cp(cmd, stderr="clone failed", rc=clone_rc)
+        if kind == "fetch":
+            return cp(cmd, stderr="fetch failed", rc=fetch_rc)
+        if kind == "reset":
+            return cp(cmd, stderr="reset failed", rc=reset_rc)
         if kind == "apply-check":
             return cp(cmd, stderr="patch does not apply",
                       rc=apply_check_rc)
         if kind == "apply-reverse-check":
             return cp(cmd, rc=reverse_check_rc)
         if kind == "apply":
-            return cp(cmd)
+            return cp(cmd, stderr="apply failed", rc=apply_rc)
         if kind == "shadowJar":
             libs = cache_mod / "build" / "libs"
             libs.mkdir(parents=True, exist_ok=True)
@@ -615,6 +619,48 @@ def test_collision_map_local_existing_clone_refreshed(tmp_path,
     assert "fetch" in kinds and "reset" in kinds
     assert kinds.index("fetch") < kinds.index("reset") < \
         kinds.index("apply-check")
+
+
+def test_collision_map_local_existing_clone_failures(
+        tmp_path, monkeypatch, capsys):
+    # An unchecked fetch/reset builds whatever the clone happens to
+    # hold — each failure must abort the pipeline with a diagnostic.
+    for i, kwargs in enumerate(({"fetch_rc": 128},
+                                {"reset_rc": 128})):
+        repo, _, calls = prepare_local(
+            tmp_path / str(i), monkeypatch, existing_zip=False,
+            **kwargs)
+        runelite = repo / "build" / "runelite-work" / "runelite"
+        (runelite / ".git").mkdir(parents=True)
+        rc = mm.main(["collision-map", "--local"])
+        assert rc == 1
+        assert "failed" in capsys.readouterr().err
+        kinds = [local_kind(c) for c, _ in calls]
+        assert "shadowJar" not in kinds and "java" not in kinds
+
+
+def test_collision_map_local_clone_failure(tmp_path, monkeypatch,
+                                           capsys):
+    repo, _, calls = prepare_local(
+        tmp_path, monkeypatch, existing_zip=False, clone_rc=128)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 1
+    assert "git clone of runelite failed" in capsys.readouterr().err
+    kinds = [local_kind(c) for c, _ in calls]
+    # The pipeline must stop before copying the dumper into a
+    # nonexistent tree.
+    assert "apply-check" not in kinds and "shadowJar" not in kinds
+
+
+def test_collision_map_local_apply_failure(tmp_path, monkeypatch,
+                                           capsys):
+    repo, _, calls = prepare_local(
+        tmp_path, monkeypatch, existing_zip=False, apply_rc=1)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 1
+    assert "git apply" in capsys.readouterr().err
+    kinds = [local_kind(c) for c, _ in calls]
+    assert "shadowJar" not in kinds
 
 
 def test_collision_map_local_patch_already_applied(tmp_path,

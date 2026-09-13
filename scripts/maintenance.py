@@ -592,15 +592,38 @@ def do_collision_map_local(args: argparse.Namespace) -> int:
     work = build / "runelite-work"
     runelite = work / "runelite"
     if (runelite / ".git").exists():
-        run(["git", "-C", str(runelite), "fetch", "--depth", "1",
-             "origin", "master"], timeout=GIT_TIMEOUT_SECONDS)
-        run(["git", "-C", str(runelite), "reset", "--hard",
-             "FETCH_HEAD"], timeout=GIT_TIMEOUT_SECONDS)
+        fetch = run(["git", "-C", str(runelite), "fetch", "--depth",
+                     "1", "origin", "master"],
+                    timeout=GIT_TIMEOUT_SECONDS)
+        if fetch.returncode != 0:
+            print("git fetch of runelite master failed:",
+                  file=sys.stderr)
+            tail = _stderr_tail(fetch)
+            if tail:
+                print(tail, file=sys.stderr)
+            return 1
+        reset = run(["git", "-C", str(runelite), "reset", "--hard",
+                     "FETCH_HEAD"], timeout=GIT_TIMEOUT_SECONDS)
+        if reset.returncode != 0:
+            # Resetting against a stale or absent FETCH_HEAD would
+            # build whatever code happens to be checked out.
+            print("git reset --hard FETCH_HEAD failed in the "
+                  "runelite clone:", file=sys.stderr)
+            tail = _stderr_tail(reset)
+            if tail:
+                print(tail, file=sys.stderr)
+            return 1
     else:
         work.mkdir(parents=True, exist_ok=True)
-        run(["git", "clone", "--depth", "1",
-             "https://github.com/runelite/runelite", str(runelite)],
-            timeout=DOWNLOAD_TIMEOUT_SECONDS)
+        clone = run(["git", "clone", "--depth", "1",
+                     "https://github.com/runelite/runelite",
+                     str(runelite)], timeout=DOWNLOAD_TIMEOUT_SECONDS)
+        if clone.returncode != 0:
+            print("git clone of runelite failed:", file=sys.stderr)
+            tail = _stderr_tail(clone)
+            if tail:
+                print(tail, file=sys.stderr)
+            return 1
 
     cache_mod = runelite / "cache"
     shutil.copyfile(
@@ -626,8 +649,17 @@ def do_collision_map_local(args: argparse.Namespace) -> int:
                 print(tail, file=sys.stderr)
             return 1
     else:
-        run(["git", "apply", "build.gradle.kts.patch"],
-            cwd=cache_mod, timeout=GIT_TIMEOUT_SECONDS)
+        apply = run(["git", "apply", "build.gradle.kts.patch"],
+                    cwd=cache_mod, timeout=GIT_TIMEOUT_SECONDS)
+        if apply.returncode != 0:
+            # --check passed but the real apply failed (the tree moved
+            # under us) — building without the patch is worse.
+            print("git apply of build.gradle.kts.patch failed:",
+                  file=sys.stderr)
+            tail = _stderr_tail(apply)
+            if tail:
+                print(tail, file=sys.stderr)
+            return 1
 
     # The patch pins a Java 11 toolchain; Gradle toolchain
     # auto-provisioning resolves it when only a newer JDK is installed.
