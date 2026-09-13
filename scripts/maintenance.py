@@ -607,10 +607,15 @@ def do_collision_map_local(args: argparse.Namespace) -> int:
     new_zip = (SUBMODULE / "src" / "main" / "resources" /
                "collision-map.zip")
     old_zip = build / "old-collision-map.zip"
+    # Track whether the baseline was captured this run — a leftover
+    # old_zip from a previous run must never become the diff baseline
+    # when the worktree has no committed collision-map.zip.
+    baseline = None
     if new_zip.exists():
         # Preserve the outgoing artifact before anything can overwrite
         # it — it is the diff baseline at the end of the pipeline.
         shutil.copy2(new_zip, old_zip)
+        baseline = old_zip
 
     work = build / "runelite-work"
     runelite = work / "runelite"
@@ -740,10 +745,10 @@ def do_collision_map_local(args: argparse.Namespace) -> int:
         else new_zip
     shutil.move(str(output_dir / "collision-map.zip"), str(target))
 
-    if old_zip.exists():
+    if baseline is not None and baseline.exists():
         diff = run([sys.executable,
                     str(REPO / "scripts" / "compare_collision_maps.py"),
-                    str(old_zip), str(target)],
+                    str(baseline), str(target)],
                    timeout=SCRIPT_TIMEOUT_SECONDS)
         if diff.stdout:
             print(diff.stdout,
