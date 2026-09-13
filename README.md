@@ -67,9 +67,12 @@ git push
 The cache dumpers require a local OSRS cache. Download one first:
 
 ```bash
-collision-map-update/download-latest-cache.sh
-sed -i '' 's/mapsquare/region/g; s/key/keys/g' keys.json
+python3 scripts/maintenance.py cache
 ```
+
+The `cache` subcommand downloads the cache and patches `keys.json`
+idempotently — never `sed` the file by hand (the BSD/GNU `-i` syntax
+differs, and `s/key/keys/g` corrupts `"keys"` into `"keyss"` on re-run).
 
 Then run the desired task (see table above).
 

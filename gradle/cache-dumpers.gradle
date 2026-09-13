@@ -5,8 +5,7 @@
 // scripts/rebuild_bank_tsv.py to add stand-tile rows to bank.tsv.
 //
 // Usage:
-//   collision-map-update/download-latest-cache.sh      # produces ./cache and ./keys.json
-//   sed -i '' 's/mapsquare/region/g; s/key/keys/g' keys.json
+//   python3 scripts/maintenance.py cache   # produces ./cache and a patched ./keys.json
 //   ./gradlew bankTileDump -PbankTileCacheDir=$PWD/cache -PbankTileXteaPath=$PWD/keys.json
 def bankTileCacheDir = providers.gradleProperty('bankTileCacheDir').orElse('')
 def bankTileXteaPath = providers.gradleProperty('bankTileXteaPath').orElse('')
@@ -83,8 +82,7 @@ tasks.register('sailingAmenityVarbitDump', Test) {
 // run.
 //
 // Usage:
-//   collision-map-update/download-latest-cache.sh
-//   sed -i '' 's/mapsquare/region/g; s/key/keys/g' keys.json
+//   python3 scripts/maintenance.py cache   # produces ./cache and a patched ./keys.json
 //   ./gradlew leagueRegionDump \
 //     -PleagueRegionsCacheDir=$PWD/cache \
 //     -PleagueRegionsXteaPath=$PWD/keys.json
@@ -135,8 +133,7 @@ tasks.register('leagueRegionDump', Test) {
 // chunks are omitted (they default to UNKNOWN = permissive at runtime).
 //
 // Usage:
-//   collision-map-update/download-latest-cache.sh
-//   sed -i '' 's/mapsquare/region/g; s/key/keys/g' keys.json
+//   python3 scripts/maintenance.py cache   # produces ./cache and a patched ./keys.json
 //   ./gradlew f2pRegionDump \
 //     -Pf2pRegionsCacheDir=$PWD/cache \
 //     -Pf2pRegionsXteaPath=$PWD/keys.json
