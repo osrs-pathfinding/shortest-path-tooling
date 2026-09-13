@@ -58,6 +58,16 @@ TRANSPORT_FIELDS = frozenset({
     "Region override",
 })
 
+# Canonical destination TSV column names — mirrors DOCUMENTED_COLUMNS
+# in DestinationDataLintTest.  The Java lint only covers a few
+# hard-coded resources, so this lint applies the set to every
+# committed destinations/ file; a typo'd column name is silently
+# dropped by the loader otherwise.
+DESTINATION_FIELDS = frozenset({
+    "Destination", "Info", "Skills", "Quests", "Varbits",
+    "VarPlayers",
+})
+
 
 def _git_ls_files(*pathspecs):
     """Committed submodule files matching the given pathspecs.
@@ -109,8 +119,8 @@ def check_tsv_structure():
     """Format lint over committed transports/ + destinations/ TSVs.
 
     Asserts per file: header cells drawn from the canonical
-    TransportRecord.Fields set (transports) or carrying the
-    Destination column (destinations); every data row reaching its
+    TransportRecord.Fields set (transports) or the documented
+    destination columns (destinations); every data row reaching its
     file's coordinate columns; every non-empty Origin/Destination
     cell in ``x y z`` form; and permutation rows present on both
     sides or neither — a one-sided set is dead data the loader never
@@ -125,8 +135,14 @@ def check_tsv_structure():
             findings.append(f"{rel}:1: no header line")
             continue
         if rel.startswith(f"{RESOURCES}/transports/"):
+            canonical = TRANSPORT_FIELDS
+        elif rel.startswith(f"{RESOURCES}/destinations/"):
+            canonical = DESTINATION_FIELDS
+        else:
+            canonical = None
+        if canonical is not None:
             for cell in headers:
-                if cell not in TRANSPORT_FIELDS:
+                if cell not in canonical:
                     findings.append(
                         f"{rel}:{hln}: unknown header cell {cell!r}")
         if "Destination" not in headers:
