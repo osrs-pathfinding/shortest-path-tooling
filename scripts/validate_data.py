@@ -219,6 +219,23 @@ def _walkable_neighbour(cmap, x, y, z):
                for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)))
 
 
+def _load_collision_map():
+    """CollisionMap for the committed zip, or a finding naming why not.
+
+    Returns ``(cmap, findings)`` — exactly one element is meaningful:
+    a usable reader, or a fail-closed diagnostic in the same
+    ``file:line`` style as the other checks.  A missing or corrupt zip
+    must degrade to a finding, not a traceback mid-check.
+    """
+    if not COLLISION_ZIP.exists():
+        return None, [f"{COLLISION_ZIP}: collision-map.zip missing"]
+    try:
+        return CollisionMap(COLLISION_ZIP), None
+    except (OSError, zipfile.BadZipFile) as exc:
+        return None, [f"{COLLISION_ZIP}: unreadable "
+                      f"collision-map.zip ({exc})"]
+
+
 def check_walkability():
     """Transport endpoints must be live in the plugin's pathing model.
 
@@ -240,7 +257,9 @@ def check_walkability():
     Files without an Origin column are usable-anywhere teleport lists;
     their destinations are reachable and re-usable by construction.
     """
-    cmap = CollisionMap(COLLISION_ZIP)
+    cmap, load_findings = _load_collision_map()
+    if cmap is None:
+        return load_findings
     rels = _git_ls_files(f"{RESOURCES}/transports")
     origins = set()
     destinations = set()
@@ -423,7 +442,9 @@ def check_destinations():
     adjacent-interaction objects) are legitimate, so findings triage
     into the exceptions file rather than gating.
     """
-    cmap = CollisionMap(COLLISION_ZIP)
+    cmap, load_findings = _load_collision_map()
+    if cmap is None:
+        return load_findings
     exceptions = _load_exceptions(DESTINATION_EXCEPTIONS)
     findings = []
     rels = _git_ls_files(f"{RESOURCES}/destinations")

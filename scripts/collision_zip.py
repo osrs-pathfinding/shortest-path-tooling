@@ -11,10 +11,17 @@ by the writer, so blob lengths need not cover a whole plane — readers
 treat out-of-range bits as unset, exactly like the Java BitSet.
 """
 
+import re
 import zipfile
 from pathlib import Path
 
 REGION_SIZE = 64
+
+# Entry names are ``<regionX>_<regionY>`` — anything else is a stray
+# archive member, which the collision-zip structural check reports as
+# its own finding. Skipping here keeps the reader usable on the
+# well-formed entries instead of crashing on int()/unpack errors.
+_ENTRY_NAME_RE = re.compile(r"^\d+_\d+$")
 
 # Order matches CollisionMap.java flags.
 FLAG_N = 0
@@ -28,6 +35,8 @@ class CollisionMap:
         self.regions: dict[tuple[int, int], tuple[bytes, int]] = {}
         with zipfile.ZipFile(zip_path) as z:
             for name in z.namelist():
+                if not _ENTRY_NAME_RE.match(name):
+                    continue
                 rx, ry = (int(n) for n in name.split("_"))
                 data = z.read(name)
                 scale = REGION_SIZE * REGION_SIZE * 2
