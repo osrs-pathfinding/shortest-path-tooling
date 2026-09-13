@@ -217,7 +217,8 @@ def collision_kind(cmd):
 
 def make_collision_run(calls, *, status_out="", heads=("oldsha", "newsha"),
                        fetch_rc=0, merge_rc=0, show_bytes=b"ZIPBYTES",
-                       show_rc=0, diff_stdout="EDGE TOTALS\n",
+                       show_rc=0, show_stderr=b"",
+                       diff_stdout="EDGE TOTALS\n",
                        diff_rc=0, short="newsha1"):
     """fake mm.run for the primary submodule-bump path."""
     remaining = list(heads)
@@ -241,7 +242,7 @@ def make_collision_run(calls, *, status_out="", heads=("oldsha", "newsha"),
         if kind == "show":
             assert binary is True, "git show of a zip must be binary"
             return subprocess.CompletedProcess(
-                cmd, show_rc, show_bytes, b"")
+                cmd, show_rc, show_bytes, show_stderr)
         if kind in ("add", "commit"):
             return cp(cmd)
         if kind == "compare":
@@ -310,6 +311,26 @@ def test_collision_map_diverged_fails(tmp_path, monkeypatch, capsys):
     assert rc == 1
     err = capsys.readouterr().err
     assert "merge or rebase" in err
+
+
+def test_collision_map_show_failure_with_bytes_stderr(
+        tmp_path, monkeypatch, capsys):
+    # binary=True captures stderr as bytes — the diagnostic path must
+    # decode it and return 1, not crash on a TypeError.
+    repo, _ = redirect_repo(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        mm, "run",
+        make_collision_run(
+            calls, show_rc=128,
+            show_stderr=b"fatal: path does not exist"))
+    rc = mm.main(["collision-map"])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "could not extract collision-map.zip" in err
+    assert "fatal: path does not exist" in err
+    kinds = [collision_kind(c) for c in calls]
+    assert "compare" not in kinds
 
 
 def test_collision_map_commit_flag(tmp_path, monkeypatch):
@@ -502,6 +523,23 @@ def test_collision_map_local_sequence(tmp_path, monkeypatch, capsys):
     assert compare[2] == str(build / "old-collision-map.zip")
     assert compare[3] == str(new_zip)
     assert "EDGE TOTALS" in capsys.readouterr().out
+
+
+def test_collision_map_local_cleans_stale_output(tmp_path, monkeypatch):
+    # Leftovers in collision-output — including a stale zip, which
+    # `zip -r` would update rather than recreate — must not survive
+    # into the artifact moved into the submodule.
+    repo, submodule, _ = prepare_local(tmp_path, monkeypatch)
+    output_dir = repo / "build" / "collision-output"
+    output_dir.mkdir(parents=True)
+    (output_dir / "stale.bin").write_bytes(b"STALE")
+    (output_dir / "collision-map.zip").write_bytes(b"STALEZIP")
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    assert not (output_dir / "stale.bin").exists()
+    new_zip = (submodule / "src" / "main" / "resources" /
+               "collision-map.zip")
+    assert new_zip.read_bytes() == b"NEWZIP"
 
 
 def test_collision_map_local_refuses_master(tmp_path, monkeypatch):
