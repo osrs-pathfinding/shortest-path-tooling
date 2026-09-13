@@ -74,7 +74,12 @@ def run(cmd: List[str], *, cwd: Optional[Path] = None,
 
 
 def _stderr_tail(proc: subprocess.CompletedProcess, lines: int = 8) -> str:
-    tail = (proc.stderr or "").strip().splitlines()
+    stderr = proc.stderr or ""
+    if isinstance(stderr, bytes):
+        # binary=True captures produce bytes — decode so callers can
+        # print the diagnostic instead of crashing mid-error.
+        stderr = stderr.decode("utf-8", errors="replace")
+    tail = stderr.strip().splitlines()
     return "\n".join(tail[-lines:])
 
 
@@ -632,7 +637,12 @@ def do_collision_map_local(args: argparse.Namespace) -> int:
     shutil.copyfile(jars[0], jar)
 
     output_dir = build / "collision-output"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Rebuild from scratch — leftovers from a previous run (including a
+    # stale collision-map.zip, which `zip -r` would update rather than
+    # recreate) must not leak into the artifact committed upstream.
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True)
     proc = run(["java", "-jar", str(jar),
                 "--cachedir", str(REPO / "cache"),
                 "--xteapath", str(REPO / "keys.json"),
