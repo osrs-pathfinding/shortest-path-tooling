@@ -995,6 +995,22 @@ def test_vsr_codes_match_only_as_whole_words():
         vsr.MUSHROOM) == "ASGARNIA"
 
 
+def test_vsr_load_bboxes_missing_file_exits(tmp_path):
+    vsr = load_vsr()
+    with pytest.raises(SystemExit) as exc:
+        vsr.load_bboxes(tmp_path / "missing.tsv")
+    assert "cannot read" in str(exc.value)
+
+
+def test_vsr_load_bboxes_malformed_line_exits(tmp_path):
+    vsr = load_vsr()
+    bad = tmp_path / "bboxes.tsv"
+    bad.write_text("VARLAMORE\t1\t2\tx\t4\n")
+    with pytest.raises(SystemExit) as exc:
+        vsr.load_bboxes(bad)
+    assert "malformed bbox line" in str(exc.value)
+
+
 def test_seasonal_invokes_script(tmp_path, monkeypatch):
     repo, _ = redirect_repo(tmp_path, monkeypatch)
     calls = []

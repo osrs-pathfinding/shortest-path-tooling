@@ -28,10 +28,19 @@ TRANSPORTS = os.path.join(
 
 
 def load_bboxes(path):
-    """Returns list of (region, xMin, xMax, yMin, yMax) in file order."""
+    """Returns list of (region, xMin, xMax, yMin, yMax) in file order.
+
+    A missing/unreadable file or a malformed coordinate exits with a
+    diagnostic — a raw traceback would propagate through
+    ``maintenance.py seasonal`` as an opaque failure.
+    """
     out = []
-    with open(path) as f:
-        for line in f:
+    try:
+        f = open(path)
+    except OSError as exc:
+        sys.exit(f"cannot read {path}: {exc.strerror or exc}")
+    with f:
+        for lineno, line in enumerate(f, 1):
             s = line.strip()
             if not s or s.startswith("#"):
                 continue
@@ -39,7 +48,10 @@ def load_bboxes(path):
             if len(parts) != 5:
                 continue
             r, x1, x2, y1, y2 = parts
-            out.append((r, int(x1), int(x2), int(y1), int(y2)))
+            try:
+                out.append((r, int(x1), int(x2), int(y1), int(y2)))
+            except ValueError:
+                sys.exit(f"{path}:{lineno}: malformed bbox line: {s}")
     return out
 
 
@@ -412,7 +424,12 @@ def main():
     briefcase_neutral = []
     unmapped = []
 
-    with open(TRANSPORTS) as f:
+    try:
+        transports = open(TRANSPORTS)
+    except OSError as exc:
+        sys.exit(f"cannot read {TRANSPORTS}: {exc.strerror or exc} — "
+                 f"is the shortest-path submodule initialized?")
+    with transports as f:
         for lineno, raw in enumerate(f, 1):
             line = raw.rstrip("\n")
             if not line.strip() or line.startswith("#"):
