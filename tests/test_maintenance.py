@@ -1249,6 +1249,17 @@ def test_scan_report_missing_or_malformed_fails_closed(tmp_path):
     assert failures and str(bad) in failures[0]
 
 
+def test_scan_report_wrong_shape_fails_closed(tmp_path):
+    # Syntactically valid JSON of the wrong shape must not crash the
+    # verify run — it fails the dashboard tier closed instead.
+    bad = tmp_path / "report.json"
+    for payload in ("[]", '"text"', "42", '{"runs": "oops"}',
+                    '{"runs": [42]}'):
+        bad.write_text(payload)
+        failures = mm.scan_report(bad)
+        assert failures and str(bad) in failures[0], payload
+
+
 def make_verify_run(repo, calls, *, datasets=None, compile_rc=0,
                     lint_rc=0, runs_for=None, missing_reports=(),
                     ls_tree_rc=0,

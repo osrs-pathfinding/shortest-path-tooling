@@ -745,8 +745,20 @@ def scan_report(path: Path) -> List[str]:
         data = json.loads(Path(path).read_text())
     except (json.JSONDecodeError, OSError):
         return [f"missing or unreadable report: {path}"]
+    # Valid JSON of the wrong shape ([], "text", 42, or a dict whose
+    # "runs" is not a list) must fail closed too — an AttributeError
+    # here would crash the whole verify run instead of failing the
+    # dashboard tier.
+    if not isinstance(data, dict):
+        return [f"unexpected report shape: {path}"]
+    runs = data.get("runs")
+    if runs is not None and not isinstance(runs, list):
+        return [f"unexpected report shape: {path}"]
     failures = []
-    for r in data.get("runs") or []:
+    for r in runs or []:
+        if not isinstance(r, dict):
+            failures.append(f"malformed run record in {path}")
+            continue
         if not r.get("reached"):
             failures.append(f"{r.get('name')}: unreachable")
         elif r.get("assertionPassed") is False:
