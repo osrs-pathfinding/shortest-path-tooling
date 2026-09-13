@@ -9,8 +9,10 @@
 //   ./gradlew bankTileDump -PbankTileCacheDir=$PWD/cache -PbankTileXteaPath=$PWD/keys.json
 def bankTileCacheDir = providers.gradleProperty('bankTileCacheDir').orElse('')
 def bankTileXteaPath = providers.gradleProperty('bankTileXteaPath').orElse('')
+def bankTileDefaultOutput = layout.buildDirectory
+        .file('bank-tiles/bank_tile_placements.tsv').get().asFile.absolutePath
 def bankTileOutput = providers.gradleProperty('bankTileOutput')
-        .orElse(layout.buildDirectory.file('bank-tiles/bank_tile_placements.tsv').get().asFile.absolutePath)
+        .orElse(bankTileDefaultOutput)
 
 tasks.register('bankTileDump', Test) {
     group = 'cache dumpers'
@@ -40,7 +42,11 @@ tasks.register('bankTileDump', Test) {
         logger.lifecycle("")
         logger.lifecycle("Bank tile placements written to ${bankTileOutput.get()}")
         logger.lifecycle("Merge into bank.tsv with:")
-        logger.lifecycle("  cp ${bankTileOutput.get()} build/bank-tiles/bank_tile_placements.tsv")
+        // rebuild_bank_tsv.py reads the default build/bank-tiles path —
+        // only a custom -PbankTileOutput needs copying there first.
+        if (bankTileOutput.get() != bankTileDefaultOutput) {
+            logger.lifecycle("  cp ${bankTileOutput.get()} build/bank-tiles/bank_tile_placements.tsv")
+        }
         logger.lifecycle("  python3 scripts/rebuild_bank_tsv.py")
     }
 }
