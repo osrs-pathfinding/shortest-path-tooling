@@ -976,6 +976,25 @@ def test_transports_path_resolves_inside_submodule():
     assert os.path.realpath(vsr.TRANSPORTS).startswith(sub + os.sep)
 
 
+def test_vsr_codes_match_only_as_whole_words():
+    vsr = load_vsr()
+    # Fairy-ring codes match only as whole words — a destination name
+    # that merely contains the letters must not claim the code's
+    # region.
+    assert vsr.expected_region(
+        "Fairy Mushroom: Morytania - CKS (Canifis)",
+        vsr.MUSHROOM) == "MORYTANIA"
+    assert vsr.expected_region(
+        "Fairy Mushroom: Nowhere - Blocksdale", vsr.MUSHROOM) is None
+    assert vsr.expected_region(
+        "Fairy Mushroom: Nowhere - Distant Shore",
+        vsr.MUSHROOM) is None
+    # Named destinations still match as substrings.
+    assert vsr.expected_region(
+        "Fairy Mushroom: Asgarnia - Port Sarim (planted)",
+        vsr.MUSHROOM) == "ASGARNIA"
+
+
 def test_seasonal_invokes_script(tmp_path, monkeypatch):
     repo, _ = redirect_repo(tmp_path, monkeypatch)
     calls = []

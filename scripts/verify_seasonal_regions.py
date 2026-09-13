@@ -248,11 +248,13 @@ EVIL_EYE = {
     ],
 }
 
-# Fairy Mushroom: matched by leading token of the display info after
-# "Fairy Mushroom: ". For fairy ring teleports the leading token is the
-# 3-letter code (AIQ, AIR, ...). For spirit trees & tool leprechauns the
-# leading text is the location name (possibly with a " (planted)" suffix
-# stripped). Source: https://oldschool.runescape.wiki/w/Fairy_mushroom?action=raw
+# Fairy Mushroom: matched against the display info after
+# "Fairy Mushroom: ", which has the shape "<Region> - <code-or-name>
+# [(detail)]". 3-letter fairy-ring codes (AIQ, AIR, ...) match only as
+# whole words — a destination name that merely contains the letters must
+# not claim the code's region. Spirit-tree & tool-leprechaun destination
+# names (possibly carrying a " (planted)" suffix) match as substrings.
+# Source: https://oldschool.runescape.wiki/w/Fairy_mushroom?action=raw
 # (Demonic Pacts League — Nature's Accord relic). Destinations whose wiki
 # row carries the multi-region {{DPIcon|...}} tag instead of {{DPL|Region}}
 # (Misthalin/Varlamore sub-realms like Zanaris, Abyssal Area, Cosmic plane,
@@ -367,8 +369,18 @@ BRIEFCASE = {
 }
 
 
+# A bare 3-letter uppercase key is a fairy-ring code — it must match a
+# whole word so a destination name that merely contains the letters
+# ("Blocksdale" for CKS, "Distant" for DIS) cannot claim the region.
+_CODE_KEY = re.compile(r"[A-Z]{3}")
+
+
 def expected_region(display_info, table):
-    """Longest-key-wins substring match. Returns region or None."""
+    """Longest-key-wins match over the post-colon display text.
+
+    Name keys match as case-insensitive substrings; 3-letter code keys
+    match only as whole words. Returns the region or None.
+    """
     if ":" in display_info:
         rest = display_info.split(":", 1)[1].strip()
     else:
@@ -378,7 +390,12 @@ def expected_region(display_info, table):
     best_len = 0
     for region, keys in table.items():
         for k in keys:
-            if k.lower() in rest_lc and len(k) > best_len:
+            if _CODE_KEY.fullmatch(k):
+                hit = re.search(rf"\b{k}\b", rest,
+                                re.IGNORECASE) is not None
+            else:
+                hit = k.lower() in rest_lc
+            if hit and len(k) > best_len:
                 best_len = len(k)
                 best_region = region
     return best_region
