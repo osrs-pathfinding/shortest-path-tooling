@@ -82,9 +82,12 @@ def _parse_tsv(path):
 
     The first non-blank line is the header — ``#``-prefixed by
     convention.  Later ``#`` lines and blank lines are comments.
-    Data rows come back as (lineno, fields) pairs; Java's loader
-    splits on tabs without ``-1``, so trailing empty cells are already
-    absent from ``fields``.
+    Data rows come back as (lineno, fields) pairs.  Trailing-empty
+    handling differs by loader — the transport parser splits with
+    ``-1`` and keeps them, the destinations loader splits without
+    ``-1`` and drops them, and Python's ``str.split`` keeps them —
+    but the checks below only index the columns they assert on, so
+    the difference is immaterial here.
     """
     headers = None
     header_lineno = 0
