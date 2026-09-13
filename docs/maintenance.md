@@ -27,7 +27,7 @@ never commit to the wrong place.
 | `refresh` | the ordered chain: collision-map -> cache -> regions -> bank -> seasonal |
 | `probes` | the 11 season-discovery dump tasks (8 default + 3 name-driven) |
 | `verify` | `compileTestJava` + submodule `test` + `dashboard` sweep + edge-diff |
-| `validate` | `scripts/validate_data.py` deterministic checks + advisory destinations |
+| `validate` | `scripts/validate_data.py` deterministic checks + `freshness` currency check + advisory destinations/drift/season |
 
 Run any subcommand with `--help` for its flags.
 
@@ -60,6 +60,13 @@ commit hint, or stages it directly with `--commit`.
 `--local` regenerates the zip through the runelite pipeline instead
 (clone -> dumper inject -> `:cache:shadowJar` -> `java -jar` -> zip), for
 when upstream's automation lags or breaks. See Notes for first-run cost.
+
+`--local --compare-only` is the deep audit: the same regeneration
+pipeline, but the artifact lands at `build/validate-collision-map.zip`
+and is diffed against the worktree zip — the submodule is never
+written, so the write-branch and clean-worktree gates do not apply.
+Reach for it when upstream's workflow appears stale or before manually
+bumping the gitlink.
 
 ### `regions`
 
@@ -158,33 +165,63 @@ Evidence stays under `build/` — `verify` writes no committed log.
 ### `validate`
 
 ```bash
-python3 scripts/maintenance.py validate [--skip-tsv-structure] \
-    [--skip-collision-zip] [--skip-walkability] [--skip-bbox] \
-    [--skip-regions] [--skip-destinations]
+python3 scripts/maintenance.py validate [--drift] [--season-active] \
+    [--skip-<check>]
 ```
 
 The data-quality gate — every check runs even after a failure, printing
 `PASS`/`FAIL`/`ADVISORY`/`SKIP` per check and a `validate: n/m checks
-passed` line (n/m = the hard checks that ran). All checks are cache-free
-and read-only against committed data, enumerated via
-`git -C shortest-path ls-files` so gitignored scratch can never enter
-the gate:
+passed` line (n/m = the hard checks that ran). Status lines: `PASS` the
+check ran clean; `FAIL` a hard check produced findings (exit code 1);
+`ADVISORY` the check ran and its findings are triage input that never
+affects the exit code; `SKIP` the check was omitted by its
+`--skip-<name>` flag or its tier gate. Every check has a `--skip-<name>`
+flag (`--skip-tsv-structure`, `--skip-collision-zip`,
+`--skip-walkability`, `--skip-bbox`, `--skip-regions`,
+`--skip-freshness`, `--skip-destinations`, `--skip-drift`,
+`--skip-season`).
 
-- `tsv-structure` — header cells, coordinate format, short rows and
-  one-sided permutation sets across committed transport/destination TSVs.
-- `collision-zip` — entry names, blob plane counts and region-count
-  sanity on the committed `collision-map.zip`.
-- `walkability` — transport endpoints that are unreachable under the
-  plugin's pathing model (no flags, no walkable neighbour, no transport
-  edge reaching them).
-- `bbox` — seasonal transport endpoints classifying NEUTRAL against the
-  curated league-region bboxes without a `Region override`.
-- `regions` — generated `leagues/regions.tsv` vs the zip surface and
-  the curated-bbox classifier.
-- `destinations` (advisory) — destination TSV targets blocked on the
-  committed zip, minus `src/test/resources/destination_walkability_exceptions.tsv`.
-  Findings triage into that exceptions file; advisory output never
-  moves the exit code.
+| Check | Tier | What it proves |
+|---|---|---|
+| `tsv-structure` | hard | header cells, coordinate format, short rows and one-sided permutation sets across committed transport/destination TSVs |
+| `collision-zip` | hard | entry names, blob plane counts and region-count sanity on the committed `collision-map.zip` |
+| `walkability` | hard | transport endpoints reachable under the plugin's pathing model (flags, walkable neighbour, or transport edge) |
+| `bbox` | hard | seasonal transport endpoints don't classify NEUTRAL against the curated league-region bboxes without a `Region override` |
+| `regions` | hard | generated `leagues/regions.tsv` consistent with the zip surface and the curated-bbox classifier |
+| `freshness` | hard | the collision map is current: newest live `caches.json` timestamp vs upstream's last `Update collision map` auto-commit, plus the submodule pin vs `upstream/master` |
+| `destinations` | advisory | destination TSV targets blocked on the committed zip, minus the curated exceptions |
+| `drift` | advisory | TSV object/menu anchors still exist in a live cache (`--drift` only) |
+| `season` | advisory | league-season wiki cross-check + probes (`--season-active` or the marker file) |
+
+The routine checks are cache-free and read-only against committed data,
+enumerated via `git -C shortest-path ls-files` so gitignored scratch can
+never enter the gate. `freshness` fetches only remote refs and a few KB
+of JSON — a FAIL names the missing auto-commit history (dead upstream
+CI), the missed weekly bump (newest cache more than a week newer than
+the last auto-commit), or the pin lag (collision-map commits on
+`upstream/master` the submodule HEAD lacks); any input it cannot resolve
+fails the check closed rather than passing silently.
+
+`--drift` runs the `transportAnchorDrift` cache scan and reports
+`ADVISORY drift` with the grouped report at `build/transport-drift.txt`.
+It needs a prepared `cache/` + `keys.json` (`python3
+scripts/maintenance.py cache`) and never downloads one itself — with no
+cache the tier prints an advisory skip carrying that hint. Findings mean
+upstream objects moved or menu actions were renamed — triage the TSV
+rows named.
+
+`--season-active` (or the committed `src/test/resources/season_active`
+marker) enables the league-season tier: the
+`scripts/verify_seasonal_regions.py` wiki cross-check plus the
+`leagueAreaStructDump`/`leagueScriptScan` probes when the cache is
+prepared — all advisory, feeding the manual curated-region diff. The
+marker procedure: commit the file naming the season (first non-comment
+line) at league start, delete it at season end — while absent the tier
+prints `SKIP season` with the enablement hint.
+
+`destinations` findings triage into
+`src/test/resources/destination_walkability_exceptions.tsv` — add
+`X Y Z<tab>reason` rows for by-design blocked tiles.
 
 ## Suggested workflows
 
@@ -192,36 +229,47 @@ the gate:
 
 After the Wednesday game update and upstream's nightly collision-map run:
 
-1. `git -C shortest-path checkout -b maint-<date>` — data lands on a
+1. `python3 scripts/maintenance.py validate` — a hard FAIL means fix
+   the named data before refreshing; a `freshness` FAIL on pin lag is
+   what this workflow's `refresh` step resolves.
+2. `git -C shortest-path checkout -b maint-<date>` — data lands on a
    `origin` feature branch, never master.
-2. `python3 scripts/maintenance.py refresh` — runs the whole derivable
+3. `python3 scripts/maintenance.py refresh` — runs the whole derivable
    chain (add `--skip-collision` if the zip is already current).
-3. `python3 scripts/maintenance.py verify` — the four-tier gate.
-4. Review the edge-diff output and any dashboard failures in
+4. `python3 scripts/maintenance.py verify` — the four-tier gate.
+5. Review the edge-diff output and any dashboard failures in
    `build/reports/pathfinder-dashboard/`.
-5. `git -C shortest-path add` + `commit` the regenerated resources on the
+6. `git -C shortest-path add` + `commit` the regenerated resources on the
    feature branch; `git -C shortest-path push origin` and open a PR
    upstream.
-6. `git add shortest-path` + commit the gitlink bump in this repo.
+7. `git add shortest-path` + commit the gitlink bump in this repo.
 
 ### New league season
 
 Discovery first, then curated edits, then the chain:
 
-1. `python3 scripts/maintenance.py probes` — all eight default-tier
+1. Commit `src/test/resources/season_active` naming the season (first
+   non-comment line, e.g. `Demonic Pacts`) — the marker gates the
+   `season` tier of `validate` for the league's duration. Delete it at
+   season end.
+2. `python3 scripts/maintenance.py validate` — with the marker present
+   the `season` tier runs the wiki cross-check and, when the cache is
+   prepared, the league probes; all output is advisory and feeds the
+   manual curated-region diff.
+3. `python3 scripts/maintenance.py probes` — all eight default-tier
    dumpers; add `--names-file <file>` (one canonical destination name per
    line) to also run the three briefcase name-driven scans.
-2. Curate the bounding boxes in `src/test/resources/leagues_regions.tsv`
+4. Curate the bounding boxes in `src/test/resources/leagues_regions.tsv`
    and `src/test/resources/f2p_regions.tsv` from `leagueAreaStructDump`
    output.
-3. Curate `shortest-path/src/main/resources/transports/seasonal_transports.tsv`
+5. Curate `shortest-path/src/main/resources/transports/seasonal_transports.tsv`
    — item IDs and teleports from `leagueIdProbe`/`leagueTeleportItemDump`
    output. Per-row region exceptions go in the `Region override` column;
    general region gating belongs in code, not in the TSV (see
    `shortest-path/docs/Transport-TSV-format.md` maintenance notes).
-4. `python3 scripts/maintenance.py refresh` then
+6. `python3 scripts/maintenance.py refresh` then
    `python3 scripts/maintenance.py verify`.
-5. Commit on the feature branch, push `origin`, PR upstream.
+7. Commit on the feature branch, push `origin`, PR upstream.
 
 ### Upstream-issue-driven transport edits
 
@@ -229,9 +277,13 @@ For a reported transport/routing bug that resolves to a TSV fix:
 
 1. Edit the relevant `shortest-path/src/main/resources/transports/*.tsv`
    on an `origin` (fork) feature branch.
-2. `python3 scripts/maintenance.py verify --skip-diff` as the lint +
+2. `python3 scripts/maintenance.py validate` — `tsv-structure` catches
+   malformed rows (bad coordinates, short rows, one-sided permutations)
+   before the PR; `walkability` and `bbox` re-check the endpoint under
+   the real zip.
+3. `python3 scripts/maintenance.py verify --skip-diff` as the lint +
    scenario gate.
-3. Commit on the feature branch, push `origin`, PR upstream.
+4. Commit on the feature branch, push `origin`, PR upstream.
 
 ## Notes
 
