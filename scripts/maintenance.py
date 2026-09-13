@@ -586,10 +586,20 @@ def cmd_refresh(args: argparse.Namespace) -> int:
 def do_collision_map_local(args: argparse.Namespace) -> int:
     """Fallback path: regenerate collision-map.zip locally through the
     runelite pipeline, mirroring the upstream ExtractCollisionMap
-    workflow's six steps.  All scratch state lives under ``build/``."""
+    workflow's six steps.  All scratch state lives under ``build/``.
+
+    ``--compare-only`` runs the same pipeline but diverts the artifact
+    to ``build/validate-collision-map.zip`` and diffs it against the
+    current worktree zip — the deep audit proves artifact freshness
+    without touching the submodule, so the write-branch and
+    clean-worktree gates (which exist to protect data-landing) do not
+    apply.  The cache fetch is kept: a stale cache would audit the
+    wrong game state."""
+    compare_only = getattr(args, "compare_only", False)
     check_tools(["git", "java", "zip"])
-    require_write_branch()
-    require_clean_submodule()
+    if not compare_only:
+        require_write_branch()
+        require_clean_submodule()
     ensure_cache_ready(fetch=True)
 
     build = REPO / "build"
@@ -724,27 +734,45 @@ def do_collision_map_local(args: argparse.Namespace) -> int:
         if tail:
             print(tail, file=sys.stderr)
         return 1
-    shutil.move(str(output_dir / "collision-map.zip"), str(new_zip))
+    # The move target is computed once — compare-only must never
+    # write the submodule path.
+    target = (build / "validate-collision-map.zip") if compare_only \
+        else new_zip
+    shutil.move(str(output_dir / "collision-map.zip"), str(target))
 
     if old_zip.exists():
         diff = run([sys.executable,
                     str(REPO / "scripts" / "compare_collision_maps.py"),
-                    str(old_zip), str(new_zip)],
+                    str(old_zip), str(target)],
                    timeout=SCRIPT_TIMEOUT_SECONDS)
         if diff.stdout:
             print(diff.stdout,
                   end="" if diff.stdout.endswith("\n") else "\n")
-        print("review the diff, then commit on your origin (fork) "
-              "feature branch and open a PR upstream")
+        if compare_only:
+            print("compare-only: regenerated artifact at "
+                  "build/validate-collision-map.zip (submodule "
+                  "untouched)")
+        else:
+            print("review the diff, then commit on your origin "
+                  "(fork) feature branch and open a PR upstream")
     else:
         # No baseline artifact existed — nothing was diffed.
-        print("no previous collision-map.zip to diff against — commit "
-              "on your origin (fork) feature branch and open a PR "
-              "upstream")
+        if compare_only:
+            print("compare-only: no committed baseline to diff "
+                  "against")
+        else:
+            print("no previous collision-map.zip to diff against — "
+                  "commit on your origin (fork) feature branch and "
+                  "open a PR upstream")
     return 0
 
 
 def cmd_collision_map(args: argparse.Namespace) -> int:
+    # getattr: do_refresh dispatches here with a namespace that has no
+    # compare_only attribute.
+    if getattr(args, "compare_only", False) and not args.local:
+        print("--compare-only requires --local", file=sys.stderr)
+        return 1
     if args.local:
         return do_collision_map_local(args)
     return do_collision_map(args)
@@ -1256,6 +1284,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     cm.add_argument(
         "--commit", action="store_true",
         help="Commit the submodule gitlink bump after the diff")
+    cm.add_argument(
+        "--compare-only", action="store_true",
+        help="With --local: regenerate into build/ and diff against "
+             "the current artifact without touching the submodule")
 
     rg = sub.add_parser(
         "regions",
