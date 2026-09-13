@@ -38,8 +38,6 @@ BBOX_TSV = REPO / "src" / "test" / "resources" / "leagues_regions.tsv"
 DESTINATION_EXCEPTIONS = (REPO / "src" / "test" / "resources"
                           / "destination_walkability_exceptions.tsv")
 COLLISION_ZIP = PLUGIN / RESOURCES / "collision-map.zip"
-REGIONS_TSV = PLUGIN / RESOURCES / "leagues" / "regions.tsv"
-SEASONAL_TSV = PLUGIN / RESOURCES / "transports" / "seasonal_transports.tsv"
 
 GIT_TIMEOUT_SECONDS = 120
 COORD_RE = re.compile(r"^\d+ \d+ \d+$")
