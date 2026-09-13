@@ -24,6 +24,13 @@ import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+# Sibling helpers are plain scripts, not a package; the insert keeps
+# the imports working under importlib-spec test loads.
+sys.path.insert(0, str(HERE))
+from collision_zip import CollisionMap, REGION_SIZE  # noqa: E402
+from verify_seasonal_regions import (  # noqa: E402
+    classify_chunk, classify_tile, load_bboxes)
+
 REPO = HERE.parent
 PLUGIN = REPO / "shortest-path"
 RESOURCES = "src/main/resources"
@@ -34,6 +41,11 @@ SEASONAL_TSV = PLUGIN / RESOURCES / "transports" / "seasonal_transports.tsv"
 
 GIT_TIMEOUT_SECONDS = 120
 COORD_RE = re.compile(r"^\d+ \d+ \d+$")
+REGION_NAME_RE = re.compile(r"^\d+_\d+$")
+BITS_PER_PLANE = REGION_SIZE * REGION_SIZE * 2
+# The committed map covers thousands of regions; a handful of entries
+# means a truncated artifact, not a healthy map.
+MIN_REGION_COUNT = 1000
 
 # Canonical transport TSV column names — mirrors
 # TransportRecord.Fields in the plugin's Java parser.  The loader maps
@@ -158,9 +170,232 @@ def check_tsv_structure():
     return findings
 
 
+def check_collision_zip():
+    """Structural heuristics on the committed collision-map.zip.
+
+    Every entry name must be ``<int>_<int>`` — the plugin's loader
+    ``Integer.parseInt``s both halves, so a stray entry would crash
+    map loading outright.  Each blob must decode to 1-4 planes worth
+    of bits (blobs are trimmed BitSet streams, so any byte length in
+    that range is legal) and carry at least one set bit.  The region
+    count itself must be plausibly non-trivial — a handful of entries
+    means a truncated artifact.
+    """
+    findings = []
+    if not COLLISION_ZIP.exists():
+        return [f"{COLLISION_ZIP}: collision-map.zip missing"]
+    with zipfile.ZipFile(COLLISION_ZIP) as z:
+        names = z.namelist()
+        for name in names:
+            if not REGION_NAME_RE.match(name):
+                findings.append(
+                    f"collision-map.zip: entry {name!r} does not "
+                    f"match <int>_<int>")
+                continue
+            data = z.read(name)
+            planes = (len(data) * 8 + BITS_PER_PLANE - 1) // BITS_PER_PLANE
+            if not 1 <= planes <= 4:
+                findings.append(
+                    f"collision-map.zip:{name}: blob yields {planes} "
+                    f"planes ({len(data)} bytes)")
+            elif not any(data):
+                findings.append(
+                    f"collision-map.zip:{name}: blob has no set bits")
+    if len(names) < MIN_REGION_COUNT:
+        findings.append(
+            f"collision-map.zip: only {len(names)} region entries — "
+            f"truncated artifact")
+    return findings
+
+
+def _concrete(cell):
+    return COORD_RE.match(cell) is not None
+
+
+def _walkable_neighbour(cmap, x, y, z):
+    return any(cmap.walkable(x + dx, y + dy, z)
+               for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)))
+
+
+def check_walkability():
+    """Transport endpoints must be live in the plugin's pathing model.
+
+    The plugin does not require an endpoint tile to be walkable —
+    transport origins are frequently the object tile itself and the
+    pathfinder reaches them from a walkable neighbour (the documented
+    blocked-adjacent mechanic, e.g. fairy rings), or lands on them via
+    another transport's destination (stepping-stone chains), or sits
+    in instanced content the committed map never covers.  The dead
+    cases this check exists to catch are therefore:
+
+    - an Origin that is flagless, has no walkable 4-neighbour, and is
+      no row's Destination (nothing can deliver the player to it)
+    - a Destination that is flagless, has no walkable 4-neighbour, and
+      is no row's Origin (the player is stranded on arrival)
+
+    Endpoints in regions absent from the zip are skipped — instanced
+    interiors are outside the committed map's coverage, not findings.
+    Files without an Origin column are usable-anywhere teleport lists;
+    their destinations are reachable and re-usable by construction.
+    """
+    cmap = CollisionMap(COLLISION_ZIP)
+    rels = _git_ls_files(f"{RESOURCES}/transports")
+    origins = set()
+    destinations = set()
+    parsed = []  # (rel, lineno, headers, fields)
+    for rel in sorted(r for r in rels if r.endswith(".tsv")):
+        headers, _, rows = _parse_tsv(PLUGIN / rel)
+        if headers is None:
+            continue
+        for lineno, fields in rows:
+            parsed.append((rel, lineno, headers, fields))
+            for col in ("Origin", "Destination"):
+                if col not in headers:
+                    continue
+                idx = headers.index(col)
+                if idx >= len(fields):
+                    continue
+                cell = fields[idx].strip()
+                if _concrete(cell):
+                    coord = tuple(int(p) for p in cell.split())
+                    (origins if col == "Origin"
+                     else destinations).add(coord)
+
+    findings = []
+    for rel, lineno, headers, fields in parsed:
+        has_origin = "Origin" in headers
+        for col in (("Origin", origins, destinations),
+                    ("Destination", destinations, origins)):
+            label, own, other = col
+            if label not in headers:
+                continue
+            idx = headers.index(label)
+            if idx >= len(fields):
+                continue
+            cell = fields[idx].strip()
+            if not _concrete(cell):
+                continue
+            if label == "Destination" and not has_origin:
+                continue  # usable-anywhere teleport list
+            x, y, z = (int(p) for p in cell.split())
+            if (x // REGION_SIZE, y // REGION_SIZE) not in cmap.regions:
+                continue  # instanced content — outside committed coverage
+            if (cmap.walkable(x, y, z)
+                    or _walkable_neighbour(cmap, x, y, z)
+                    or (x, y, z) in other):
+                continue
+            findings.append(
+                f"{rel}:{lineno}: {label.lower()} {cell} is "
+                f"unreachable in the collision map")
+    return findings
+
+
+def check_bbox():
+    """Seasonal transport endpoints must classify to a league region.
+
+    LeagueRegionChecker packs a tile to its chunk region id and
+    defaults unmapped chunks to NEUTRAL — which is always unlocked, so
+    a seasonal row landing outside every curated bbox silently works
+    for everyone.  Every concrete Origin/Destination tile in
+    seasonal_transports.tsv must classify through the curated bboxes
+    or carry an explicit ``Region override``.
+    """
+    bboxes = load_bboxes(BBOX_TSV)
+    findings = []
+    rels = _git_ls_files(
+        f"{RESOURCES}/transports/seasonal_transports.tsv")
+    for rel in rels:
+        headers, _, rows = _parse_tsv(PLUGIN / rel)
+        if headers is None:
+            continue
+        ri = (headers.index("Region override")
+              if "Region override" in headers else -1)
+        for lineno, fields in rows:
+            override = (fields[ri].strip()
+                        if 0 <= ri < len(fields) else "")
+            for label in ("Origin", "Destination"):
+                if label not in headers:
+                    continue
+                idx = headers.index(label)
+                if idx >= len(fields):
+                    continue
+                cell = fields[idx].strip()
+                if not _concrete(cell):
+                    continue
+                x, y, _ = (int(p) for p in cell.split())
+                region = classify_tile(x, y, bboxes)
+                if region == "NEUTRAL" and not override:
+                    findings.append(
+                        f"{rel}:{lineno}: {label} {cell} classifies "
+                        f"NEUTRAL (no Region override)")
+    return findings
+
+
+def check_regions():
+    """Generated leagues/regions.tsv must agree with zip + bboxes.
+
+    LeagueRegionChecker resolves a region id to NEUTRAL when it is
+    absent from the generated file — so a zip surface region that the
+    curated classifier says belongs to a league but is missing from
+    the file is silently NEUTRAL (the authoring bug this phase
+    exists to catch), and a generated row that disagrees with the
+    classifier is a stale artifact.
+    """
+    bboxes = load_bboxes(BBOX_TSV)
+    findings = []
+    generated = {}
+    rels = _git_ls_files(f"{RESOURCES}/leagues/regions.tsv")
+    if not rels:
+        findings.append(
+            f"{RESOURCES}/leagues/regions.tsv: not committed")
+    for rel in rels:
+        for lineno, line in enumerate(
+                (PLUGIN / rel).read_text().splitlines(), 1):
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            parts = s.split("\t")
+            if len(parts) != 2:
+                findings.append(
+                    f"{rel}:{lineno}: malformed region row {s!r}")
+                continue
+            try:
+                generated[int(parts[0])] = parts[1]
+            except ValueError:
+                findings.append(
+                    f"{rel}:{lineno}: malformed region id "
+                    f"{parts[0]!r}")
+    if not COLLISION_ZIP.exists():
+        findings.append(f"{COLLISION_ZIP}: collision-map.zip missing")
+        return findings
+    with zipfile.ZipFile(COLLISION_ZIP) as z:
+        for name in z.namelist():
+            if not REGION_NAME_RE.match(name):
+                continue  # reported by the collision-zip check
+            rx, ry = (int(p) for p in name.split("_"))
+            rid = (rx << 8) | ry
+            expected = classify_chunk(rx, ry, bboxes)
+            if expected != "NEUTRAL" and rid not in generated:
+                findings.append(
+                    f"leagues/regions.tsv: zip region id {rid} "
+                    f"({rx}_{ry}) absent — classifier expects "
+                    f"{expected}")
+    for rid, region in generated.items():
+        expected = classify_chunk(rid >> 8, rid & 0xFF, bboxes)
+        if region != expected:
+            findings.append(
+                f"leagues/regions.tsv: region id {rid} is {region} "
+                f"but classifier expects {expected}")
+    return findings
+
+
 # name -> check function returning a list of finding strings.
 CHECKS = {
     "tsv-structure": check_tsv_structure,
+    "collision-zip": check_collision_zip,
+    "walkability": check_walkability,
+    "bbox": check_bbox,
+    "regions": check_regions,
 }
 
 # Checks whose findings are reported but never move the exit code.

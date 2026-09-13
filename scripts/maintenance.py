@@ -939,7 +939,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
 # invocation of scripts/validate_data.py.  Hard checks gate the exit
 # code; advisory checks report findings but can never reach the
 # failed count — keep the two registries disjoint.
-VALIDATE_HARD_CHECKS: Tuple[str, ...] = ("tsv-structure",)
+VALIDATE_HARD_CHECKS: Tuple[str, ...] = (
+    "tsv-structure", "collision-zip", "walkability", "bbox", "regions")
 VALIDATE_ADVISORY_CHECKS: Tuple[str, ...] = ()
 
 

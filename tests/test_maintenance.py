@@ -1735,7 +1735,8 @@ def test_validate_advisory_never_gates(tmp_path, monkeypatch, capsys):
     assert "ADVISORY destinations" in out
     # Advisory checks are excluded from both the numerator and the
     # denominator of the summary.
-    assert "validate: 1/1 checks passed" in out
+    n = len(mm.VALIDATE_HARD_CHECKS)
+    assert f"validate: {n}/{n} checks passed" in out
 
 
 def test_validate_skip_flags(tmp_path, monkeypatch, capsys):
@@ -1744,10 +1745,17 @@ def test_validate_skip_flags(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "SKIP tsv-structure" in out
-    # The skipped check's leaf call is the only one removed.
-    assert not any(c[0] == sys.executable for c, _ in calls)
+    # The skipped check's leaf call is the only one removed — every
+    # other registered check still ran exactly once.
+    leaf_names = [validate_kind(c) for c, _ in calls]
+    assert "tsv-structure" not in leaf_names
+    assert sorted(leaf_names) == sorted(
+        n for n in (list(mm.VALIDATE_HARD_CHECKS)
+                    + list(mm.VALIDATE_ADVISORY_CHECKS))
+        if n != "tsv-structure")
     # The denominator counts only ran hard checks.
-    assert "validate: 0/0 checks passed" in out
+    n = len(mm.VALIDATE_HARD_CHECKS) - 1
+    assert f"validate: {n}/{n} checks passed" in out
 
 
 def test_validate_summary_line(tmp_path, monkeypatch, capsys):
@@ -1756,7 +1764,8 @@ def test_validate_summary_line(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "PASS tsv-structure" in out
-    assert "validate: 1/1 checks passed" in out
+    n = len(mm.VALIDATE_HARD_CHECKS)
+    assert f"validate: {n}/{n} checks passed" in out
 
 
 def _write_tsv(root, rel, header_cells, rows):
