@@ -266,9 +266,8 @@ def check_walkability():
     findings = []
     for rel, lineno, headers, fields in parsed:
         has_origin = "Origin" in headers
-        for col in (("Origin", origins, destinations),
-                    ("Destination", destinations, origins)):
-            label, own, other = col
+        for label, other in (("Origin", destinations),
+                             ("Destination", origins)):
             if label not in headers:
                 continue
             idx = headers.index(label)
