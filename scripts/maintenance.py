@@ -31,6 +31,8 @@ Subcommands:
     verify         run the compatibility gate: compileTestJava ->
                    submodule test -> dashboard sweep over every
                    committed scenario CSV -> collision-map edge-diff
+    validate       run the data-validation checks — deterministic hard
+                   gate plus advisory drift/season tiers
 """
 
 import argparse
@@ -933,6 +935,77 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return do_verify(args)
 
 
+# Deterministic data-validation checks, each run as one leaf
+# invocation of scripts/validate_data.py.  Hard checks gate the exit
+# code; advisory checks report findings but can never reach the
+# failed count — keep the two registries disjoint.
+VALIDATE_HARD_CHECKS: Tuple[str, ...] = ("tsv-structure",)
+VALIDATE_ADVISORY_CHECKS: Tuple[str, ...] = ()
+
+
+def do_validate(args: argparse.Namespace) -> int:
+    """Run the registered data-validation checks through the leaf
+    script.
+
+    Every check runs even when an earlier one fails — like the
+    verify tiers, the maintainer wants the whole picture.  Only
+    hard-check results count toward the exit code; advisory checks
+    print their findings and report ADVISORY regardless of rc.
+    """
+    leaf = REPO / "scripts" / "validate_data.py"
+    results = {}       # ran hard checks: name -> list of failure lines
+    advisory_ran = []  # ran advisory checks (rc never counted)
+
+    for name in VALIDATE_HARD_CHECKS:
+        if getattr(args, "skip_" + name.replace("-", "_")):
+            continue
+        proc = run([sys.executable, str(leaf), name],
+                   cwd=REPO, timeout=SCRIPT_TIMEOUT_SECONDS)
+        _print_stdout(proc)
+        if proc.returncode == 0:
+            results[name] = []
+        else:
+            tail = _stderr_tail(proc)
+            lines = (proc.stdout or "").strip().splitlines()
+            results[name] = [
+                tail.splitlines()[-1] if tail else
+                (lines[-1] if lines else
+                 f"validate_data.py {name} exited {proc.returncode}")]
+
+    for name in VALIDATE_ADVISORY_CHECKS:
+        if getattr(args, "skip_" + name.replace("-", "_")):
+            continue
+        proc = run([sys.executable, str(leaf), name],
+                   cwd=REPO, timeout=SCRIPT_TIMEOUT_SECONDS)
+        _print_stdout(proc)
+        advisory_ran.append(name)
+
+    failed = 0
+    passed = 0
+    for name in VALIDATE_HARD_CHECKS:
+        if name not in results:
+            print(f"SKIP {name}")
+            continue
+        failures = results[name]
+        if failures:
+            failed += 1
+            print(f"FAIL {name}: {failures[0]}")
+            for extra in failures[1:]:
+                print(f"  {extra}")
+        else:
+            passed += 1
+            print(f"PASS {name}")
+    for name in VALIDATE_ADVISORY_CHECKS:
+        print(f"ADVISORY {name}" if name in advisory_ran
+              else f"SKIP {name}")
+    print(f"validate: {passed}/{len(results)} checks passed")
+    return 1 if failed else 0
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    return do_validate(args)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -1023,6 +1096,29 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Candidate collision-map.zip for the edge-diff — must "
              "be given together with --old-zip")
 
+    vd = sub.add_parser(
+        "validate",
+        help="Run the data-validation checks: deterministic hard "
+             "gate plus advisory drift/season tiers")
+    vd.add_argument(
+        "--skip-tsv-structure", action="store_true",
+        help="Omit the TSV structure lint check")
+    vd.add_argument(
+        "--skip-collision-zip", action="store_true",
+        help="Omit the collision-map.zip structural check")
+    vd.add_argument(
+        "--skip-walkability", action="store_true",
+        help="Omit the transport-endpoint walkability check")
+    vd.add_argument(
+        "--skip-bbox", action="store_true",
+        help="Omit the seasonal league-region bbox coverage check")
+    vd.add_argument(
+        "--skip-regions", action="store_true",
+        help="Omit the generated leagues/regions.tsv consistency check")
+    vd.add_argument(
+        "--skip-destinations", action="store_true",
+        help="Omit the advisory destination-walkability check")
+
     args = ap.parse_args(argv)
 
     if args.cmd == "cache":
@@ -1043,6 +1139,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         if (args.old_zip is None) != (args.new_zip is None):
             vf.error("--old-zip and --new-zip must be given together")
         return cmd_verify(args)
+    if args.cmd == "validate":
+        return cmd_validate(args)
     return 0
 
 

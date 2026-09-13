@@ -1707,7 +1707,7 @@ def test_validate_leaf_invocation_per_check(tmp_path, monkeypatch):
 
 
 def test_validate_hard_failure_gates_rc(tmp_path, monkeypatch, capsys):
-    prepare_validate(
+    _, _, calls = prepare_validate(
         tmp_path, monkeypatch,
         check_rc={"tsv-structure": 1},
         check_stdout={"tsv-structure": "FAIL x.tsv:3: bad row\n"})
