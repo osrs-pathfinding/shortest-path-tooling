@@ -747,6 +747,96 @@ def test_collision_map_local_missing_cache_downloads_first(
     assert kinds.index("download") < kinds.index("clone")
 
 
+def test_compare_only_skips_write_gates(tmp_path, monkeypatch):
+    # On master with a dirty worktree plain --local refuses at the
+    # first gate; --compare-only writes nothing into the submodule so
+    # the write-branch/clean-worktree gates do not apply.
+    repo, _, calls = prepare_local(
+        tmp_path / "plain", monkeypatch, branch="master",
+        status_out=" M dirty.tsv")
+    with pytest.raises(SystemExit):
+        mm.main(["collision-map", "--local"])
+    assert [local_kind(c) for c, _ in calls] == ["branch"]
+
+    repo, _, calls = prepare_local(
+        tmp_path / "compare", monkeypatch, branch="master",
+        status_out=" M dirty.tsv")
+    rc = mm.main(["collision-map", "--local", "--compare-only"])
+    assert rc == 0
+    kinds = [local_kind(c) for c, _ in calls]
+    assert "branch" not in kinds and "status" not in kinds
+
+
+def test_compare_only_diverts_output(tmp_path, monkeypatch):
+    # The regenerated zip lands under build/ — the submodule artifact
+    # stays byte-identical.
+    repo, submodule, calls = prepare_local(tmp_path, monkeypatch)
+    rc = mm.main(["collision-map", "--local", "--compare-only"])
+    assert rc == 0
+    new_zip = (submodule / "src" / "main" / "resources" /
+               "collision-map.zip")
+    assert new_zip.read_bytes() == b"OLDZIP"
+    staged = repo / "build" / "validate-collision-map.zip"
+    assert staged.read_bytes() == b"NEWZIP"
+
+
+def test_compare_only_diffs(tmp_path, monkeypatch, capsys):
+    repo, _, calls = prepare_local(tmp_path, monkeypatch)
+    rc = mm.main(["collision-map", "--local", "--compare-only"])
+    assert rc == 0
+    build = repo / "build"
+    compare = next(c for c, _ in calls if local_kind(c) == "compare")
+    assert compare[2] == str(build / "old-collision-map.zip")
+    assert compare[3] == str(build / "validate-collision-map.zip")
+    out = capsys.readouterr().out
+    assert "EDGE TOTALS" in out
+    assert "compare-only" in out
+    # Advisory wording — never a commit/PR instruction.
+    assert "commit on your origin" not in out
+
+
+def test_compare_only_no_baseline(tmp_path, monkeypatch, capsys):
+    repo, _, calls = prepare_local(tmp_path, monkeypatch,
+                                   existing_zip=False)
+    rc = mm.main(["collision-map", "--local", "--compare-only"])
+    assert rc == 0
+    kinds = [local_kind(c) for c, _ in calls]
+    assert "compare" not in kinds
+    out = capsys.readouterr().out
+    assert "no committed baseline" in out
+    assert "commit" not in out.split("baseline", 1)[-1]
+
+
+def test_compare_only_requires_local(tmp_path, monkeypatch, capsys):
+    repo, _ = redirect_repo(tmp_path, monkeypatch)
+    calls = []
+
+    def fake_run(cmd, *, cwd=None, timeout=None, binary=False):
+        calls.append(list(cmd))
+        raise AssertionError(f"unexpected argv: {cmd}")
+
+    monkeypatch.setattr(mm, "run", fake_run)
+    rc = mm.main(["collision-map", "--compare-only"])
+    assert rc == 1
+    assert "requires --local" in capsys.readouterr().err
+    assert calls == []
+
+
+def test_local_unchanged(tmp_path, monkeypatch, capsys):
+    # Plain --local is identical: gates enforced, the zip lands in the
+    # submodule, and the closing wording points at the commit.
+    repo, submodule, calls = prepare_local(tmp_path, monkeypatch)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    kinds = [local_kind(c) for c, _ in calls]
+    assert kinds[:3] == ["branch", "upstream", "status"]
+    new_zip = (submodule / "src" / "main" / "resources" /
+               "collision-map.zip")
+    assert new_zip.read_bytes() == b"NEWZIP"
+    assert not (repo / "build" / "validate-collision-map.zip").exists()
+    assert "commit on your origin" in capsys.readouterr().out
+
+
 # ---------- regions + bank subcommands ----------
 
 
