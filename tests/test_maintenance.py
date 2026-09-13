@@ -427,7 +427,7 @@ def local_kind(cmd):
 
 
 def make_local_run(repo, calls, *, branch="maint-x",
-                   upstream="myfork/maint-x", upstream_rc=0,
+                   upstream="origin/maint-x", upstream_rc=0,
                    status_out="", download_rc=0,
                    fetch_rc=0, reset_rc=0, clone_rc=0,
                    apply_check_rc=0, reverse_check_rc=1, apply_rc=0,
@@ -615,10 +615,10 @@ def test_collision_map_local_refuses_detached(tmp_path, monkeypatch):
     assert kinds == ["branch"]
 
 
-def test_collision_map_local_refuses_origin_upstream(tmp_path,
+def test_collision_map_local_refuses_upstream_tracking(tmp_path,
                                                      monkeypatch):
     repo, _, calls = prepare_local(
-        tmp_path, monkeypatch, upstream="origin/master")
+        tmp_path, monkeypatch, upstream="upstream/master")
     with pytest.raises(SystemExit):
         mm.main(["collision-map", "--local"])
     kinds = [local_kind(c) for c, _ in calls]
@@ -760,7 +760,7 @@ def write_gate_kind(cmd):
 
 
 def make_dump_run(repo, calls, *, branch="maint-x",
-                  upstream="myfork/maint-x", upstream_rc=0,
+                  upstream="origin/maint-x", upstream_rc=0,
                   status_out="", league_rc=0, f2p_rc=0, bank_rc=0,
                   script_rc=0, script_stdout=""):
     """fake mm.run for the regions/bank subcommands: answers the
@@ -1064,7 +1064,7 @@ def test_seasonal_does_not_require_branch(tmp_path, monkeypatch):
 # ---------- refresh chain + probes ----------
 
 
-def make_gate_run(calls, *, branch="maint-x", upstream="myfork/maint-x",
+def make_gate_run(calls, *, branch="maint-x", upstream="origin/maint-x",
                   upstream_rc=0, status_out=""):
     """fake mm.run answering only the write-gate git probes; any other
     argv fails the test."""

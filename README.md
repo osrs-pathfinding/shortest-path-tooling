@@ -59,7 +59,7 @@ The `shortest-path` submodule is pinned to a specific commit. To update it to th
 python3 scripts/maintenance.py collision-map
 ```
 
-This fast-forwards the submodule to `origin/master`, prints an edge diff
+This fast-forwards the submodule to `upstream/master`, prints an edge diff
 of the new `collision-map.zip` for review, and stages the gitlink bump
 with `--commit`. Do not use `git submodule update --remote` — it checks
 out a detached HEAD, which the data-writing subcommands refuse.

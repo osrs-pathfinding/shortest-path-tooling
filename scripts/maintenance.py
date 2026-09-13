@@ -12,7 +12,7 @@ Subcommands:
                    archive.openrs2.org, then patch keys.json into the
                    shape the RuneLite XteaKeyManager expects
     collision-map  update the submodule's collision-map.zip — by default
-                   fast-forward the submodule to origin/master and print
+                   fast-forward the submodule to upstream/master and print
                    an edge diff of the new artifact for review;
                    ``--local`` regenerates the zip through the local
                    runelite pipeline instead
@@ -178,19 +178,19 @@ def require_clean_submodule() -> None:
 
 
 def do_collision_map(args: argparse.Namespace) -> int:
-    """Primary path: fast-forward the submodule to origin/master and
+    """Primary path: fast-forward the submodule to upstream/master and
     print the edge diff against the previous collision-map.zip.
 
     Uses ``fetch`` + ``merge --ff-only`` rather than the remote-tracking
     submodule bump: that command detaches HEAD unconditionally, which
     would break the feature-branch precondition the data-writing
-    subcommands rely on.  A fast-forward keeps a checked-out myfork
-    branch intact.
+    subcommands rely on.  A fast-forward keeps a checked-out origin
+    (fork) branch intact.
     """
     require_clean_submodule()
     old = run(["git", "-C", "shortest-path", "rev-parse", "HEAD"],
               timeout=GIT_TIMEOUT_SECONDS).stdout.strip()
-    fetch = run(["git", "-C", "shortest-path", "fetch", "origin"],
+    fetch = run(["git", "-C", "shortest-path", "fetch", "upstream"],
                 timeout=GIT_TIMEOUT_SECONDS)
     if fetch.returncode != 0:
         print("git fetch failed in submodule:", file=sys.stderr)
@@ -199,10 +199,10 @@ def do_collision_map(args: argparse.Namespace) -> int:
             print(tail, file=sys.stderr)
         return 1
     merge = run(["git", "-C", "shortest-path", "merge", "--ff-only",
-                 "origin/master"], timeout=GIT_TIMEOUT_SECONDS)
+                 "upstream/master"], timeout=GIT_TIMEOUT_SECONDS)
     if merge.returncode != 0:
-        print("submodule diverged from origin/master — merge or rebase "
-              "it manually", file=sys.stderr)
+        print("submodule diverged from upstream/master — merge or "
+              "rebase it manually", file=sys.stderr)
         tail = _stderr_tail(merge)
         if tail:
             print(tail, file=sys.stderr)
@@ -277,9 +277,10 @@ def do_collision_map(args: argparse.Namespace) -> int:
 
 
 def require_write_branch() -> None:
-    """Refuse data writes unless the submodule sits on a myfork feature
-    branch — regenerated data must land on the fork and PR upstream,
-    never on detached HEAD, master, or a branch tracking origin."""
+    """Refuse data writes unless the submodule sits on an origin (fork)
+    feature branch — regenerated data must land on the fork and PR
+    upstream, never on detached HEAD, master, or a branch tracking
+    upstream."""
     branch = run(["git", "-C", "shortest-path", "rev-parse",
                   "--abbrev-ref", "HEAD"],
                  timeout=GIT_TIMEOUT_SECONDS).stdout.strip()
@@ -289,18 +290,18 @@ def require_write_branch() -> None:
             "first (`git -C shortest-path checkout -b <name>`)")
     if branch == "master":
         raise SystemExit(
-            "data commits must land on a myfork feature branch, not "
-            "master — create one first")
+            "data commits must land on an origin (fork) feature "
+            "branch, not master — create one first")
     up = run(["git", "-C", "shortest-path", "rev-parse", "--abbrev-ref",
               "@{u}"], timeout=GIT_TIMEOUT_SECONDS)
     if up.returncode == 0:
         upstream = up.stdout.strip()
-        if not upstream.startswith("myfork/"):
+        if not upstream.startswith("origin/"):
             raise SystemExit(
                 f"submodule branch tracks '{upstream}' — data commits "
-                f"must land on a branch tracking myfork")
+                f"must land on a branch tracking origin (the fork)")
     else:
-        print("warning: branch has no upstream — push to myfork before "
+        print("warning: branch has no upstream — push to origin before "
               "committing data", file=sys.stderr)
 
 
@@ -730,12 +731,13 @@ def do_collision_map_local(args: argparse.Namespace) -> int:
         if diff.stdout:
             print(diff.stdout,
                   end="" if diff.stdout.endswith("\n") else "\n")
-        print("review the diff, then commit on your myfork feature "
-              "branch and open a PR upstream")
+        print("review the diff, then commit on your origin (fork) "
+              "feature branch and open a PR upstream")
     else:
         # No baseline artifact existed — nothing was diffed.
         print("no previous collision-map.zip to diff against — commit "
-              "on your myfork feature branch and open a PR upstream")
+              "on your origin (fork) feature branch and open a PR "
+              "upstream")
     return 0
 
 

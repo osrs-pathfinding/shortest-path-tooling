@@ -561,7 +561,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     vp.add_argument("--evidence", default=None,
                     help="Evidence reference for --manual")
     vp.add_argument("--fix-commit", default=None,
-                    help="SHA of the fix commit on the myfork fix branch "
+                    help="SHA of the fix commit on the origin (fork) fix branch "
                          "(git -C shortest-path rev-parse HEAD); upstream "
                          "closure still follows the PR merge")
     vp.add_argument("--fix-pr", default=None,

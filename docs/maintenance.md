@@ -10,7 +10,7 @@ Gradle dumpers, shell scripts, and Python helpers, so step ordering and
 preconditions live in exactly one place.
 
 Regenerated data files land in the `shortest-path` submodule's
-`src/main/resources/` on a `myfork` feature branch and go upstream by PR —
+`src/main/resources/` on an `origin` (fork) feature branch and go upstream by PR —
 the established dev cycle. Data-writing subcommands refuse to run on
 `master`, detached HEAD, or a dirty worktree, so a maintenance run can
 never commit to the wrong place.
@@ -20,7 +20,7 @@ never commit to the wrong place.
 | Subcommand | What it wraps |
 |---|---|
 | `cache` | `collision-map-update/download-latest-cache.sh` + the keys.json field patch |
-| `collision-map` | submodule fetch + ff-merge to `origin/master`, `compare_collision_maps.py`; the local runelite pipeline on `--local` |
+| `collision-map` | submodule fetch + ff-merge to `upstream/master`, `compare_collision_maps.py`; the local runelite pipeline on `--local` |
 | `regions` | `leagueRegionDump` + `f2pRegionDump` Gradle tasks |
 | `bank` | `bankTileDump` + `scripts/rebuild_bank_tsv.py` |
 | `seasonal` | `scripts/verify_seasonal_regions.py` |
@@ -50,7 +50,7 @@ idempotent — never `sed` the file by hand.
 python3 scripts/maintenance.py collision-map [--local] [--commit]
 ```
 
-Primary path: fast-forwards the submodule to `origin/master` (upstream's
+Primary path: fast-forwards the submodule to `upstream/master` (upstream's
 weekly `ExtractCollisionMap.yml` regenerates the zip every Wednesday), then
 prints the `compare_collision_maps.py` edge diff between the previous
 artifact (extracted from git history) and the new one. Prints the gitlink
@@ -72,7 +72,7 @@ Runs `leagueRegionDump` then `f2pRegionDump` against `./cache`, copies
 resources dir or `F2p*.java` class) or `--f2p` forces it — otherwise the
 output stays staged in `build/f2p-regions/`.
 
-Preconditions: cache present, myfork feature branch, clean submodule
+Preconditions: cache present, `origin` (fork) feature branch, clean submodule
 worktree.
 
 ### `bank`
@@ -161,14 +161,14 @@ Evidence stays under `build/` — `verify` writes no committed log.
 After the Wednesday game update and upstream's nightly collision-map run:
 
 1. `git -C shortest-path checkout -b maint-<date>` — data lands on a
-   `myfork` feature branch, never master.
+   `origin` feature branch, never master.
 2. `python3 scripts/maintenance.py refresh` — runs the whole derivable
    chain (add `--skip-collision` if the zip is already current).
 3. `python3 scripts/maintenance.py verify` — the four-tier gate.
 4. Review the edge-diff output and any dashboard failures in
    `build/reports/pathfinder-dashboard/`.
 5. `git -C shortest-path add` + `commit` the regenerated resources on the
-   feature branch; `git -C shortest-path push myfork` and open a PR
+   feature branch; `git -C shortest-path push origin` and open a PR
    upstream.
 6. `git add shortest-path` + commit the gitlink bump in this repo.
 
@@ -189,17 +189,17 @@ Discovery first, then curated edits, then the chain:
    `shortest-path/docs/Transport-TSV-format.md` maintenance notes).
 4. `python3 scripts/maintenance.py refresh` then
    `python3 scripts/maintenance.py verify`.
-5. Commit on the feature branch, push `myfork`, PR upstream.
+5. Commit on the feature branch, push `origin`, PR upstream.
 
 ### Upstream-issue-driven transport edits
 
 For a reported transport/routing bug that resolves to a TSV fix:
 
 1. Edit the relevant `shortest-path/src/main/resources/transports/*.tsv`
-   on a `myfork` feature branch.
+   on an `origin` (fork) feature branch.
 2. `python3 scripts/maintenance.py verify --skip-diff` as the lint +
    scenario gate.
-3. Commit on the feature branch, push `myfork`, PR upstream.
+3. Commit on the feature branch, push `origin`, PR upstream.
 
 ## Notes
 
@@ -207,7 +207,7 @@ For a reported transport/routing bug that resolves to a TSV fix:
   repo's `update-submodule.yml` (daily 06:00 UTC) are the primary
   collision-map source — `collision-map` consumes and diffs that artifact.
   Fork-side Actions, if ever added, must be `workflow_dispatch`-only: a
-  competing schedule auto-committing the binary to `myfork` master
+  competing schedule auto-committing the binary to the fork's master
   guarantees divergence from upstream's own auto-commits.
 - `collision-map --local` needs a JDK 11 toolchain — the runelite build
   pins `languageVersion = 11` and Gradle auto-provisions it on first run
