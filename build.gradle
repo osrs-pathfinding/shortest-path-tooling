@@ -44,6 +44,12 @@ tasks.withType(Checkstyle).configureEach {
     enabled = false
 }
 
+// DashboardTest runs its full scenario suite under `test` too — give the
+// test JVM the same heap the dedicated `dashboard` task provides.
+test {
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+}
+
 // Pull in the plugin's test helpers that the dashboard/dump code depends on.
 // These files stay in shortest-path/src/test/java (no changes to the plugin build).
 compileTestJava.source fileTree(
