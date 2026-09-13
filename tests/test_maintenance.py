@@ -1249,6 +1249,22 @@ def test_probes_names_file_unlocks_scans(tmp_path, monkeypatch):
     ]
 
 
+def test_probes_names_file_resolved_for_gradle(tmp_path, monkeypatch):
+    # A relative --names-file resolves against the caller's CWD for the
+    # existence check; Gradle must get the absolute path, not a string
+    # it would re-resolve against the project dir.
+    repo, calls = prepare_probes_repo(tmp_path, monkeypatch)
+    names = repo / "names.txt"
+    names.write_text("Varrock\n")
+    monkeypatch.chdir(repo)
+    rc = mm.main(["probes", "--names-file", "names.txt"])
+    assert rc == 0
+    for c, _, _ in calls:
+        for a in c:
+            if "NamesFile=" in a:
+                assert a.endswith(str(names))
+
+
 def test_probes_names_file_must_exist(tmp_path, monkeypatch):
     repo, calls = prepare_probes_repo(tmp_path, monkeypatch)
     rc = mm.main(["probes", "--names-file",

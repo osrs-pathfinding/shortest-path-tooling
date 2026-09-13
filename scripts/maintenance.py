@@ -500,6 +500,10 @@ def do_probes(args: argparse.Namespace) -> int:
 
     tasks = list(PROBE_TASKS)
     if args.names_file is not None:
+        # Resolve against the process CWD once — the -P...File= string
+        # handed to Gradle would otherwise resolve a relative path
+        # against the project dir and miss the file just checked.
+        args.names_file = args.names_file.resolve()
         if not args.names_file.exists():
             print(f"--names-file {args.names_file} does not exist",
                   file=sys.stderr)
