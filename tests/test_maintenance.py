@@ -1631,6 +1631,191 @@ def test_verify_summary_counts_only_ran_tiers(tmp_path, monkeypatch,
     assert "verify: 3/3 tiers passed" in capsys.readouterr().out
 
 
+# ---------- validate subcommand ----------
+
+
+def load_vd():
+    """Load scripts/validate_data.py as a module."""
+    spec = importlib.util.spec_from_file_location(
+        "validate_data", ROOT / "scripts" / "validate_data.py")
+    vd = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(vd)
+    return vd
+
+
+def make_validate_run(repo, calls, *, check_rc=None, check_stdout=None):
+    """fake mm.run for the validate subcommand — answers one
+    ``validate_data.py <check>`` argv per leaf check, recording every
+    invocation; anything else is a bug in the dispatch surface."""
+    check_rc = check_rc or {}
+    check_stdout = check_stdout or {}
+
+    def fake_run(cmd, *, cwd=None, timeout=None, binary=False):
+        calls.append((list(cmd), cwd))
+        if (cmd[0] == sys.executable and len(cmd) >= 3
+                and cmd[1].endswith("validate_data.py")):
+            name = cmd[2]
+            return cp(cmd, check_stdout.get(name, ""),
+                      rc=check_rc.get(name, 0))
+        raise AssertionError(f"unexpected argv: {cmd}")
+
+    return fake_run
+
+
+def prepare_validate(tmp_path, monkeypatch, **run_kwargs):
+    """Common validate setup: redirected repo + recording fake run.
+    Returns (repo, submodule, calls)."""
+    repo, submodule = redirect_repo(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        mm, "run", make_validate_run(repo, calls, **run_kwargs))
+    return repo, submodule, calls
+
+
+def validate_kind(cmd):
+    """Bucket a recorded argv into the validate leaf check it runs."""
+    if (cmd[0] == sys.executable and len(cmd) >= 3
+            and cmd[1].endswith("validate_data.py")):
+        return cmd[2]
+    return "other"
+
+
+def test_validate_registered_and_dispatches(tmp_path, monkeypatch,
+                                            capsys):
+    prepare_validate(tmp_path, monkeypatch)
+    rc = mm.main(["validate"])
+    assert rc == 0
+    assert "checks passed" in capsys.readouterr().out
+    with pytest.raises(SystemExit) as exc:
+        mm.main(["--help"])
+    assert exc.value.code == 0
+    assert "validate" in capsys.readouterr().out
+
+
+def test_validate_leaf_invocation_per_check(tmp_path, monkeypatch):
+    repo, _, calls = prepare_validate(tmp_path, monkeypatch)
+    rc = mm.main(["validate"])
+    assert rc == 0
+    leaf_names = [validate_kind(c) for c, _ in calls]
+    expected = (list(mm.VALIDATE_HARD_CHECKS)
+                + list(mm.VALIDATE_ADVISORY_CHECKS))
+    assert leaf_names == expected
+    for cmd, cwd in calls:
+        assert cmd[0] == sys.executable
+        assert cmd[1].endswith("validate_data.py")
+        assert cwd == repo
+
+
+def test_validate_hard_failure_gates_rc(tmp_path, monkeypatch, capsys):
+    prepare_validate(
+        tmp_path, monkeypatch,
+        check_rc={"tsv-structure": 1},
+        check_stdout={"tsv-structure": "FAIL x.tsv:3: bad row\n"})
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "FAIL tsv-structure" in out
+    # A failed leaf must not stop later checks — every registered
+    # check is still invoked exactly once.
+    leaf_names = [validate_kind(c) for c, _ in calls]
+    assert leaf_names == (list(mm.VALIDATE_HARD_CHECKS)
+                          + list(mm.VALIDATE_ADVISORY_CHECKS))
+
+
+def test_validate_advisory_never_gates(tmp_path, monkeypatch, capsys):
+    prepare_validate(
+        tmp_path, monkeypatch,
+        check_stdout={"destinations":
+                      "=== Destination walkability (2 findings) ===\n"
+                      "  a.tsv:1 1 2 3 Bank\n"})
+    monkeypatch.setattr(mm, "VALIDATE_ADVISORY_CHECKS", ("destinations",))
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "ADVISORY destinations" in out
+    # Advisory checks are excluded from both the numerator and the
+    # denominator of the summary.
+    assert "validate: 1/1 checks passed" in out
+
+
+def test_validate_skip_flags(tmp_path, monkeypatch, capsys):
+    repo, _, calls = prepare_validate(tmp_path, monkeypatch)
+    rc = mm.main(["validate", "--skip-tsv-structure"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "SKIP tsv-structure" in out
+    # The skipped check's leaf call is the only one removed.
+    assert not any(c[0] == sys.executable for c, _ in calls)
+    # The denominator counts only ran hard checks.
+    assert "validate: 0/0 checks passed" in out
+
+
+def test_validate_summary_line(tmp_path, monkeypatch, capsys):
+    prepare_validate(tmp_path, monkeypatch)
+    rc = mm.main(["validate"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "PASS tsv-structure" in out
+    assert "validate: 1/1 checks passed" in out
+
+
+def _write_tsv(root, rel, header_cells, rows):
+    """Write a fixture TSV: ``#``-prefixed header + verbatim rows."""
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["# " + "\t".join(header_cells)] + rows
+    path.write_text("\n".join(lines) + "\n")
+    return rel
+
+
+def test_validate_data_structure_check(tmp_path, monkeypatch, capsys):
+    vd = load_vd()
+    plugin = tmp_path / "shortest-path"
+    rel = "src/main/resources/transports/transports.tsv"
+    _write_tsv(plugin, rel,
+               ["Origin", "Destination",
+                "menuOption menuTarget objectID", "Bogus"],
+               ["1 2 0\t3 4 0\tOpen Door 1\tok",
+                "1 2 0",
+                "not-a-coord\t3 4 0\tX",
+                "# a section comment",
+                "\t3 4 0\tY"])
+    monkeypatch.setattr(vd, "PLUGIN", plugin)
+    monkeypatch.setattr(vd, "_git_ls_files", lambda *ps: [rel])
+    rc = vd.main(["tsv-structure"])
+    out = capsys.readouterr().out
+    assert rc == 1
+    # Unknown header cell named.
+    assert "Bogus" in out
+    # Short data row (line 3) and malformed coordinate (line 4) are
+    # file:line findings, not silent skips.
+    assert f"{rel}:3" in out
+    assert f"{rel}:4" in out
+    # The permutation pair check fires: row 6 has a blank Origin with a
+    # concrete Destination but no row has a concrete Origin with a
+    # blank Destination — a dead anchor set.
+    assert "permutation" in out.lower()
+    assert "Summary:" in out
+
+
+def test_validate_data_structure_check_clean(tmp_path, monkeypatch,
+                                           capsys):
+    vd = load_vd()
+    plugin = tmp_path / "shortest-path"
+    rel = "src/main/resources/transports/transports.tsv"
+    _write_tsv(plugin, rel,
+               ["Origin", "Destination",
+                "menuOption menuTarget objectID"],
+               ["1 2 0\t\tOpen Door 1",
+                "\t3 4 0\tOpen Door 1"])
+    monkeypatch.setattr(vd, "PLUGIN", plugin)
+    monkeypatch.setattr(vd, "_git_ls_files", lambda *ps: [rel])
+    rc = vd.main(["tsv-structure"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Summary:" in out
+
+
 # ---------- maintenance runbook (docs/maintenance.md) ----------
 
 
