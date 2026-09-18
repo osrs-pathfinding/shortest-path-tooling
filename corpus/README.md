@@ -45,8 +45,7 @@ From `shortest-path-model`, point `route-bench` at this checkout and write to
 its oracle file:
 
 ```sh
-SHORTEST_PATH_CORPUS_DIR=../shortest-path-corpus \
-  nix-shell --run 'cabal run route-bench -- --corpus-dir "$SHORTEST_PATH_CORPUS_DIR" \
+nix-shell --run 'cabal run route-bench -- --corpus-dir ../shortest-path-corpus \
     --write-oracle --oracle ../shortest-path-corpus/oracle/oracle-v1.json'
 ```
 
