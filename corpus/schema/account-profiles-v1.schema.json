@@ -1,13 +1,44 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "required": ["formatVersion", "benchmarkNowMinutes", "profiles"],
+  "required": [
+    "formatVersion",
+    "benchmarkNowMinutes",
+    "profiles"
+  ],
   "properties": {
-    "formatVersion": {"const": 1},
-    "benchmarkNowMinutes": {"type": "integer"},
-    "profiles": {"type": "object", "minProperties": 4, "additionalProperties": {"$ref": "#/$defs/profile"}}
+    "formatVersion": {
+      "const": 1
+    },
+    "benchmarkNowMinutes": {
+      "type": "integer"
+    },
+    "profiles": {
+      "type": "object",
+      "minProperties": 4,
+      "additionalProperties": {
+        "$ref": "#/$defs/profile"
+      }
+    }
   },
   "$defs": {
-    "profile": {"type": "object", "required": ["levels", "completedQuests", "varbits", "varplayers", "inventory", "equipment", "runePouch", "bank", "diaries", "poh", "plantedSpiritTrees", "fairyRingsUnlocked", "runtime"]}
+    "profile": {
+      "type": "object",
+      "required": [
+        "levels",
+        "completedQuests",
+        "varbits",
+        "varplayers",
+        "inventory",
+        "equipment",
+        "runePouch",
+        "bank",
+        "diaries",
+        "poh",
+        "plantedSpiritTrees",
+        "fairyRingsUnlocked",
+        "runtime"
+      ]
+    }
   }
 }

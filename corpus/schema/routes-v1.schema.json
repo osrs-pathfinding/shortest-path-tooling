@@ -3,17 +3,76 @@
   "type": "array",
   "items": {
     "type": "object",
-    "required": ["id", "name", "category", "start", "target", "allowTransports", "tiers"],
+    "required": [
+      "id",
+      "name",
+      "category",
+      "start",
+      "target",
+      "allowTransports",
+      "tiers"
+    ],
     "properties": {
-      "id": {"type": "string", "minLength": 1},
-      "name": {"type": "string", "minLength": 1},
-      "category": {"type": "string", "minLength": 1},
-      "start": {"$ref": "#/$defs/coordinate"},
-      "target": {"$ref": "#/$defs/coordinate"},
-      "allowTransports": {"type": "boolean"},
-      "tiers": {"type": "array", "items": {"enum": ["smoke", "standard", "full"]}},
-      "negativeProfiles": {"type": "array", "items": {"enum": ["early", "mid", "end", "maxed"]}}
+      "id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "category": {
+        "type": "string",
+        "minLength": 1
+      },
+      "start": {
+        "$ref": "#/$defs/coordinate"
+      },
+      "target": {
+        "$ref": "#/$defs/coordinate"
+      },
+      "allowTransports": {
+        "type": "boolean"
+      },
+      "tiers": {
+        "type": "array",
+        "items": {
+          "enum": [
+            "smoke",
+            "standard",
+            "full"
+          ]
+        }
+      },
+      "negativeProfiles": {
+        "type": "array",
+        "items": {
+          "enum": [
+            "early",
+            "mid",
+            "end",
+            "maxed"
+          ]
+        }
+      }
     }
   },
-  "$defs": {"coordinate": {"type": "array", "prefixItems": [{"type": "integer"}, {"type": "integer"}, {"type": "integer"}], "minItems": 3, "maxItems": 3}}
+  "$defs": {
+    "coordinate": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "integer"
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    }
+  }
 }

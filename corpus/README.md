@@ -16,6 +16,16 @@ defines the profile contents.
 
 ## Validate
 
+Format JSON with `jq` before committing changes:
+
+```sh
+nix-shell -p jq --run 'tools/format-json.sh'
+nix-shell -p jq --run 'tools/format-json.sh --check'
+```
+
+The `--check` form is suitable for CI and fails if any JSON file is not the
+direct output of `jq .`.
+
 ```sh
 node tools/validate.js
 ```

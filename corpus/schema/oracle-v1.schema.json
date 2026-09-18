@@ -3,7 +3,19 @@
   "type": "object",
   "additionalProperties": {
     "type": "object",
-    "required": ["reachable"],
-    "properties": {"reachable": {"type": "boolean"}, "cost": {"type": ["integer", "null"]}}
+    "required": [
+      "reachable"
+    ],
+    "properties": {
+      "reachable": {
+        "type": "boolean"
+      },
+      "cost": {
+        "type": [
+          "integer",
+          "null"
+        ]
+      }
+    }
   }
 }
