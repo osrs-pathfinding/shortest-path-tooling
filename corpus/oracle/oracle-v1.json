@@ -11582,5 +11582,37 @@
   "wilderness-0050/mid": {
     "cost": 101,
     "reachable": true
+  },
+  "tooling-regression-0001/early": {
+    "cost": 87,
+    "reachable": true
+  },
+  "tooling-regression-0001/mid": {
+    "cost": 56,
+    "reachable": true
+  },
+  "tooling-regression-0001/end": {
+    "cost": 56,
+    "reachable": true
+  },
+  "tooling-regression-0001/maxed": {
+    "cost": 56,
+    "reachable": true
+  },
+  "tooling-regression-0002/early": {
+    "cost": 56,
+    "reachable": true
+  },
+  "tooling-regression-0002/mid": {
+    "cost": 45,
+    "reachable": true
+  },
+  "tooling-regression-0002/end": {
+    "cost": 23,
+    "reachable": true
+  },
+  "tooling-regression-0002/maxed": {
+    "cost": 23,
+    "reachable": true
   }
 }

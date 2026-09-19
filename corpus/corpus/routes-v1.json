@@ -66668,5 +66668,43 @@
         ]
       ]
     }
+  },
+  {
+    "id": "tooling-regression-0001",
+    "name": "Falador grapple bank route",
+    "category": "regression",
+    "rawStart": [3000, 3355, 0],
+    "start": [3000, 3355, 0],
+    "rawTarget": [3033, 3390, 0],
+    "target": [3033, 3390, 0],
+    "startName": "Falador grapple bank route start",
+    "targetName": "Falador grapple bank route target",
+    "startSource": "shortest-path-model seed route: bank-held grapple regression",
+    "targetSource": "shortest-path-model seed route: bank-held grapple regression",
+    "allowTransports": true,
+    "tiers": ["full"],
+    "distanceTag": "local",
+    "planeTag": "0-to-0",
+    "startRegion": "5,6",
+    "targetRegion": "5,6"
+  },
+  {
+    "id": "tooling-regression-0002",
+    "name": "Great Conch to McGrubor's Wood",
+    "category": "regression",
+    "rawStart": [3180, 2419, 0],
+    "start": [3180, 2419, 0],
+    "rawTarget": [2652, 3485, 0],
+    "target": [2652, 3485, 0],
+    "startName": "Great Conch start",
+    "targetName": "McGrubor's Wood target",
+    "startSource": "shortest-path-model seed route: shortest-path-tooling unit-tests.csv",
+    "targetSource": "shortest-path-model seed route: shortest-path-tooling unit-tests.csv",
+    "allowTransports": true,
+    "tiers": ["full"],
+    "distanceTag": "cross-world",
+    "planeTag": "0-to-0",
+    "startRegion": "6,4",
+    "targetRegion": "5,6"
   }
 ]
