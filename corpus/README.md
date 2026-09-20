@@ -63,7 +63,15 @@ The command also writes `oracle/oracle-v1.json.metadata.json` with the corpus
 versions, model revision, and resource-data revision when available. Validate
 the corpus before committing regenerated results.
 
-Update account profiles by editing the explicit JSON fixture, then run both
-consumer profile/compiler tests and the corpus validator. Do not regenerate
-profiles from Haskell or Java: those projects compile this neutral state into
-their runtime representations.
+Generate account profiles from the semantic Java source with:
+
+```sh
+./profile-generator/gradlew -p profile-generator generateAccountProfiles
+./profile-generator/gradlew -p profile-generator verifyAccountProfiles
+```
+
+Edit `profile-generator/src/main/java/shortestpath/corpus/profiles/CanonicalProfiles.java`,
+not the generated JSON. The generator uses the latest RuneLite API release and keeps
+the JSON as a checked-in, language-neutral fixture; consumers do not need Java
+or RuneLite to load it. Run the generator tests, corpus validator, and both
+cross-language consumer test suites before committing source and fixture changes.
