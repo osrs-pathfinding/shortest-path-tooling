@@ -3,6 +3,7 @@
 This repository is the implementation-neutral benchmark corpus for OSRS
 pathfinding. It owns canonical routes, four account profiles (`early`, `mid`,
 `end`, `maxed`), exclusions, runtime state, and checked-in oracle answers.
+`end` and `maxed` are quest-cape accounts.
 
 The account JSON is generated from explicit Java profile definitions. Consumers
 load the JSON as a language-neutral fixture; they do not infer account meaning

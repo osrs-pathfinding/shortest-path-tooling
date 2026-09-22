@@ -54,7 +54,7 @@ final class CanonicalProfiles {
     static ProfileSpec end() {
         return progressed(new ProfileSpec("end")
             .levels(endLevels())
-            .quests(progressedQuests().toArray(new Quest[0]))
+            .quests(questCapeQuests().toArray(new Quest[0]))
             .diaries(DiaryTier.HARD).diary(Diary.LUMBRIDGE_DRAYNOR, DiaryTier.ELITE)
             .poh(poh(JewelleryBox.ORNATE, PortalMode.ALL, PROGRESS_PORTALS, true, true, true,
                 true, true, true, true))
@@ -68,7 +68,7 @@ final class CanonicalProfiles {
     static ProfileSpec maxed() {
         return progressed(new ProfileSpec("maxed")
             .levels(skills(99))
-            .quests(progressedQuests().toArray(new Quest[0]))
+            .quests(questCapeQuests().toArray(new Quest[0]))
             .diaries(DiaryTier.ELITE)
             .poh(poh(JewelleryBox.ORNATE, PortalMode.ALL, PROGRESS_PORTALS, true, true, true,
                 true, true, true, true))
@@ -155,6 +155,10 @@ final class CanonicalProfiles {
             Quest.THRONE_OF_MISCELLANIA, Quest.TREE_GNOME_VILLAGE, Quest.TROUBLED_TORTUGANS,
             Quest.TWILIGHTS_PROMISE, Quest.WATCHTOWER, Quest.WATERFALL_QUEST,
             Quest.ZOGRE_FLESH_EATERS);
+    }
+
+    private static EnumSet<Quest> questCapeQuests() {
+        return EnumSet.allOf(Quest.class);
     }
 
     private static Map<Skill, Integer> skills(int value) {

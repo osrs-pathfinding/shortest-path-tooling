@@ -1,5 +1,6 @@
 package shortestpath.corpus.profiles;
 
+import net.runelite.api.Quest;
 import org.junit.Test;
 import java.util.LinkedHashMap;
 import static org.junit.Assert.assertEquals;
@@ -40,5 +41,10 @@ public class ProfileCompilerTest {
         assertEquals(1, CanonicalProfiles.mid().plantedSpiritTrees().size());
         assertEquals(2, CanonicalProfiles.end().plantedSpiritTrees().size());
         assertEquals(5, CanonicalProfiles.maxed().plantedSpiritTrees().size());
+    }
+
+    @Test public void endAndMaxedAreQuestCapeProfiles() {
+        assertEquals(Quest.values().length, CanonicalProfiles.end().completedQuests().size());
+        assertEquals(Quest.values().length, CanonicalProfiles.maxed().completedQuests().size());
     }
 }

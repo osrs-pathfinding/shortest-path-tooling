@@ -9,10 +9,10 @@ The canonical profiles are:
 
 - `early`: introductory progression and medium diaries;
 - `mid`: progressed quests and unlocks with hard diaries;
-- `end`: the progressed state plus end-game POH, trees, and an elite Lumbridge
+- `end`: a quest-cape account plus end-game POH, trees, and an elite Lumbridge
   diary;
-- `maxed`: the end-game state with all modeled skills, elite diaries, and all
-  modeled planted spirit trees.
+- `maxed`: the quest-cape end-game state with all modeled skills, elite diaries,
+  and all modeled planted spirit trees.
 
 Their source definitions are in
 `profile-generator/src/main/java/shortestpath/corpus/profiles/CanonicalProfiles.java`.
