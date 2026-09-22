@@ -23,10 +23,22 @@ public class ProfileCompilerTest {
         throw new AssertionError("conflicting semantic variables were accepted");
     }
 
+    @Test public void sameAssignmentIsAccepted() {
+        LinkedHashMap<Integer, Integer> values = new LinkedHashMap<>();
+        RoutingVariables.assign(values, 1234, 1, "TEST", "quest A");
+        RoutingVariables.assign(values, 1234, 1, "TEST", "quest A again");
+        assertEquals(Integer.valueOf(1), values.get(1234));
+    }
+
+    @Test public void changingOnlyProfileNameChangesNoCompiledAccountState() {
+        assertEquals(ProfileJsonRenderer.profile(CanonicalProfiles.early()),
+            ProfileJsonRenderer.profile(CanonicalProfiles.early().renamed("renamed")));
+    }
+
     @Test public void spiritTreeProgressionIsCanonical() {
-        assertEquals(0, CanonicalProfiles.early().plantedSpiritTrees.size());
-        assertEquals(1, CanonicalProfiles.mid().plantedSpiritTrees.size());
-        assertEquals(2, CanonicalProfiles.end().plantedSpiritTrees.size());
-        assertEquals(5, CanonicalProfiles.maxed().plantedSpiritTrees.size());
+        assertEquals(0, CanonicalProfiles.early().plantedSpiritTrees().size());
+        assertEquals(1, CanonicalProfiles.mid().plantedSpiritTrees().size());
+        assertEquals(2, CanonicalProfiles.end().plantedSpiritTrees().size());
+        assertEquals(5, CanonicalProfiles.maxed().plantedSpiritTrees().size());
     }
 }

@@ -80,16 +80,16 @@ public final class Main {
         if (profiles.size() != 4) throw new IllegalStateException("expected four canonical profiles");
         for (ProfileSpec profile : profiles) {
             Set<String> names = new HashSet<>();
-            for (var quest : profile.completedQuests) {
+            for (var quest : profile.completedQuests()) {
                 if (quest.getName() == null || quest.getName().isEmpty() || !names.add(quest.getName())) {
                     throw new IllegalStateException("duplicate/empty rendered quest name: " + quest);
                 }
             }
         }
-        if (!CanonicalProfiles.early().plantedSpiritTrees.isEmpty()
-            || !CanonicalProfiles.mid().plantedSpiritTrees.contains(PlantedSpiritTree.FARMING_GUILD)
-            || !CanonicalProfiles.end().plantedSpiritTrees.contains(PlantedSpiritTree.PORT_SARIM)
-            || CanonicalProfiles.maxed().plantedSpiritTrees.size() != 5) {
+        if (!CanonicalProfiles.early().plantedSpiritTrees().isEmpty()
+            || !CanonicalProfiles.mid().plantedSpiritTrees().contains(PlantedSpiritTree.FARMING_GUILD)
+            || !CanonicalProfiles.end().plantedSpiritTrees().contains(PlantedSpiritTree.PORT_SARIM)
+            || CanonicalProfiles.maxed().plantedSpiritTrees().size() != 5) {
             throw new IllegalStateException("canonical planted spirit-tree progression changed");
         }
     }

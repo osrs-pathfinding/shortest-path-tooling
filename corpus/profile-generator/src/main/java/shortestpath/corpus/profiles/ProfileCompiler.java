@@ -15,14 +15,14 @@ final class ProfileCompiler {
     static CompiledProfile compile(ProfileSpec source) {
         CompiledVariables variables = RoutingVariables.compile(source);
         Map<String, Integer> levels = new TreeMap<>();
-        for (Map.Entry<Skill, Integer> entry : source.levels.entrySet()) {
+        for (Map.Entry<Skill, Integer> entry : source.levels().entrySet()) {
             levels.put(entry.getKey().getName(), entry.getValue());
         }
-        if (source.name.equals("end") || source.name.equals("maxed")) levels.put("Quest", 327);
-        if (source.name.equals("maxed")) levels.put("Total", 2376);
+        if (source.questPoints() != null) levels.put("Quest", source.questPoints());
+        if (source.totalLevel() != null) levels.put("Total", source.totalLevel());
         List<String> quests = new ArrayList<>();
-        for (Quest quest : source.completedQuests) quests.add(quest.getName());
-        for (CorpusQuest quest : source.completedCorpusQuests) quests.add(quest.name);
+        for (Quest quest : source.completedQuests()) quests.add(quest.getName());
+        for (CorpusQuest quest : source.completedCorpusQuests()) quests.add(quest.name);
         quests.sort(String::compareTo);
         return new CompiledProfile(source, levels, quests, variables);
     }

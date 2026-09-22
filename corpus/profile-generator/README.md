@@ -4,8 +4,8 @@
 semantic source for the four benchmark accounts. The checked-in JSON is a
 generated, language-neutral fixture.
 
-The generator follows the latest RuneLite API release, matching the adjacent
-Java pathfinder checkout.
+The generator pins RuneLite API `1.12.39` in `build.gradle`. Updating that
+version is an intentional repository change because it may alter fixture data.
 
 From `shortest-path-corpus`:
 

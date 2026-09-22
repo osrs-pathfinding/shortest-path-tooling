@@ -21,7 +21,7 @@ final class ProfileJsonRenderer {
         root.addProperty("benchmarkNowMinutes", RoutingVariables.BENCHMARK_NOW_MINUTES);
         root.addProperty("formatVersion", 1);
         JsonObject profiles = new JsonObject();
-        for (ProfileSpec source : sources) profiles.add(source.name, profile(source));
+        for (ProfileSpec source : sources) profiles.add(source.name(), profile(source));
         root.add("profiles", profiles);
         return GSON.toJson(root) + "\n";
     }
@@ -29,16 +29,16 @@ final class ProfileJsonRenderer {
     static JsonObject profile(ProfileSpec source) {
         CompiledProfile compiled = ProfileCompiler.compile(source);
         JsonObject result = new JsonObject();
-        result.add("bank", integerMap(source.bank));
+        result.add("bank", integerMap(source.bank()));
         result.add("completedQuests", strings(compiled.quests));
         result.add("diaries", diaries(source));
-        result.add("equipment", integerMap(source.equipment));
-        result.addProperty("fairyRingsUnlocked", source.fairyRingsUnlocked);
-        result.add("inventory", integerMap(source.inventory));
+        result.add("equipment", integerMap(source.equipment()));
+        result.addProperty("fairyRingsUnlocked", source.fairyRingsUnlocked());
+        result.add("inventory", integerMap(source.inventory()));
         result.add("levels", stringIntegerMap(compiled.levels));
         result.add("plantedSpiritTrees", spiritTrees(source));
         result.add("poh", poh(source));
-        result.add("runePouch", integerMap(source.runePouch));
+        result.add("runePouch", integerMap(source.runePouch()));
         result.add("runtime", runtime(source));
         result.add("varbits", integerMap(compiled.variables.varbits));
         result.add("varplayers", integerMap(compiled.variables.varplayers));
@@ -46,29 +46,29 @@ final class ProfileJsonRenderer {
     }
 
     private static JsonObject poh(ProfileSpec source) {
-        PohSpec poh = source.poh;
+        PohSpec poh = source.poh();
         JsonObject result = new JsonObject();
-        result.addProperty("fairyRing", poh.fairyRing);
-        result.addProperty("jewelleryBox", jewelleryName(poh.jewelleryBox));
-        result.addProperty("location", title(poh.location.name()));
-        result.addProperty("mountedDigsite", poh.mountedDigsite);
-        result.addProperty("mountedGlory", poh.mountedGlory);
-        result.addProperty("mountedMythical", poh.mountedMythical);
-        result.addProperty("mountedXerics", poh.mountedXerics);
-        result.addProperty("obelisk", poh.obelisk);
+        result.addProperty("fairyRing", poh.fairyRing());
+        result.addProperty("jewelleryBox", jewelleryName(poh.jewelleryBox()));
+        result.addProperty("location", title(poh.location().name()));
+        result.addProperty("mountedDigsite", poh.mountedDigsite());
+        result.addProperty("mountedGlory", poh.mountedGlory());
+        result.addProperty("mountedMythical", poh.mountedMythical());
+        result.addProperty("mountedXerics", poh.mountedXerics());
+        result.addProperty("obelisk", poh.obelisk());
         JsonObject portals = new JsonObject();
-        List<String> destinations = poh.portalMode == PortalMode.ALL ? new ArrayList<>()
-            : new ArrayList<>(poh.portalDestinations);
+        List<String> destinations = poh.portalMode() == PortalMode.ALL ? new ArrayList<>()
+            : new ArrayList<>(poh.portalDestinations());
         Collections.sort(destinations);
         portals.add("destinations", strings(destinations));
-        portals.addProperty("mode", poh.portalMode == PortalMode.ALL ? "all" : "selected");
+        portals.addProperty("mode", poh.portalMode() == PortalMode.ALL ? "all" : "selected");
         result.add("portals", portals);
-        result.addProperty("spiritTree", poh.spiritTree);
+        result.addProperty("spiritTree", poh.spiritTree());
         return result;
     }
 
     private static JsonObject runtime(ProfileSpec source) {
-        RuntimeSpec runtime = source.runtime;
+        RuntimeSpec runtime = source.runtime();
         JsonObject result = new JsonObject();
         result.addProperty("arriveInsidePoh", runtime.arriveInsidePoh);
         JsonObject cooldown = new JsonObject();
@@ -82,13 +82,13 @@ final class ProfileJsonRenderer {
     private static JsonObject diaries(ProfileSpec source) {
         JsonObject result = new JsonObject();
         for (Diary diary : Diary.values()) result.addProperty(diary.jsonName,
-            source.diaries.getOrDefault(diary, DiaryTier.NONE).jsonName);
+            source.diaries().getOrDefault(diary, DiaryTier.NONE).jsonName);
         return result;
     }
 
     private static JsonArray spiritTrees(ProfileSpec source) {
         JsonArray result = new JsonArray();
-        for (PlantedSpiritTree tree : PlantedSpiritTree.values()) if (source.plantedSpiritTrees.contains(tree)) {
+        for (PlantedSpiritTree tree : PlantedSpiritTree.values()) if (source.plantedSpiritTrees().contains(tree)) {
             result.add(tree.name());
         }
         return result;

@@ -1,39 +1,85 @@
 package shortestpath.corpus.profiles;
 
+import net.runelite.api.Quest;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
-import net.runelite.api.Quest;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import static java.util.Map.entry;
 
-/**
- * Compiles routing-facing variables while keeping IDs out of ProfileSpec.
- *
- * The two compact baseline tables retain the old v1 fixture's intentionally
- * unmodelled routing state. Named progression rules below use RuneLite
- * VarbitID/VarPlayerID constants; a future investigation can replace one
- * baseline entry with a named semantic rule without changing ProfileSpec.
- */
+/** Translates semantic profile state into the routing variables consumed by v1. */
 final class RoutingVariables {
     static final int BENCHMARK_NOW_MINUTES = 100_000_000;
-    private static final int[] IDS = ints("260,299,346,418,451,487,496,532,538,621,668,2098,2187,2573,2867,2868,2869,2870,2871,2872,3264,3311,3578,3598,3599,3611,3637,3741,3759,3910,4070,4441,4458,4459,4460,4461,4462,4463,4464,4465,4466,4467,4468,4469,4471,4472,4473,4474,4475,4476,4477,4478,4479,4480,4481,4482,4483,4484,4485,4486,4487,4488,4489,4490,4491,4492,4493,4494,4495,4496,4497,4498,4541,4542,4548,4552,4558,4560,4561,4564,4566,4585,4744,4819,5005,5023,5087,5088,5421,5619,5629,5672,5673,5674,5675,5676,5677,5678,5679,5680,5681,5682,5683,5684,5810,6027,6028,6038,6056,6069,6076,6312,6359,6528,7255,7796,7801,7857,7925,7926,7927,7928,7937,7938,8253,8397,8398,9805,10449,10450,10528,11175,11176,11177,11178,11410,12310,12341,13599,13839,13841,17226,18351,18355,18356,18370,18371");
-    private static final int[] EARLY = ints("0,0,0,0,0,0,0,12,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,1,1,0,0,1,0,0,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
-    private static final int[] PROGRESSED = ints("70,10,10,26,2,14,1,12,1,1,1,200,1,320,2,2,1,1,1,1,11,340,1,1,1,1,153,1,2,1,0,2,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,7,1,1,1,0,1,1,1,207,88,11,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,1,1,1,1,9,1,1,50,1,108,1,1,1,1,1,1");
-    private static final int[] PLAYER_IDS = ints("11,65,111,116,139,150,165,176,212,328,359,517,888,892,4182,4560");
-    private static final int[] EARLY_PLAYERS = ints("0,0,9,0,0,160,30,10,14,15,0,0,99999979,0,0,0");
-    private static final int[] PROGRESSED_PLAYERS = ints("5,10,9,15,75,160,30,10,14,15,100,9,99999979,0,18912,0");
+
+    private static final Map<Integer, Integer> EARLY_VARBITS = Map.ofEntries(
+        entry(260, 0), entry(299, 0), entry(346, 0), entry(418, 0), entry(451, 0), entry(487, 0),
+        entry(496, 0), entry(532, 12), entry(538, 0), entry(621, 0), entry(668, 0), entry(2098, 0),
+        entry(2187, 1), entry(2573, 0), entry(2867, 0), entry(2868, 0), entry(2869, 0), entry(2870, 0),
+        entry(2871, 0), entry(2872, 0), entry(3264, 0), entry(3311, 0), entry(3598, 1), entry(3637, 0), entry(3741, 1), entry(3759, 0), entry(3910, 0),
+        entry(4070, 0), entry(4441, 0), entry(4541, 0), entry(4542, 0), entry(4548, 0), entry(4552, 0), entry(4558, 0), entry(4560, 0),
+        entry(4561, 0), entry(4564, 0), entry(4585, 0), entry(4744, 0), entry(4819, 0),
+        entry(5005, 0), entry(5023, 0), entry(5087, 0), entry(5088, 0), entry(5421, 0), entry(5619, 1),
+        entry(5629, 0), entry(5672, 0), entry(5673, 0), entry(5674, 0), entry(5675, 0), entry(5676, 0),
+        entry(5677, 0), entry(5678, 0), entry(5679, 0), entry(5680, 0), entry(5681, 0), entry(5682, 0),
+        entry(5683, 0), entry(5684, 0), entry(5810, 0), entry(6027, 0), entry(6028, 0), entry(6038, 0),
+        entry(6056, 0), entry(6069, 0), entry(6076, 1), entry(6312, 1), entry(6359, 0), entry(6528, 0),
+        entry(7255, 0), entry(7796, 0), entry(7801, 0), entry(7857, 0),
+        entry(7937, 0), entry(7938, 0), entry(8253, 0), entry(8397, 0),
+        entry(8398, 0), entry(9805, 0), entry(10449, 0), entry(10450, 0), entry(10528, 0), entry(11175, 0),
+        entry(11176, 0), entry(11177, 0), entry(11178, 0), entry(11410, 0), entry(12310, 0), entry(12341, 0),
+        entry(13599, 0), entry(13839, 0), entry(13841, 0), entry(17226, 0), entry(18351, 0), entry(18355, 0),
+        entry(18356, 0), entry(18370, 0), entry(18371, 0)
+    );
+    private static final Map<Integer, Integer> EARLY_VARPLAYERS = Map.ofEntries(
+        entry(11, 0), entry(65, 0), entry(111, 9), entry(116, 0), entry(139, 0), entry(150, 160),
+        entry(165, 30), entry(176, 10), entry(212, 14), entry(328, 15), entry(359, 0), entry(517, 0),
+        entry(888, 99_999_979), entry(892, 0), entry(4182, 0), entry(4560, 0)
+    );
+
+    static Map<Integer, Integer> earlyVarbits() { return new LinkedHashMap<>(EARLY_VARBITS); }
+    static Map<Integer, Integer> earlyVarplayers() { return new LinkedHashMap<>(EARLY_VARPLAYERS); }
+
+    static Map<Integer, Integer> progressedVarbits() {
+        Map<Integer, Integer> result = earlyVarbits();
+        applyOverrides(result, Map.ofEntries(
+            entry(260, 70), entry(299, 10), entry(346, 10), entry(418, 26), entry(451, 2), entry(487, 14),
+            entry(496, 1), entry(538, 1), entry(621, 1), entry(668, 1), entry(2098, 200), entry(2573, 320),
+            entry(2867, 2), entry(2868, 2), entry(2869, 1), entry(2870, 1), entry(2871, 1), entry(2872, 1),
+            entry(3264, 11), entry(3311, 340), entry(3611, 1), entry(3637, 153), entry(3759, 2), entry(3910, 1),
+            entry(4441, 2), entry(4460, 1), entry(4464, 1), entry(4468, 1), entry(4473, 1), entry(4477, 1),
+            entry(4481, 1), entry(4485, 1), entry(4489, 1), entry(4493, 1), entry(4497, 1), entry(5023, 2),
+            entry(5087, 1), entry(5088, 1), entry(5421, 1), entry(5629, 1), entry(5672, 1), entry(5673, 1),
+            entry(5674, 1), entry(5675, 1), entry(5676, 1), entry(5677, 1), entry(5678, 1), entry(5679, 1),
+            entry(5680, 1), entry(5681, 1), entry(5682, 1), entry(5683, 1), entry(5684, 1), entry(5810, 1),
+            entry(6027, 7), entry(6028, 1), entry(6038, 1), entry(6056, 1), entry(6359, 1), entry(6528, 207),
+            entry(7255, 88), entry(7796, 11), entry(7801, 1), entry(7857, 1), entry(7927, 1), entry(8253, 1),
+            entry(8397, 1), entry(8398, 1), entry(9805, 1), entry(10449, 1), entry(10450, 1), entry(10528, 1),
+            entry(11175, 1), entry(11176, 1), entry(11177, 1), entry(11178, 1), entry(11410, 9), entry(12310, 1),
+            entry(12341, 1), entry(13599, 50), entry(13839, 1), entry(13841, 108), entry(17226, 1), entry(18351, 1),
+            entry(18355, 1), entry(18356, 1), entry(18370, 1), entry(18371, 1)
+        ), "progressed varbit baseline");
+        return result;
+    }
+
+    static Map<Integer, Integer> progressedVarplayers() {
+        return Map.ofEntries(
+            entry(11, 5), entry(65, 10), entry(111, 9), entry(116, 15), entry(139, 75), entry(150, 160),
+            entry(165, 30), entry(176, 10), entry(212, 14), entry(328, 15), entry(359, 100), entry(517, 9),
+            entry(888, 99_999_979), entry(892, 0), entry(4182, 18_912), entry(4560, 0)
+        );
+    }
 
     private RoutingVariables() { }
 
     static CompiledVariables compile(ProfileSpec profile) {
         Map<Integer, Integer> bits = new LinkedHashMap<>();
-        int[] values = profile.name.equals("early") ? EARLY : PROGRESSED;
-        for (int i = 0; i < IDS.length; i++) bits.put(IDS[i], values[i]);
+        apply(bits, profile.routingVarbits(), "profile varbit baseline");
         compileDiary(bits, profile);
-        bits.put(VarbitID.SPELLBOOK, profile.runtime.spellbook.ordinal());
-        bits.put(VarbitID.POH_HOUSE_LOCATION, pohLocation(profile.poh.location));
-        Map<Integer, Integer> players = playersFor(profile);
-        if (!profile.name.equals("early")) {
+        assign(bits, VarbitID.SPELLBOOK, profile.runtime().spellbook.ordinal(), "SPELLBOOK", "runtime");
+        assign(bits, VarbitID.POH_HOUSE_LOCATION, pohLocation(profile.poh().location()), "POH_HOUSE_LOCATION", "POH");
+        Map<Integer, Integer> players = new LinkedHashMap<>();
+        apply(players, profile.routingVarplayers(), "profile varplayer baseline");
+        if (profile.includeProgressionRouting()) {
             compileQuestBits(bits, profile);
             compileQuestPlayers(players, profile);
             compileUnlocks(bits, profile);
@@ -41,16 +87,23 @@ final class RoutingVariables {
             compileCatacombsBits(bits, profile);
             compileQuetzal(players, profile);
         }
-        players.put(VarPlayerID.SLUG2_REGIONUID,
-            profile.runtime.cooldown.usedAt == null ? BENCHMARK_NOW_MINUTES - 21 : profile.runtime.cooldown.usedAt);
+        assign(players, VarPlayerID.SLUG2_REGIONUID,
+            profile.runtime().cooldown.usedAt == null ? BENCHMARK_NOW_MINUTES - 21 : profile.runtime().cooldown.usedAt,
+            "SLUG2_REGIONUID", "runtime cooldown");
         return new CompiledVariables(bits, players);
     }
 
-    private static Map<Integer, Integer> playersFor(ProfileSpec profile) {
-        Map<Integer, Integer> players = new LinkedHashMap<>();
-        int[] values = profile.name.equals("early") ? EARLY_PLAYERS : PROGRESSED_PLAYERS;
-        for (int i = 0; i < PLAYER_IDS.length; i++) players.put(PLAYER_IDS[i], values[i]);
-        return players;
+    private static void apply(Map<Integer, Integer> target, Map<Integer, Integer> values, String source) {
+        for (Map.Entry<Integer, Integer> value : values.entrySet()) {
+            assign(target, value.getKey(), value.getValue(), String.valueOf(value.getKey()), source);
+        }
+    }
+
+    private static void applyOverrides(Map<Integer, Integer> target, Map<Integer, Integer> values, String source) {
+        for (Map.Entry<Integer, Integer> value : values.entrySet()) {
+            target.remove(value.getKey());
+            assign(target, value.getKey(), value.getValue(), String.valueOf(value.getKey()), source);
+        }
     }
 
     private static void compileQuestBits(Map<Integer, Integer> bits, ProfileSpec profile) {
@@ -58,8 +111,8 @@ final class RoutingVariables {
         assign(bits, VarbitID.MY2ARM_STATUS, done(profile, Quest.MAKING_FRIENDS_WITH_MY_ARM, 207), "MY2ARM_STATUS", "Making Friends with My Arm");
         assign(bits, VarbitID.THZFE_BLOCKING_BARRICADE, done(profile, Quest.ZOGRE_FLESH_EATERS, 1), "THZFE_BLOCKING_BARRICADE", "Zogre Flesh Eaters");
         assign(bits, VarbitID.HOSIDIUSQUEST, done(profile, Quest.THE_DEPTHS_OF_DESPAIR, 7), "HOSIDIUSQUEST", "The Depths of Despair");
-        assign(bits, VarbitID.MYQ5, profile.questMilestones.contains(QuestMilestone.SINS_OF_THE_FATHER_SLEPE_BOAT_ACCESS) ? 88 : 0, "MYQ5", "Sins of the Father");
-        assign(bits, VarbitID.LOTG, profile.questMilestones.contains(QuestMilestone.LAND_OF_THE_GOBLINS_YU_BIUSK_ACCESS) ? 50 : 0, "LOTG", "Land of the Goblins");
+        assign(bits, VarbitID.MYQ5, profile.questMilestones().contains(QuestMilestone.SINS_OF_THE_FATHER_SLEPE_BOAT_ACCESS) ? 88 : 0, "MYQ5", "Sins of the Father");
+        assign(bits, VarbitID.LOTG, profile.questMilestones().contains(QuestMilestone.LAND_OF_THE_GOBLINS_YU_BIUSK_ACCESS) ? 50 : 0, "LOTG", "Land of the Goblins");
         assign(bits, VarbitID.DRAGONSLAYER_CRANDOR_FOUND_SECRET_DOOR, done(profile, Quest.DRAGON_SLAYER_I, 1), "DRAGONSLAYER_CRANDOR_FOUND_SECRET_DOOR", "Dragon Slayer I");
         assign(bits, VarbitID.MYQ3_MAIN_QUEST, done(profile, Quest.DARKNESS_OF_HALLOWVALE, 320), "MYQ3_MAIN_QUEST", "Darkness of Hallowvale");
         assign(bits, VarbitID.MDAUGHTER_QUEST_VAR, done(profile, Quest.MOUNTAIN_DAUGHTER, 70), "MDAUGHTER_QUEST_VAR", "Mountain Daughter");
@@ -81,75 +134,109 @@ final class RoutingVariables {
     }
 
     private static void compileQuestPlayers(Map<Integer, Integer> players, ProfileSpec profile) {
-        // These values are RuneLite's completed quest state values used by GPS.
-        players.put(VarPlayerID.LEGENDSQUEST, player(profile, Quest.LEGENDS_QUEST, 75));
-        players.put(VarPlayerID.ZOMBIEQUEEN, player(profile, Quest.SHILO_VILLAGE, 15));
-        players.put(VarPlayerID.WATERFALL_QUEST, player(profile, Quest.WATERFALL_QUEST, 10));
-        players.put(VarPlayerID.FISHINGCOMPO, player(profile, Quest.FISHING_CONTEST, 5));
-        players.put(VarPlayerID.TREEQUEST, player(profile, Quest.TREE_GNOME_VILLAGE, 9));
-        players.put(VarPlayerID.GRANDTREE, player(profile, Quest.THE_GRAND_TREE, 160));
-        players.put(VarPlayerID.ELENAQUEST, player(profile, Quest.PLAGUE_CITY, 30));
-        players.put(VarPlayerID.DRAGONQUEST, player(profile, Quest.DRAGON_SLAYER_I, 10));
-        players.put(VarPlayerID.ITWATCHTOWER, player(profile, Quest.WATCHTOWER, 14));
-        players.put(VarPlayerID.REGICIDE_QUEST, player(profile, Quest.REGICIDE, 15));
-        players.put(VarPlayerID.MISC_QUEST, player(profile, Quest.THRONE_OF_MISCELLANIA, 100));
-        players.put(VarPlayerID.MOURNING_QUEST, player(profile, Quest.MOURNINGS_END_PART_I, 9));
+        assign(players, VarPlayerID.LEGENDSQUEST, player(profile, Quest.LEGENDS_QUEST, 75), "LEGENDSQUEST", "Legends' Quest");
+        assign(players, VarPlayerID.ZOMBIEQUEEN, player(profile, Quest.SHILO_VILLAGE, 15), "ZOMBIEQUEEN", "Shilo Village");
+        assign(players, VarPlayerID.WATERFALL_QUEST, player(profile, Quest.WATERFALL_QUEST, 10), "WATERFALL_QUEST", "Waterfall Quest");
+        assign(players, VarPlayerID.FISHINGCOMPO, player(profile, Quest.FISHING_CONTEST, 5), "FISHINGCOMPO", "Fishing Contest");
+        assign(players, VarPlayerID.TREEQUEST, player(profile, Quest.TREE_GNOME_VILLAGE, 9), "TREEQUEST", "Tree Gnome Village");
+        assign(players, VarPlayerID.GRANDTREE, player(profile, Quest.THE_GRAND_TREE, 160), "GRANDTREE", "The Grand Tree");
+        assign(players, VarPlayerID.ELENAQUEST, player(profile, Quest.PLAGUE_CITY, 30), "ELENAQUEST", "Plague City");
+        assign(players, VarPlayerID.DRAGONQUEST, player(profile, Quest.DRAGON_SLAYER_I, 10), "DRAGONQUEST", "Dragon Slayer I");
+        assign(players, VarPlayerID.ITWATCHTOWER, player(profile, Quest.WATCHTOWER, 14), "ITWATCHTOWER", "Watchtower");
+        assign(players, VarPlayerID.REGICIDE_QUEST, player(profile, Quest.REGICIDE, 15), "REGICIDE_QUEST", "Regicide");
+        assign(players, VarPlayerID.MISC_QUEST, player(profile, Quest.THRONE_OF_MISCELLANIA, 100), "MISC_QUEST", "Throne of Miscellania");
+        assign(players, VarPlayerID.MOURNING_QUEST, player(profile, Quest.MOURNINGS_END_PART_I, 9), "MOURNING_QUEST", "Mourning's End Part I");
     }
 
     private static void compileUnlocks(Map<Integer, Integer> bits, ProfileSpec profile) {
-        int[][] values = {{VarbitID.RAIDS_GUIDE_TRAVEL_UNLOCK, 1}, {VarbitID.CORSAIR_COVE_RESOURCE_ENTRY, 1},
-            {VarbitID.LOST_TRIBE_HOLE_2_DUG, 1}, {VarbitID.BARBASSAULT_ARENANEWB, 11}, {VarbitID.VM_KUDOS, 153},
-            {VarbitID.BRUT_FIRE, 2}, {VarbitID.FENK_BUILT_BRIDGE_NORTH, 2}, {VarbitID.FENK_BUILT_BRIDGE_SOUTH, 2},
-            {VarbitID.KARAM_DUNGEON_BACKDOOR, 1}, {VarbitID.OBSERVATORY_SHORTCUT_ROPE, 1},
-            {VarbitID.HOSDUN_WEST_DOOR_STATUS, 1}, {VarbitID.HOSDUN_EAST_DOOR_STATUS, 1},
-            {VarbitID.DARKM_SHORTCUT_INNER, 1}, {VarbitID.DARKM_SHORTCUT_OUTER, 1},
-            {VarbitID.MET_AUBURN_MOUNTAIN_GUIDE, 1}, {VarbitID.BOOKOFSCROLLS_NARDAH, 1},
-            {VarbitID.BOOKOFSCROLLS_DIGSITE, 1}, {VarbitID.BOOKOFSCROLLS_FELDIP, 1},
-            {VarbitID.BOOKOFSCROLLS_LUNARISLE, 1}, {VarbitID.BOOKOFSCROLLS_MORTTON, 1},
-            {VarbitID.BOOKOFSCROLLS_PESTCONTROL, 1}, {VarbitID.BOOKOFSCROLLS_PISCATORIS, 1},
-            {VarbitID.BOOKOFSCROLLS_TAIBWO, 1}, {VarbitID.BOOKOFSCROLLS_ELF, 1},
-            {VarbitID.BOOKOFSCROLLS_MOSLES, 1}, {VarbitID.BOOKOFSCROLLS_LUMBERYARD, 1},
-            {VarbitID.BOOKOFSCROLLS_ZULANDRA, 1}, {VarbitID.BOOKOFSCROLLS_CERBERUS, 1},
-            {VarbitID.BOOKOFSCROLLS_REVENANTS, 1}, {VarbitID.BOOKOFSCROLLS_WATSON_LOWBITS, 1},
-            {VarbitID.PENDANT_OF_ATES_DARKFROST_FOUND, 1}, {VarbitID.PENDANT_OF_ATES_TWILIGHT_FOUND, 1},
-            {VarbitID.PENDANT_OF_ATES_RALOS_FOUND, 1}, {VarbitID.PENDANT_OF_ATES_ALDARIN_FOUND, 1},
-            {VarbitID.PHARAOHS_SCEPTRE_NECROPOLIS, 1}, {VarbitID.COLOSSEUM_HIGHEST_WAVE, 9},
-            {VarbitID.AMENITY_ROWBOAT_VATRACHOS, 1}, {VarbitID.AMENITY_ROWBOAT_ANGLERS, 1},
-            {VarbitID.AMENITY_ROWBOAT_SOUL_TEAR, 1}, {VarbitID.AMENITY_ROWBOAT_YNYSDAIL, 1},
-            {VarbitID.AMENITY_ROWBOAT_BUCCANEERS, 1}, {VarbitID.FALADOR_SPAWN, 1}, {VarbitID.CAMELOT_SPAWN, 1},
-            {VarbitID.EDGEVILLE_SPAWN, 1}, {VarbitID.WILDERNESS_SPAWN, 1}, {VarbitID.KOUREND_SPAWN, 1},
-            {VarbitID.CIVITAS_SPAWN, 1}};
-        PermanentUnlock[] unlocks = PermanentUnlock.values();
-        for (int i = 0; i < values.length; i++) {
-            bits.put(values[i][0], profile.permanentUnlocks.contains(unlocks[i]) ? values[i][1] : 0);
-        }
+        unlock(bits, profile, PermanentUnlock.RAIDS_MOUNTAIN_GUIDE_TRAVEL, VarbitID.RAIDS_GUIDE_TRAVEL_UNLOCK, 1);
+        unlock(bits, profile, PermanentUnlock.CORSAIR_COVE_RESOURCE_AREA, VarbitID.CORSAIR_COVE_RESOURCE_ENTRY, 1);
+        unlock(bits, profile, PermanentUnlock.LOST_TRIBE_CELLAR_HOLE, VarbitID.LOST_TRIBE_HOLE_2_DUG, 1);
+        unlock(bits, profile, PermanentUnlock.BARBARIAN_ASSAULT_TUTORIAL, VarbitID.BARBASSAULT_ARENANEWB, 11);
+        unlock(bits, profile, PermanentUnlock.MUSEUM_KUDOS_153, VarbitID.VM_KUDOS, 153);
+        unlock(bits, profile, PermanentUnlock.BARBARIAN_FIREMAKING_TRAINING, VarbitID.BRUT_FIRE, 2);
+        unlock(bits, profile, PermanentUnlock.FENKENSTRAIN_BRIDGE_NORTH, VarbitID.FENK_BUILT_BRIDGE_NORTH, 2);
+        unlock(bits, profile, PermanentUnlock.FENKENSTRAIN_BRIDGE_SOUTH, VarbitID.FENK_BUILT_BRIDGE_SOUTH, 2);
+        unlock(bits, profile, PermanentUnlock.KARAMJA_DUNGEON_BACKDOOR, VarbitID.KARAM_DUNGEON_BACKDOOR, 1);
+        unlock(bits, profile, PermanentUnlock.OBSERVATORY_SHORTCUT_ROPE, VarbitID.OBSERVATORY_SHORTCUT_ROPE, 1);
+        unlock(bits, profile, PermanentUnlock.HOSIDIUS_DUNGEON_WEST_DOOR, VarbitID.HOSDUN_WEST_DOOR_STATUS, 1);
+        unlock(bits, profile, PermanentUnlock.HOSIDIUS_DUNGEON_EAST_DOOR, VarbitID.HOSDUN_EAST_DOOR_STATUS, 1);
+        unlock(bits, profile, PermanentUnlock.DARKMEYER_INNER_SHORTCUT, VarbitID.DARKM_SHORTCUT_INNER, 1);
+        unlock(bits, profile, PermanentUnlock.DARKMEYER_OUTER_SHORTCUT, VarbitID.DARKM_SHORTCUT_OUTER, 1);
+        unlock(bits, profile, PermanentUnlock.MET_AUBURN_MOUNTAIN_GUIDE, VarbitID.MET_AUBURN_MOUNTAIN_GUIDE, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_NARDAH, VarbitID.BOOKOFSCROLLS_NARDAH, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_DIGSITE, VarbitID.BOOKOFSCROLLS_DIGSITE, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_FELDIP, VarbitID.BOOKOFSCROLLS_FELDIP, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_LUNAR_ISLE, VarbitID.BOOKOFSCROLLS_LUNARISLE, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_MORTTON, VarbitID.BOOKOFSCROLLS_MORTTON, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_PEST_CONTROL, VarbitID.BOOKOFSCROLLS_PESTCONTROL, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_PISCATORIS, VarbitID.BOOKOFSCROLLS_PISCATORIS, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_TAI_BWO, VarbitID.BOOKOFSCROLLS_TAIBWO, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_ELF, VarbitID.BOOKOFSCROLLS_ELF, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_MOS_LE_HARMLESS, VarbitID.BOOKOFSCROLLS_MOSLES, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_LUMBERYARD, VarbitID.BOOKOFSCROLLS_LUMBERYARD, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_ZUL_ANDRA, VarbitID.BOOKOFSCROLLS_ZULANDRA, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_CERBERUS, VarbitID.BOOKOFSCROLLS_CERBERUS, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_REVENANTS, VarbitID.BOOKOFSCROLLS_REVENANTS, 1);
+        unlock(bits, profile, PermanentUnlock.BOOK_OF_SCROLLS_WATSON, VarbitID.BOOKOFSCROLLS_WATSON_LOWBITS, 1);
+        unlock(bits, profile, PermanentUnlock.PENDANT_OF_ATES_DARKFROST, VarbitID.PENDANT_OF_ATES_DARKFROST_FOUND, 1);
+        unlock(bits, profile, PermanentUnlock.PENDANT_OF_ATES_TWILIGHT, VarbitID.PENDANT_OF_ATES_TWILIGHT_FOUND, 1);
+        unlock(bits, profile, PermanentUnlock.PENDANT_OF_ATES_RALOS, VarbitID.PENDANT_OF_ATES_RALOS_FOUND, 1);
+        unlock(bits, profile, PermanentUnlock.PENDANT_OF_ATES_ALDARIN, VarbitID.PENDANT_OF_ATES_ALDARIN_FOUND, 1);
+        unlock(bits, profile, PermanentUnlock.PHARAOHS_SCEPTRE_NECROPOLIS, VarbitID.PHARAOHS_SCEPTRE_NECROPOLIS, 1);
+        unlock(bits, profile, PermanentUnlock.COLOSSEUM_WAVE_NINE, VarbitID.COLOSSEUM_HIGHEST_WAVE, 9);
+        unlock(bits, profile, PermanentUnlock.ROWBOAT_VATRACHOS, VarbitID.AMENITY_ROWBOAT_VATRACHOS, 1);
+        unlock(bits, profile, PermanentUnlock.ROWBOAT_ANGLERS, VarbitID.AMENITY_ROWBOAT_ANGLERS, 1);
+        unlock(bits, profile, PermanentUnlock.ROWBOAT_SOUL_TEAR, VarbitID.AMENITY_ROWBOAT_SOUL_TEAR, 1);
+        unlock(bits, profile, PermanentUnlock.ROWBOAT_YNYSDAIL, VarbitID.AMENITY_ROWBOAT_YNYSDAIL, 1);
+        unlock(bits, profile, PermanentUnlock.ROWBOAT_BUCCANEERS, VarbitID.AMENITY_ROWBOAT_BUCCANEERS, 1);
+        unlock(bits, profile, PermanentUnlock.RESPAWN_FALADOR, VarbitID.FALADOR_SPAWN, 1);
+        unlock(bits, profile, PermanentUnlock.RESPAWN_CAMELOT, VarbitID.CAMELOT_SPAWN, 1);
+        unlock(bits, profile, PermanentUnlock.RESPAWN_EDGEVILLE, VarbitID.EDGEVILLE_SPAWN, 1);
+        unlock(bits, profile, PermanentUnlock.RESPAWN_FEROX_ENCLAVE, VarbitID.WILDERNESS_SPAWN, 1);
+        unlock(bits, profile, PermanentUnlock.RESPAWN_KOUREND_CASTLE, VarbitID.KOUREND_SPAWN, 1);
+        unlock(bits, profile, PermanentUnlock.RESPAWN_CIVITAS_ILLA_FORTIS, VarbitID.CIVITAS_SPAWN, 1);
+    }
+
+    private static void unlock(Map<Integer, Integer> bits, ProfileSpec profile, PermanentUnlock unlock,
+                               int id, int value) {
+        assign(bits, id, profile.permanentUnlocks().contains(unlock) ? value : 0,
+            String.valueOf(id), "unlock " + unlock);
     }
 
     private static void compileBalloonBits(Map<Integer, Integer> bits, ProfileSpec profile) {
-        int[] ids = {VarbitID.ZEP_MULTI_BASKET, VarbitID.ZEP_MULTI_PICCARD, VarbitID.ZEP_MULTI_CAST,
-            VarbitID.ZEP_MULTI_GNO, VarbitID.ZEP_MULTI_CRAFT, VarbitID.ZEP_MULTI_VARR};
-        int[] values = {2, 2, 1, 1, 1, 1};
-        HotAirBalloonDestination[] destinations = HotAirBalloonDestination.values();
-        for (int i = 0; i < ids.length; i++) {
-            bits.put(ids[i], profile.hotAirBalloonDestinations.contains(destinations[i]) ? values[i] : 0);
-        }
+        balloon(bits, profile, HotAirBalloonDestination.ENTRANA, VarbitID.ZEP_MULTI_BASKET, 2);
+        balloon(bits, profile, HotAirBalloonDestination.TAVERLEY, VarbitID.ZEP_MULTI_PICCARD, 2);
+        balloon(bits, profile, HotAirBalloonDestination.CASTLE_WARS, VarbitID.ZEP_MULTI_CAST, 1);
+        balloon(bits, profile, HotAirBalloonDestination.GRAND_TREE, VarbitID.ZEP_MULTI_GNO, 1);
+        balloon(bits, profile, HotAirBalloonDestination.CRAFTING_GUILD, VarbitID.ZEP_MULTI_CRAFT, 1);
+        balloon(bits, profile, HotAirBalloonDestination.VARROCK, VarbitID.ZEP_MULTI_VARR, 1);
+    }
+
+    private static void balloon(Map<Integer, Integer> bits, ProfileSpec profile,
+                                HotAirBalloonDestination destination, int id, int value) {
+        assign(bits, id, profile.hotAirBalloonDestinations().contains(destination) ? value : 0,
+            String.valueOf(id), "balloon " + destination);
     }
 
     private static void compileCatacombsBits(Map<Integer, Integer> bits, ProfileSpec profile) {
-        bits.put(VarbitID.CATA_HOLE1, profile.catacombsEntrances.contains(CatacombsEntrance.FORTHOS_DUNGEON) ? 1 : 0);
-        bits.put(VarbitID.CATA_HOLE2, profile.catacombsEntrances.contains(CatacombsEntrance.SURFACE_ENTRANCES) ? 1 : 0);
-        bits.put(VarbitID.CATA_HOLE_GIANTS_DEN, profile.catacombsEntrances.contains(CatacombsEntrance.GIANTS_DEN) ? 1 : 0);
+        assign(bits, VarbitID.CATA_HOLE1, profile.catacombsEntrances().contains(CatacombsEntrance.FORTHOS_DUNGEON) ? 1 : 0,
+            "CATA_HOLE1", "Catacombs Forthos entrance");
+        assign(bits, VarbitID.CATA_HOLE2, profile.catacombsEntrances().contains(CatacombsEntrance.SURFACE_ENTRANCES) ? 1 : 0,
+            "CATA_HOLE2", "Catacombs surface entrance");
+        assign(bits, VarbitID.CATA_HOLE_GIANTS_DEN, profile.catacombsEntrances().contains(CatacombsEntrance.GIANTS_DEN) ? 1 : 0,
+            "CATA_HOLE_GIANTS_DEN", "Catacombs Giants' Den entrance");
     }
 
     private static void compileQuetzal(Map<Integer, Integer> players, ProfileSpec profile) {
         int mask = 0;
-        if (profile.quetzalPlatforms.contains(QuetzalPlatform.CAM_TORUM)) mask |= 32;
-        if (profile.quetzalPlatforms.contains(QuetzalPlatform.COLOSSAL_WYRM_REMAINS)) mask |= 64;
-        if (profile.quetzalPlatforms.contains(QuetzalPlatform.OUTER_FORTIS)) mask |= 128;
-        if (profile.quetzalPlatforms.contains(QuetzalPlatform.FORTIS_COLOSSEUM)) mask |= 256;
-        if (profile.quetzalPlatforms.contains(QuetzalPlatform.SALVAGER_OVERLOOK)) mask |= 2048;
-        if (profile.quetzalPlatforms.contains(QuetzalPlatform.KASTORI)) mask |= 16384;
-        players.put(VarPlayerID.QUETZALS_UNLOCKED, mask);
+        if (profile.quetzalPlatforms().contains(QuetzalPlatform.CAM_TORUM)) mask |= 32;
+        if (profile.quetzalPlatforms().contains(QuetzalPlatform.COLOSSAL_WYRM_REMAINS)) mask |= 64;
+        if (profile.quetzalPlatforms().contains(QuetzalPlatform.OUTER_FORTIS)) mask |= 128;
+        if (profile.quetzalPlatforms().contains(QuetzalPlatform.FORTIS_COLOSSEUM)) mask |= 256;
+        if (profile.quetzalPlatforms().contains(QuetzalPlatform.SALVAGER_OVERLOOK)) mask |= 2048;
+        if (profile.quetzalPlatforms().contains(QuetzalPlatform.KASTORI)) mask |= 16384;
+        assign(players, VarPlayerID.QUETZALS_UNLOCKED, mask, "QUETZALS_UNLOCKED", "Quetzal platforms");
     }
 
     private static int pohLocation(PohLocation location) {
@@ -168,56 +255,55 @@ final class RoutingVariables {
     }
 
     private static int done(ProfileSpec profile, Quest quest, int value) {
-        return profile.completedQuests.contains(quest) ? value : 0;
+        return profile.completedQuests().contains(quest) ? value : 0;
     }
 
-    private static int player(ProfileSpec profile, Quest quest, int value) {
-        return done(profile, quest, value);
-    }
+    private static int player(ProfileSpec profile, Quest quest, int value) { return done(profile, quest, value); }
 
     private static int done(ProfileSpec profile, CorpusQuest quest, int value) {
-        return profile.completedCorpusQuests.contains(quest) ? value : 0;
+        return profile.completedCorpusQuests().contains(quest) ? value : 0;
     }
 
     static void compileDiary(Map<Integer, Integer> bits, ProfileSpec profile) {
         for (Diary diary : Diary.values()) {
-            DiaryTier tier = profile.diaries.getOrDefault(diary, DiaryTier.NONE);
-            int[] ids = diaryIds(diary);
-            for (int i = 0; i < ids.length; i++) bits.put(ids[i], tier.ordinal() > i ? 1 : 0);
+            DiaryTier tier = profile.diaries().getOrDefault(diary, DiaryTier.NONE);
+            compileDiary(bits, diary, tier);
         }
     }
 
-    static void assign(Map<Integer, Integer> target, int id, int value, String symbol, String source) {
-        if (target.containsKey(id) && target.get(id) != value) {
-            throw new VariableConflictException("Conflicting VARBIT " + symbol + " (" + id + "): existing="
-                + target.get(id) + ", " + source + " -> " + value);
-        }
-        target.put(id, value);
-    }
-
-    private static int[] diaryIds(Diary diary) {
+    private static void compileDiary(Map<Integer, Integer> bits, Diary diary, DiaryTier tier) {
         switch (diary) {
-            case ARDOUGNE: return new int[] {VarbitID.ARDOUGNE_DIARY_EASY_COMPLETE, VarbitID.ARDOUGNE_DIARY_MEDIUM_COMPLETE, VarbitID.ARDOUGNE_DIARY_HARD_COMPLETE, VarbitID.ARDOUGNE_DIARY_ELITE_COMPLETE};
-            case DESERT: return new int[] {VarbitID.DESERT_DIARY_EASY_COMPLETE, VarbitID.DESERT_DIARY_MEDIUM_COMPLETE, VarbitID.DESERT_DIARY_HARD_COMPLETE, VarbitID.DESERT_DIARY_ELITE_COMPLETE};
-            case FALADOR: return new int[] {VarbitID.FALADOR_DIARY_EASY_COMPLETE, VarbitID.FALADOR_DIARY_MEDIUM_COMPLETE, VarbitID.FALADOR_DIARY_HARD_COMPLETE, VarbitID.FALADOR_DIARY_ELITE_COMPLETE};
-            case FREMENNIK: return new int[] {VarbitID.FREMENNIK_DIARY_EASY_COMPLETE, VarbitID.FREMENNIK_DIARY_MEDIUM_COMPLETE, VarbitID.FREMENNIK_DIARY_HARD_COMPLETE, VarbitID.FREMENNIK_DIARY_ELITE_COMPLETE};
-            case KANDARIN: return new int[] {VarbitID.KANDARIN_DIARY_EASY_COMPLETE, VarbitID.KANDARIN_DIARY_MEDIUM_COMPLETE, VarbitID.KANDARIN_DIARY_HARD_COMPLETE, VarbitID.KANDARIN_DIARY_ELITE_COMPLETE};
-            case KARAMJA: return new int[] {VarbitID.ATJUN_EASY_DONE, VarbitID.ATJUN_MED_DONE, VarbitID.ATJUN_HARD_DONE, VarbitID.KARAMJA_DIARY_ELITE_COMPLETE};
-            case KOUREND_KEBOS: return new int[] {VarbitID.KOUREND_DIARY_EASY_COMPLETE, VarbitID.KOUREND_DIARY_MEDIUM_COMPLETE, VarbitID.KOUREND_DIARY_HARD_COMPLETE, VarbitID.KOUREND_DIARY_ELITE_COMPLETE};
-            case LUMBRIDGE_DRAYNOR: return new int[] {VarbitID.LUMBRIDGE_DIARY_EASY_COMPLETE, VarbitID.LUMBRIDGE_DIARY_MEDIUM_COMPLETE, VarbitID.LUMBRIDGE_DIARY_HARD_COMPLETE, VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE};
-            case MORYTANIA: return new int[] {VarbitID.MORYTANIA_DIARY_EASY_COMPLETE, VarbitID.MORYTANIA_DIARY_MEDIUM_COMPLETE, VarbitID.MORYTANIA_DIARY_HARD_COMPLETE, VarbitID.MORYTANIA_DIARY_ELITE_COMPLETE};
-            case VARROCK: return new int[] {VarbitID.VARROCK_DIARY_EASY_COMPLETE, VarbitID.VARROCK_DIARY_MEDIUM_COMPLETE, VarbitID.VARROCK_DIARY_HARD_COMPLETE, VarbitID.VARROCK_DIARY_ELITE_COMPLETE};
-            case WESTERN_PROVINCES: return new int[] {VarbitID.WESTERN_DIARY_EASY_COMPLETE, VarbitID.WESTERN_DIARY_MEDIUM_COMPLETE, VarbitID.WESTERN_DIARY_HARD_COMPLETE, VarbitID.WESTERN_DIARY_ELITE_COMPLETE};
-            case WILDERNESS: return new int[] {VarbitID.WILDERNESS_DIARY_EASY_COMPLETE, VarbitID.WILDERNESS_DIARY_MEDIUM_COMPLETE, VarbitID.WILDERNESS_DIARY_HARD_COMPLETE, VarbitID.WILDERNESS_DIARY_ELITE_COMPLETE};
+            case ARDOUGNE: diary(bits, tier, "ARDOUGNE", VarbitID.ARDOUGNE_DIARY_EASY_COMPLETE, VarbitID.ARDOUGNE_DIARY_MEDIUM_COMPLETE, VarbitID.ARDOUGNE_DIARY_HARD_COMPLETE, VarbitID.ARDOUGNE_DIARY_ELITE_COMPLETE); break;
+            case DESERT: diary(bits, tier, "DESERT", VarbitID.DESERT_DIARY_EASY_COMPLETE, VarbitID.DESERT_DIARY_MEDIUM_COMPLETE, VarbitID.DESERT_DIARY_HARD_COMPLETE, VarbitID.DESERT_DIARY_ELITE_COMPLETE); break;
+            case FALADOR: diary(bits, tier, "FALADOR", VarbitID.FALADOR_DIARY_EASY_COMPLETE, VarbitID.FALADOR_DIARY_MEDIUM_COMPLETE, VarbitID.FALADOR_DIARY_HARD_COMPLETE, VarbitID.FALADOR_DIARY_ELITE_COMPLETE); break;
+            case FREMENNIK: diary(bits, tier, "FREMENNIK", VarbitID.FREMENNIK_DIARY_EASY_COMPLETE, VarbitID.FREMENNIK_DIARY_MEDIUM_COMPLETE, VarbitID.FREMENNIK_DIARY_HARD_COMPLETE, VarbitID.FREMENNIK_DIARY_ELITE_COMPLETE); break;
+            case KANDARIN: diary(bits, tier, "KANDARIN", VarbitID.KANDARIN_DIARY_EASY_COMPLETE, VarbitID.KANDARIN_DIARY_MEDIUM_COMPLETE, VarbitID.KANDARIN_DIARY_HARD_COMPLETE, VarbitID.KANDARIN_DIARY_ELITE_COMPLETE); break;
+            case KARAMJA: diary(bits, tier, "KARAMJA", VarbitID.ATJUN_EASY_DONE, VarbitID.ATJUN_MED_DONE, VarbitID.ATJUN_HARD_DONE, VarbitID.KARAMJA_DIARY_ELITE_COMPLETE); break;
+            case KOUREND_KEBOS: diary(bits, tier, "KOUREND_KEBOS", VarbitID.KOUREND_DIARY_EASY_COMPLETE, VarbitID.KOUREND_DIARY_MEDIUM_COMPLETE, VarbitID.KOUREND_DIARY_HARD_COMPLETE, VarbitID.KOUREND_DIARY_ELITE_COMPLETE); break;
+            case LUMBRIDGE_DRAYNOR: diary(bits, tier, "LUMBRIDGE_DRAYNOR", VarbitID.LUMBRIDGE_DIARY_EASY_COMPLETE, VarbitID.LUMBRIDGE_DIARY_MEDIUM_COMPLETE, VarbitID.LUMBRIDGE_DIARY_HARD_COMPLETE, VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE); break;
+            case MORYTANIA: diary(bits, tier, "MORYTANIA", VarbitID.MORYTANIA_DIARY_EASY_COMPLETE, VarbitID.MORYTANIA_DIARY_MEDIUM_COMPLETE, VarbitID.MORYTANIA_DIARY_HARD_COMPLETE, VarbitID.MORYTANIA_DIARY_ELITE_COMPLETE); break;
+            case VARROCK: diary(bits, tier, "VARROCK", VarbitID.VARROCK_DIARY_EASY_COMPLETE, VarbitID.VARROCK_DIARY_MEDIUM_COMPLETE, VarbitID.VARROCK_DIARY_HARD_COMPLETE, VarbitID.VARROCK_DIARY_ELITE_COMPLETE); break;
+            case WESTERN_PROVINCES: diary(bits, tier, "WESTERN_PROVINCES", VarbitID.WESTERN_DIARY_EASY_COMPLETE, VarbitID.WESTERN_DIARY_MEDIUM_COMPLETE, VarbitID.WESTERN_DIARY_HARD_COMPLETE, VarbitID.WESTERN_DIARY_ELITE_COMPLETE); break;
+            case WILDERNESS: diary(bits, tier, "WILDERNESS", VarbitID.WILDERNESS_DIARY_EASY_COMPLETE, VarbitID.WILDERNESS_DIARY_MEDIUM_COMPLETE, VarbitID.WILDERNESS_DIARY_HARD_COMPLETE, VarbitID.WILDERNESS_DIARY_ELITE_COMPLETE); break;
             default: throw new AssertionError(diary);
         }
     }
 
-    private static int[] ints(String values) {
-        String[] parts = values.split(",");
-        int[] result = new int[parts.length];
-        for (int i = 0; i < parts.length; i++) result[i] = Integer.parseInt(parts[i]);
-        return result;
+    private static void diary(Map<Integer, Integer> bits, DiaryTier tier, String source,
+                              int easy, int medium, int hard, int elite) {
+        assign(bits, easy, tier.ordinal() > 0 ? 1 : 0, source + " easy", "diary " + source);
+        assign(bits, medium, tier.ordinal() > 1 ? 1 : 0, source + " medium", "diary " + source);
+        assign(bits, hard, tier.ordinal() > 2 ? 1 : 0, source + " hard", "diary " + source);
+        assign(bits, elite, tier.ordinal() > 3 ? 1 : 0, source + " elite", "diary " + source);
+    }
+
+    static void assign(Map<Integer, Integer> target, int id, int value, String symbol, String source) {
+        Integer existing = target.get(id);
+        if (existing != null && existing != value) {
+            throw new VariableConflictException("Conflicting routing variable " + symbol + " (" + id + "): existing="
+                + existing + ", " + source + " -> " + value);
+        }
+        target.put(id, value);
     }
 }
 

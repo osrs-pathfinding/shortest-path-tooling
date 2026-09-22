@@ -13,24 +13,31 @@ final class CanonicalItems {
     }
 
     static Map<Integer, Integer> earlyInventory() {
-        return items(1, ItemID.DRAMEN_STAFF, ItemID.AMULET_OF_GLORY, ItemID.RING_OF_DUELING8,
-            ItemID.GAMES_NECKLACE8, ItemID.TELEPORT_TO_HOUSE).with(ItemID.COINS_995, 100_000);
+        Map<Integer, Integer> result = items(1, ItemID.DRAMEN_STAFF, ItemID.AMULET_OF_GLORY, ItemID.RING_OF_DUELING8,
+            ItemID.GAMES_NECKLACE8, ItemID.TELEPORT_TO_HOUSE);
+        result.put(ItemID.COINS_995, 100_000);
+        return result;
     }
 
     static Map<Integer, Integer> midInventory() {
-        return items(1, ItemID.DRAMEN_STAFF, ItemID.AMULET_OF_GLORY, ItemID.RING_OF_DUELING8,
+        Map<Integer, Integer> result = items(1, ItemID.DRAMEN_STAFF, ItemID.AMULET_OF_GLORY, ItemID.RING_OF_DUELING8,
             ItemID.GAMES_NECKLACE8, ItemID.TELEPORT_TO_HOUSE, ItemID.DIGSITE_PENDANT_1,
-            ItemID.SLAYER_RING_8, ItemID.BASIC_QUETZAL_WHISTLE).with(ItemID.COINS_995, 1_000_000);
+            ItemID.SLAYER_RING_8, ItemID.BASIC_QUETZAL_WHISTLE);
+        result.put(ItemID.COINS_995, 1_000_000);
+        return result;
     }
 
     static Map<Integer, Integer> endInventory() {
-        return items(1, ItemID.AMULET_OF_GLORY, ItemID.RING_OF_DUELING8, ItemID.TELEPORT_TO_HOUSE,
-            ItemID.QUEST_POINT_CAPE).with(ItemID.COINS_995, 5_000_000);
+        Map<Integer, Integer> result = items(1, ItemID.AMULET_OF_GLORY, ItemID.RING_OF_DUELING8, ItemID.TELEPORT_TO_HOUSE,
+            ItemID.QUEST_POINT_CAPE);
+        result.put(ItemID.COINS_995, 5_000_000);
+        return result;
     }
 
     static Map<Integer, Integer> maxedInventory() {
-        return items(1, ItemID.TELEPORT_TO_HOUSE, ItemID.ACHIEVEMENT_DIARY_CAPE_T, ItemID.MAX_CAPE)
-            .with(ItemID.COINS_995, 10_000_000);
+        Map<Integer, Integer> result = items(1, ItemID.TELEPORT_TO_HOUSE, ItemID.ACHIEVEMENT_DIARY_CAPE_T, ItemID.MAX_CAPE);
+        result.put(ItemID.COINS_995, 10_000_000);
+        return result;
     }
 
     static Map<Integer, Integer> earlyBank() {
@@ -76,7 +83,7 @@ final class CanonicalItems {
         result.remove(ItemID.KANDARIN_HEADGEAR_3); result.put(ItemID.KANDARIN_HEADGEAR_4, 1_000);
         result.remove(ItemID.WESTERN_BANNER_3); result.put(ItemID.WESTERN_BANNER_4, 1_000);
         result.remove(ItemID.RADAS_BLESSING_3); result.put(ItemID.RADAS_BLESSING_4, 1_000);
-        result.remove(ItemID.DIGSITE_PENDANT_5); result.put(ItemID.DIGSITE_PENDANT_5, 1_000);
+        result.put(ItemID.DIGSITE_PENDANT_5, 1_000);
         result.put(ItemID.LUNAR_ISLE_TELEPORT, 1_000); result.put(ItemID.PISCATORIS_TELEPORT, 1_000);
         result.put(ItemID.MOS_LEHARMLESS_TELEPORT, 1_000); result.put(ItemID.LUMBERYARD_TELEPORT, 1_000);
         result.put(ItemID.SLAYER_RING_ETERNAL, 1_000); result.put(ItemID.ENCHANTED_LYREI, 1_000);
@@ -159,13 +166,9 @@ final class CanonicalItems {
         return result;
     }
 
-    private static ItemMap items(int quantity, int... ids) {
-        ItemMap result = new ItemMap();
+    private static Map<Integer, Integer> items(int quantity, int... ids) {
+        Map<Integer, Integer> result = new LinkedHashMap<>();
         for (int id : ids) result.put(id, quantity);
         return result;
-    }
-
-    private static final class ItemMap extends LinkedHashMap<Integer, Integer> {
-        ItemMap with(int id, int quantity) { put(id, quantity); return this; }
     }
 }
