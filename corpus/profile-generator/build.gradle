@@ -10,7 +10,7 @@ repositories {
     mavenCentral()
 }
 
-def runeLiteVersion = 'latest.release'
+def runeLiteVersion = '1.12.39'
 
 dependencies {
     implementation "net.runelite:runelite-api:$runeLiteVersion"

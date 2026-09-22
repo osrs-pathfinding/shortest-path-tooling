@@ -16,6 +16,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10'
-      - run: gradle -p profile-generator test generateAccountProfiles verifyAccountProfiles
+      - run: gradle -p profile-generator test verifyAccountProfiles
       - run: tools/format-json.sh --check accounts/account-profiles-v1.json
       - run: node tools/validate.js

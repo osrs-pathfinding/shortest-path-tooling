@@ -1,6 +1,8 @@
 package shortestpath.corpus.profiles;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -23,17 +25,55 @@ public final class Main {
         String generated = ProfileJsonRenderer.render(profiles);
         Path output = Paths.get(args[1]);
         if (args[0].equals("generate")) {
-            Files.createDirectories(output.getParent());
+            if (output.getParent() != null) Files.createDirectories(output.getParent());
             Files.writeString(output, generated, StandardCharsets.UTF_8);
             return;
         }
-        JsonElement expected = new JsonParser().parse(Files.readString(output, StandardCharsets.UTF_8));
+        verifyAccountProfiles(output, generated);
+    }
+
+    static void verifyAccountProfiles(Path output) throws IOException {
+        verifyAccountProfiles(output, ProfileJsonRenderer.render(CanonicalProfiles.all()));
+    }
+
+    private static void verifyAccountProfiles(Path output, String generated) throws IOException {
+        JsonElement committed = new JsonParser().parse(Files.readString(output, StandardCharsets.UTF_8));
         JsonElement actual = new JsonParser().parse(generated);
-        if (!expected.equals(actual)) {
-            Path candidate = output.getParent().resolve("account-profiles-v1.generated.json");
-            Files.writeString(candidate, generated, StandardCharsets.UTF_8);
-            throw new IllegalStateException("generated account fixture differs; candidate written to " + candidate);
+        if (!committed.equals(actual)) {
+            throw new IllegalStateException("generated account fixture differs: "
+                + difference(committed, actual, "$"));
         }
+    }
+
+    private static String difference(JsonElement committed, JsonElement generated, String path) {
+        if (committed == null || generated == null || committed.getClass() != generated.getClass()) {
+            return path + " committed=" + committed + ", generated=" + generated;
+        }
+        if (committed.isJsonObject()) {
+            JsonObject left = committed.getAsJsonObject();
+            JsonObject right = generated.getAsJsonObject();
+            Set<String> names = new HashSet<>(left.keySet());
+            names.addAll(right.keySet());
+            for (String name : names) {
+                if (!left.has(name) || !right.has(name)) {
+                    return path + "." + name + " committed=" + left.get(name) + ", generated=" + right.get(name);
+                }
+                String difference = difference(left.get(name), right.get(name), path + "." + name);
+                if (difference != null) return difference;
+            }
+            return null;
+        }
+        if (committed.isJsonArray()) {
+            JsonArray left = committed.getAsJsonArray();
+            JsonArray right = generated.getAsJsonArray();
+            if (left.size() != right.size()) return path + " committed size=" + left.size() + ", generated size=" + right.size();
+            for (int i = 0; i < left.size(); i++) {
+                String difference = difference(left.get(i), right.get(i), path + "[" + i + "]");
+                if (difference != null) return difference;
+            }
+            return null;
+        }
+        return committed.equals(generated) ? null : path + " committed=" + committed + ", generated=" + generated;
     }
 
     private static void validate(List<ProfileSpec> profiles) {
