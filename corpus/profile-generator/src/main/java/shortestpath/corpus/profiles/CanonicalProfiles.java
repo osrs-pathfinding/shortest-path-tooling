@@ -8,6 +8,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import static java.util.Map.entry;
 
 /** The four canonical accounts. Every profile-specific fact is declared here. */
 final class CanonicalProfiles {
@@ -98,24 +99,26 @@ final class CanonicalProfiles {
     }
 
     private static Map<Skill, Integer> earlyLevels() {
-        return with(skills(70), Skill.CONSTRUCTION, 60, Skill.CRAFTING, 65, Skill.FARMING, 65,
-            Skill.FISHING, 65, Skill.FLETCHING, 65, Skill.HERBLORE, 65, Skill.HITPOINTS, 75,
-            Skill.HUNTER, 65, Skill.MINING, 65, Skill.PRAYER, 60, Skill.RUNECRAFT, 60,
-            Skill.SAILING, 60, Skill.SLAYER, 65, Skill.SMITHING, 65, Skill.STRENGTH, 75,
-            Skill.THIEVING, 65, Skill.WOODCUTTING, 65);
+        return with(skills(70), Map.ofEntries(entry(Skill.CONSTRUCTION, 60), entry(Skill.CRAFTING, 65),
+            entry(Skill.FARMING, 65), entry(Skill.FISHING, 65), entry(Skill.FLETCHING, 65),
+            entry(Skill.HERBLORE, 65), entry(Skill.HITPOINTS, 75), entry(Skill.HUNTER, 65),
+            entry(Skill.MINING, 65), entry(Skill.PRAYER, 60), entry(Skill.RUNECRAFT, 60),
+            entry(Skill.SAILING, 60), entry(Skill.SLAYER, 65), entry(Skill.SMITHING, 65),
+            entry(Skill.STRENGTH, 75), entry(Skill.THIEVING, 65), entry(Skill.WOODCUTTING, 65)));
     }
 
     private static Map<Skill, Integer> midLevels() {
-        return with(skills(80), Skill.CONSTRUCTION, 78, Skill.HERBLORE, 78, Skill.HITPOINTS, 85,
-            Skill.MAGIC, 85, Skill.PRAYER, 70, Skill.RUNECRAFT, 75, Skill.STRENGTH, 85,
-            Skill.FARMING, 83, Skill.THIEVING, 82, Skill.SAILING, 75);
+        return with(skills(80), Map.ofEntries(entry(Skill.CONSTRUCTION, 78), entry(Skill.HERBLORE, 78),
+            entry(Skill.HITPOINTS, 85), entry(Skill.MAGIC, 85), entry(Skill.PRAYER, 70),
+            entry(Skill.RUNECRAFT, 75), entry(Skill.STRENGTH, 85), entry(Skill.FARMING, 83),
+            entry(Skill.THIEVING, 82), entry(Skill.SAILING, 75)));
     }
 
     private static Map<Skill, Integer> endLevels() {
-        return with(skills(90), Skill.CONSTRUCTION, 85, Skill.COOKING, 95, Skill.FARMING, 91,
-            Skill.HITPOINTS, 95, Skill.MAGIC, 94, Skill.MINING, 85, Skill.PRAYER, 85,
-            Skill.RUNECRAFT, 85, Skill.SAILING, 85, Skill.SLAYER, 95, Skill.SMITHING, 91,
-            Skill.STRENGTH, 95, Skill.THIEVING, 91);
+        return with(skills(90), Map.ofEntries(entry(Skill.CONSTRUCTION, 85), entry(Skill.COOKING, 95),
+            entry(Skill.FARMING, 91), entry(Skill.HITPOINTS, 95), entry(Skill.MAGIC, 94), entry(Skill.MINING, 85),
+            entry(Skill.PRAYER, 85), entry(Skill.RUNECRAFT, 85), entry(Skill.SAILING, 85), entry(Skill.SLAYER, 95),
+            entry(Skill.SMITHING, 91), entry(Skill.STRENGTH, 95), entry(Skill.THIEVING, 91)));
     }
 
     private static EnumSet<Quest> earlyQuests() {
@@ -160,8 +163,8 @@ final class CanonicalProfiles {
         return result;
     }
 
-    private static Map<Skill, Integer> with(Map<Skill, Integer> base, Object... changes) {
-        for (int i = 0; i < changes.length; i += 2) base.put((Skill) changes[i], (Integer) changes[i + 1]);
+    private static Map<Skill, Integer> with(Map<Skill, Integer> base, Map<Skill, Integer> changes) {
+        base.putAll(changes);
         return base;
     }
 }
