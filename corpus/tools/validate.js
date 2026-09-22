@@ -16,6 +16,7 @@ const isIntegerMap = (value, label, keyPattern = /^\d+$/) => {
 const isStringArray = (value, label) => {
   if (!Array.isArray(value) || value.some(entry => typeof entry !== "string")) fail(`${label} must be a string array`);
 };
+const isCoordinate = value => Array.isArray(value) && value.length === 3 && value.every(Number.isInteger);
 
 const manifest = read("manifest.json");
 for (const field of ["formatVersion", "accountProfilesVersion", "routesVersion", "oracleVersion"]) {
@@ -61,8 +62,15 @@ const routes = read("corpus/routes-v1.json");
 const ids = routes.map(route => route.id);
 if (ids.some(id => typeof id !== "string" || !id) || new Set(ids).size !== ids.length) fail("route IDs must be unique non-empty strings");
 for (const route of routes) {
-  for (const field of ["name", "category", "start", "target", "allowTransports", "tiers"]) if (!(field in route)) fail(`${route.id}: missing ${field}`);
+  for (const field of ["name", "start", "target", "startName", "targetName", "startSource", "targetSource",
+    "allowTransports", "tiers"]) if (!(field in route)) fail(`${route.id}: missing ${field}`);
+  for (const field of ["name", "startName", "targetName", "startSource", "targetSource"]) {
+    if (typeof route[field] !== "string" || !route[field]) fail(`${route.id}: ${field} must be a non-empty string`);
+  }
+  if (!isCoordinate(route.start) || !isCoordinate(route.target)) fail(`${route.id}: start and target must be integer [x, y, plane] coordinates`);
+  if (typeof route.allowTransports !== "boolean" || !Array.isArray(route.tiers)) fail(`${route.id}: invalid transport or tiers value`);
   if (!route.tiers.includes("full") || route.tiers.some(tier => !["smoke", "standard", "full"].includes(tier))) fail(`${route.id}: invalid tiers`);
+  if (route.negativeProfiles !== undefined && !Array.isArray(route.negativeProfiles)) fail(`${route.id}: negativeProfiles must be an array`);
   if ((route.negativeProfiles || []).some(name => !profiles.has(name))) fail(`${route.id}: invalid negative profile`);
 }
 const oracle = read("oracle/oracle-v1.json");

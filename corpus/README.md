@@ -9,6 +9,25 @@ The account JSON is generated from explicit Java profile definitions. Consumers
 load the JSON as a language-neutral fixture; they do not infer account meaning
 from profile names or recreate the generator.
 
+## Route format
+
+Each route in `corpus/routes-v1.json` has these consumer-facing fields:
+
+- `id`: stable route identifier;
+- `name`: human-readable route label;
+- `start`, `target`: authoritative `[x, y, plane]` coordinates;
+- `startName`, `targetName`: human-readable endpoint labels;
+- `startSource`, `targetSource`: opaque provenance strings for auditing, not a
+  parseable API;
+- `allowTransports`: whether the pathfinder may use transports;
+- `tiers`: benchmark suites containing the route (`smoke`, `standard`, `full`);
+- `negativeProfiles`: optional account profiles expected to find the route
+  unreachable.
+
+Coordinate-resolution candidates and other generation diagnostics are not part
+of the corpus contract. Route generation must resolve them before writing the
+authoritative `start` and `target` coordinates.
+
 ## Profile authoring map
 
 Edit the Java source, never `accounts/account-profiles-v1.json`:
