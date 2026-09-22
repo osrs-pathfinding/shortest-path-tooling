@@ -4,6 +4,7 @@ import net.runelite.api.Quest;
 import net.runelite.api.Skill;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -105,23 +106,23 @@ final class ProfileSpec {
     ProfileSpec totalLevel(int value) { totalLevel = value; return this; }
     ProfileSpec runtime(RuntimeSpec value) { runtime = value; return this; }
 
-    Map<Skill, Integer> levels() { return levels; }
-    Set<Quest> completedQuests() { return completedQuests; }
-    Set<CorpusQuest> completedCorpusQuests() { return completedCorpusQuests; }
-    Map<Diary, DiaryTier> diaries() { return diaries; }
-    Map<Integer, Integer> inventory() { return inventory; }
-    Map<Integer, Integer> equipment() { return equipment; }
-    Map<Integer, Integer> runePouch() { return runePouch; }
-    Map<Integer, Integer> bank() { return bank; }
+    Map<Skill, Integer> levels() { return Collections.unmodifiableMap(levels); }
+    Set<Quest> completedQuests() { return Collections.unmodifiableSet(completedQuests); }
+    Set<CorpusQuest> completedCorpusQuests() { return Collections.unmodifiableSet(completedCorpusQuests); }
+    Map<Diary, DiaryTier> diaries() { return Collections.unmodifiableMap(diaries); }
+    Map<Integer, Integer> inventory() { return Collections.unmodifiableMap(inventory); }
+    Map<Integer, Integer> equipment() { return Collections.unmodifiableMap(equipment); }
+    Map<Integer, Integer> runePouch() { return Collections.unmodifiableMap(runePouch); }
+    Map<Integer, Integer> bank() { return Collections.unmodifiableMap(bank); }
     PohSpec poh() { return poh; }
-    Set<PlantedSpiritTree> plantedSpiritTrees() { return plantedSpiritTrees; }
-    Set<QuestMilestone> questMilestones() { return questMilestones; }
-    Set<QuetzalPlatform> quetzalPlatforms() { return quetzalPlatforms; }
-    Set<HotAirBalloonDestination> hotAirBalloonDestinations() { return hotAirBalloonDestinations; }
-    Set<CatacombsEntrance> catacombsEntrances() { return catacombsEntrances; }
-    Set<PermanentUnlock> permanentUnlocks() { return permanentUnlocks; }
-    Map<Integer, Integer> routingVarbits() { return routingVarbits; }
-    Map<Integer, Integer> routingVarplayers() { return routingVarplayers; }
+    Set<PlantedSpiritTree> plantedSpiritTrees() { return Collections.unmodifiableSet(plantedSpiritTrees); }
+    Set<QuestMilestone> questMilestones() { return Collections.unmodifiableSet(questMilestones); }
+    Set<QuetzalPlatform> quetzalPlatforms() { return Collections.unmodifiableSet(quetzalPlatforms); }
+    Set<HotAirBalloonDestination> hotAirBalloonDestinations() { return Collections.unmodifiableSet(hotAirBalloonDestinations); }
+    Set<CatacombsEntrance> catacombsEntrances() { return Collections.unmodifiableSet(catacombsEntrances); }
+    Set<PermanentUnlock> permanentUnlocks() { return Collections.unmodifiableSet(permanentUnlocks); }
+    Map<Integer, Integer> routingVarbits() { return Collections.unmodifiableMap(routingVarbits); }
+    Map<Integer, Integer> routingVarplayers() { return Collections.unmodifiableMap(routingVarplayers); }
     boolean fairyRingsUnlocked() { return fairyRingsUnlocked; }
     boolean includeProgressionRouting() { return includeProgressionRouting; }
     Integer questPoints() { return questPoints; }

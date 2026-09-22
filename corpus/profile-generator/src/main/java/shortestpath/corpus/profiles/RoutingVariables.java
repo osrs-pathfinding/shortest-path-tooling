@@ -30,6 +30,25 @@ final class RoutingVariables {
         entry(13599, 0), entry(13839, 0), entry(13841, 0), entry(17226, 0), entry(18351, 0), entry(18355, 0),
         entry(18356, 0), entry(18370, 0), entry(18371, 0)
     );
+    private static final Map<Integer, Integer> PROGRESSED_VARBITS = Map.ofEntries(
+        entry(260, 70), entry(299, 10), entry(346, 10), entry(418, 26), entry(451, 2), entry(487, 14),
+        entry(496, 1), entry(532, 12), entry(538, 1), entry(621, 1), entry(668, 1), entry(2098, 200),
+        entry(2187, 1), entry(2573, 320), entry(2867, 2), entry(2868, 2), entry(2869, 1), entry(2870, 1),
+        entry(2871, 1), entry(2872, 1), entry(3264, 11), entry(3311, 340), entry(3598, 1), entry(3637, 153),
+        entry(3741, 1), entry(3759, 2), entry(3910, 1), entry(4070, 0), entry(4441, 2), entry(4541, 0),
+        entry(4542, 0), entry(4548, 0), entry(4552, 0), entry(4558, 0), entry(4560, 0), entry(4561, 0),
+        entry(4564, 0), entry(4585, 0), entry(4744, 0), entry(4819, 0), entry(5005, 0), entry(5023, 2),
+        entry(5087, 1), entry(5088, 1), entry(5421, 1), entry(5619, 1), entry(5629, 1), entry(5672, 1),
+        entry(5673, 1), entry(5674, 1), entry(5675, 1), entry(5676, 1), entry(5677, 1), entry(5678, 1),
+        entry(5679, 1), entry(5680, 1), entry(5681, 1), entry(5682, 1), entry(5683, 1), entry(5684, 1),
+        entry(5810, 1), entry(6027, 7), entry(6028, 1), entry(6038, 1), entry(6056, 1), entry(6069, 0),
+        entry(6076, 1), entry(6312, 1), entry(6359, 1), entry(6528, 207), entry(7255, 88), entry(7796, 11),
+        entry(7801, 1), entry(7857, 1), entry(7937, 0), entry(7938, 0), entry(8253, 1), entry(8397, 1),
+        entry(8398, 1), entry(9805, 1), entry(10449, 1), entry(10450, 1), entry(10528, 1), entry(11175, 1),
+        entry(11176, 1), entry(11177, 1), entry(11178, 1), entry(11410, 9), entry(12310, 1), entry(12341, 1),
+        entry(13599, 50), entry(13839, 1), entry(13841, 108), entry(17226, 1), entry(18351, 1), entry(18355, 1),
+        entry(18356, 1), entry(18370, 1), entry(18371, 1)
+    );
     private static final Map<Integer, Integer> EARLY_VARPLAYERS = Map.ofEntries(
         entry(11, 0), entry(65, 0), entry(111, 9), entry(116, 0), entry(139, 0), entry(150, 160),
         entry(165, 30), entry(176, 10), entry(212, 14), entry(328, 15), entry(359, 0), entry(517, 0),
@@ -39,27 +58,7 @@ final class RoutingVariables {
     static Map<Integer, Integer> earlyVarbits() { return new LinkedHashMap<>(EARLY_VARBITS); }
     static Map<Integer, Integer> earlyVarplayers() { return new LinkedHashMap<>(EARLY_VARPLAYERS); }
 
-    static Map<Integer, Integer> progressedVarbits() {
-        Map<Integer, Integer> result = earlyVarbits();
-        applyOverrides(result, Map.ofEntries(
-            entry(260, 70), entry(299, 10), entry(346, 10), entry(418, 26), entry(451, 2), entry(487, 14),
-            entry(496, 1), entry(538, 1), entry(621, 1), entry(668, 1), entry(2098, 200), entry(2573, 320),
-            entry(2867, 2), entry(2868, 2), entry(2869, 1), entry(2870, 1), entry(2871, 1), entry(2872, 1),
-            entry(3264, 11), entry(3311, 340), entry(3611, 1), entry(3637, 153), entry(3759, 2), entry(3910, 1),
-            entry(4441, 2), entry(4460, 1), entry(4464, 1), entry(4468, 1), entry(4473, 1), entry(4477, 1),
-            entry(4481, 1), entry(4485, 1), entry(4489, 1), entry(4493, 1), entry(4497, 1), entry(5023, 2),
-            entry(5087, 1), entry(5088, 1), entry(5421, 1), entry(5629, 1), entry(5672, 1), entry(5673, 1),
-            entry(5674, 1), entry(5675, 1), entry(5676, 1), entry(5677, 1), entry(5678, 1), entry(5679, 1),
-            entry(5680, 1), entry(5681, 1), entry(5682, 1), entry(5683, 1), entry(5684, 1), entry(5810, 1),
-            entry(6027, 7), entry(6028, 1), entry(6038, 1), entry(6056, 1), entry(6359, 1), entry(6528, 207),
-            entry(7255, 88), entry(7796, 11), entry(7801, 1), entry(7857, 1), entry(7927, 1), entry(8253, 1),
-            entry(8397, 1), entry(8398, 1), entry(9805, 1), entry(10449, 1), entry(10450, 1), entry(10528, 1),
-            entry(11175, 1), entry(11176, 1), entry(11177, 1), entry(11178, 1), entry(11410, 9), entry(12310, 1),
-            entry(12341, 1), entry(13599, 50), entry(13839, 1), entry(13841, 108), entry(17226, 1), entry(18351, 1),
-            entry(18355, 1), entry(18356, 1), entry(18370, 1), entry(18371, 1)
-        ), "progressed varbit baseline");
-        return result;
-    }
+    static Map<Integer, Integer> progressedVarbits() { return new LinkedHashMap<>(PROGRESSED_VARBITS); }
 
     static Map<Integer, Integer> progressedVarplayers() {
         return Map.ofEntries(
@@ -95,13 +94,6 @@ final class RoutingVariables {
 
     private static void apply(Map<Integer, Integer> target, Map<Integer, Integer> values, String source) {
         for (Map.Entry<Integer, Integer> value : values.entrySet()) {
-            assign(target, value.getKey(), value.getValue(), String.valueOf(value.getKey()), source);
-        }
-    }
-
-    private static void applyOverrides(Map<Integer, Integer> target, Map<Integer, Integer> values, String source) {
-        for (Map.Entry<Integer, Integer> value : values.entrySet()) {
-            target.remove(value.getKey());
             assign(target, value.getKey(), value.getValue(), String.valueOf(value.getKey()), source);
         }
     }
