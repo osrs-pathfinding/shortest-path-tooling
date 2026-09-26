@@ -2,8 +2,8 @@
 
 This repository is the implementation-neutral benchmark corpus for OSRS
 pathfinding. It owns canonical routes, four account profiles (`early`, `mid`,
-`end`, `maxed`), exclusions, runtime state, and checked-in oracle answers.
-`end` and `maxed` are quest-cape accounts.
+`end`, `maxed`), exclusions, and runtime state. `end` and `maxed` are
+quest-cape accounts.
 
 The account JSON is generated from explicit Java profile definitions. Consumers
 load the JSON as a language-neutral fixture; they do not infer account meaning
@@ -63,12 +63,12 @@ format check used by CI.
 
 ## Other corpus validation
 
-`node tools/validate.js` checks the manifest, route IDs and tiers, oracle
-coverage, route expectations, and meaningful nested account-profile shapes.
-The corpus does not retain unenforced JSON schemas.
+`node tools/validate.js` checks the manifest, route IDs and tiers, route
+expectations, and meaningful nested account-profile shapes. The corpus does
+not retain unenforced JSON schemas.
 
-The oracle is derived by the adjacent reference model; regenerate it only when
-that workflow is deliberately being changed. The generated account JSON is a
-contract: downstream consumers should preserve field meanings and treat
-unknown future fields as extension data rather than deriving new semantics from
-profile labels.
+The `negativeProfiles` field on routes contains hand-maintained reachability
+expectations curated by people; they are not derived from any implementation.
+The generated account JSON is a contract: downstream consumers should preserve
+field meanings and treat unknown future fields as extension data rather than
+deriving new semantics from profile labels.

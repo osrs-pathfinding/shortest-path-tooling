@@ -1,10 +1,7 @@
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "accountProfilesVersion": 1,
   "routesVersion": 1,
-  "oracleVersion": 1,
   "accounts": "accounts/account-profiles-v1.json",
-  "routes": "corpus/routes-v1.json",
-  "oracle": "oracle/oracle-v1.json",
-  "oracleProvenance": "oracle/oracle-v1.json.metadata.json"
+  "routes": "corpus/routes-v1.json"
 }
