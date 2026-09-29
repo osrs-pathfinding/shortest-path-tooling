@@ -24,15 +24,15 @@ class RoutingEngineTest
 		request.policy.banking = "allow";
 		request.policy.resources = "fastest";
 		request.start = location(3222, 3218, 0);
-		request.destination = location(3222, 3218, 0);
+		request.destination = location(3210, 3424, 0);
 		new SchemaValidator().validate(mapper.valueToTree(request));
 
 		ApiModels.RoutePlan plan = new RoutingEngine(mapper).route(request);
 
 		assertTrue(plan.reachable);
-		assertEquals(0, plan.costTicks);
+		assertTrue(plan.costTicks > 0);
 		assertEquals("exact-v1", plan.metadata.routingEngineVersion);
-		assertEquals(1, plan.segments.size());
+		assertTrue(!plan.segments.isEmpty());
 	}
 
 	private static ApiModels.Location location(int x, int y, int plane)
