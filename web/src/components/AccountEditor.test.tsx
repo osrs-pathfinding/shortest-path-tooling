@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AccountBuild } from "../domain/contracts";
@@ -21,9 +21,9 @@ describe("semantic account editor", () => {
     fireEvent.change(screen.getByLabelText("Build name"), { target: { value: "My build" } });
     fireEvent.change(screen.getByLabelText("Agility"), { target: { value: "80" } });
     fireEvent.change(screen.getByLabelText("Quest points"), { target: { value: "123" } });
-    fireEvent.change(screen.getByLabelText("Ardougne diary"), { target: { value: "Elite" } });
-    fireEvent.change(screen.getByLabelText("Spellbook"), { target: { value: "Lunar" } });
-    fireEvent.click(screen.getByLabelText("Fairy rings"));
+    fireEvent.click(within(screen.getByRole("group", { name: "Ardougne" })).getByLabelText("Elite"));
+    fireEvent.click(within(screen.getByRole("group", { name: "Active spellbook" })).getByLabelText("Lunar"));
+    fireEvent.click(screen.getByLabelText(/^Fairy rings/));
     fireEvent.click(screen.getByRole("button", { name: "Save custom build" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalled());

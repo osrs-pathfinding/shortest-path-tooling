@@ -25,6 +25,11 @@ const portals = [
 ];
 const diaryTiers = ["NoDiary", "Easy", "Medium", "Hard", "Elite"] as const;
 const itemFields = ["inventory", "equipment", "runePouch", "bank"] as const;
+const pohFixtures = [
+  ["fairyRing", "Fairy ring"], ["spiritTree", "Spirit tree"], ["obelisk", "Wilderness obelisk"],
+  ["mountedGlory", "Mounted glory"], ["mountedXerics", "Xeric's talisman"],
+  ["mountedDigsite", "Digsite pendant"], ["mountedMythical", "Mythical cape"],
+] as const;
 type ItemField = typeof itemFields[number];
 
 function ItemCollectionEditor({ title, values, names, onChange, open = false }: {
@@ -40,30 +45,31 @@ function ItemCollectionEditor({ title, values, names, onChange, open = false }: 
     queryKey: ["items", search], queryFn: () => findItems(search), enabled: search.trim().length >= 2,
   });
   const options = results.data || [];
-  const selected = options.find(item => item.name.toLowerCase() === search.trim().toLowerCase() || item.key === search.trim());
-  const add = () => {
-    if (!selected) return;
-    onChange({ ...values, [selected.key]: values[selected.key] || 1 });
+  const add = (key: string) => {
+    onChange({ ...values, [key]: values[key] || 1 });
     setSearch("");
   };
   return <details className="item-collection" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
-    <summary>{title} <span>{Object.keys(values).length} items</span></summary>
-    <div className="item-add">
-      <label>{`Find ${title.toLowerCase()} item`}<input type="search" list={`items-${title}`} value={search}
-        onChange={event => setSearch(event.target.value)} onKeyDown={event => {
-          if (event.key === "Enter") { event.preventDefault(); add(); }
-        }} /></label>
-      <datalist id={`items-${title}`}>{options.map(item => <option key={item.key} value={item.name} />)}</datalist>
-      <button type="button" className="secondary-button" disabled={!selected} onClick={add}>Add</button>
+    <summary><span className="item-heading"><strong>{title}</strong><small>{Object.keys(values).length ? `${Object.keys(values).length} configured` : "No items"}</small></span></summary>
+    <div className="item-search">
+      <label><span className="sr-only">{`Find ${title.toLowerCase()} item`}</span><input type="search" value={search}
+        placeholder={`Search items to add to ${title.toLowerCase()}`} onChange={event => setSearch(event.target.value)} /></label>
+      {search.trim().length >= 2 && <div className="item-results" aria-label="Item search results">
+        {results.isFetching && <p>Searching…</p>}
+        {!results.isFetching && options.slice(0, 8).map(item => <button type="button" key={item.key} onClick={() => add(item.key)}>
+          <span>{item.name}</span>{values[item.key] && <small>Already added</small>}
+        </button>)}
+        {!results.isFetching && !options.length && <p>No matching items</p>}
+      </div>}
     </div>
-    <div className="item-list">{Object.entries(values).sort(([a], [b]) => (names.get(a) || a).localeCompare(names.get(b) || b)).map(([key, quantity]) => <div className="item-row" key={key}>
+    {!!Object.keys(values).length && <div className="item-list">{Object.entries(values).sort(([a], [b]) => (names.get(a) || a).localeCompare(names.get(b) || b)).map(([key, quantity]) => <div className="item-row" key={key}>
       <span>{names.get(key) || `Item ${key}`}</span>
       <label><span className="sr-only">{names.get(key) || key} quantity</span><input type="number" min="1" max="2147483647" value={quantity}
         onChange={event => onChange({ ...values, [key]: Math.max(1, Number(event.target.value)) })} /></label>
       <button type="button" aria-label={`Remove ${names.get(key) || key}`} onClick={() => {
         const next = { ...values }; delete next[key]; onChange(next);
-      }}>Remove</button>
-    </div>)}</div>
+      }}>×</button>
+    </div>)}</div>}
   </details>;
 }
 
@@ -77,16 +83,20 @@ export function AccountEditor({ account, quests, open, onClose, onSave }: {
   const dialog = useRef<HTMLDialogElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const [questFilter, setQuestFilter] = useState("");
+  const [portalFilter, setPortalFilter] = useState("");
   const [items, setItems] = useState<Record<ItemField, Record<string, number>>>(() => pickItems(account));
   const [fileError, setFileError] = useState("");
-  const { register, reset, getValues, watch, handleSubmit, formState: { errors } } = useForm<AccountBuild>({ defaultValues: account });
+  const { register, reset, setValue, getValues, watch, handleSubmit, formState: { errors } } = useForm<AccountBuild>({ defaultValues: account });
   const skills = useMemo(() => Object.keys(account.levels).filter(name => name !== "Total" && name !== "Quest").sort(), [account]);
   const visibleQuests = quests.filter(quest => quest.toLowerCase().includes(questFilter.toLowerCase()));
   const itemKeys = useMemo(() => Array.from(new Set(itemFields.flatMap(field => Object.keys(items[field])))).sort(), [items]);
   const itemNamesQuery = useQuery({ queryKey: ["item-names", itemKeys], queryFn: () => lookupItems(itemKeys), enabled: itemKeys.length > 0 });
   const itemNames = useMemo(() => new Map((itemNamesQuery.data || []).map(item => [item.key, item.name])), [itemNamesQuery.data]);
   const portalMode = watch("poh.portals.mode");
+  const selectedPortals = watch("poh.portals.destinations") || [];
+  const completedQuests = watch("completedQuests") || [];
   const cooldown = watch("runtime.minigameTeleport.state");
+  const visiblePortals = portals.filter(portal => portal.toLowerCase().includes(portalFilter.toLowerCase()));
 
   useEffect(() => { reset(account); setItems(pickItems(account)); setFileError(""); }, [account, reset]);
   useEffect(() => {
@@ -124,7 +134,7 @@ export function AccountEditor({ account, quests, open, onClose, onSave }: {
       try { onSave(build(value)); } catch (error) { setFileError(error instanceof Error ? error.message : "Invalid account build"); }
     })}>
       <header>
-        <div><p className="eyebrow">Account build</p><h2>Customize routing</h2></div>
+        <div><p className="eyebrow">Routing profile</p><h2>Configure {account.name}</h2><p className="editor-intro">Only choices that can change a route are included.</p></div>
         <button type="button" className="close-button" aria-label="Close account editor" onClick={onClose}>×</button>
       </header>
 
@@ -140,55 +150,67 @@ export function AccountEditor({ account, quests, open, onClose, onSave }: {
         {errors.name && <span role="alert">{errors.name.message}</span>}
       </label>
 
-      <section><h3>Skills</h3><div className="skill-grid">{skills.map(skill => <label key={skill}>{skill}
+      <section><div className="section-heading"><div><h3>Levels</h3><p>Used for shortcuts, spells and transport requirements.</p></div></div>
+        <div className="skill-grid">{skills.map(skill => <label className="skill-card" key={skill}><span>{skill}</span>
         <input type="number" min="1" max="99" {...register(`levels.${skill}`, { valueAsNumber: true, min: 1, max: 99 })} />
-      </label>)}<label>Quest points<input type="number" min="0" max="32767" defaultValue={account.levels.Quest || 0}
+      </label>)}<label className="skill-card"><span>Quest points</span><input type="number" min="0" max="32767" defaultValue={account.levels.Quest || 0}
         {...register("levels.Quest", { valueAsNumber: true, min: 0, max: 32767 })} /></label></div></section>
 
-      <section><h3>Items</h3>{itemFields.map(field => <ItemCollectionEditor key={field}
+      <section><div className="section-heading"><div><h3>Items</h3><p>Search by name, then set the quantity available in each container.</p></div></div>{itemFields.map(field => <ItemCollectionEditor key={field}
         title={{ inventory: "Inventory", equipment: "Equipment", runePouch: "Rune pouch", bank: "Bank" }[field]}
-        values={items[field]} names={itemNames} open={field !== "bank"}
+        values={items[field]} names={itemNames} open={field === "inventory"}
         onChange={value => setItems(current => ({ ...current, [field]: value }))} />)}</section>
 
-      <section><h3>Achievement diaries</h3><div className="diary-grid">{Object.keys(account.diaries).sort().map(diary => <label key={diary}>{splitName(diary)} diary
-        <select {...register(`diaries.${diary}`)}>{diaryTiers.map(tier => <option key={tier} value={tier}>{tier === "NoDiary" ? "None" : tier}</option>)}</select>
-      </label>)}</div></section>
+      <section><div className="section-heading"><div><h3>Achievement diaries</h3><p>Choose the highest completed tier for each region.</p></div></div>
+        <div className="diary-grid">{Object.keys(account.diaries).sort().map(diary => <fieldset className="diary-card" key={diary}><legend>{splitName(diary)}</legend>
+          <div className="tier-selector">{diaryTiers.map(tier => <label key={tier}>
+            <input type="radio" value={tier} {...register(`diaries.${diary}`)} /><span>{tier === "NoDiary" ? "None" : tier}</span>
+          </label>)}</div>
+        </fieldset>)}</div></section>
 
-      <section><h3>Unlocks</h3>
-        <label className="check-row"><input type="checkbox" {...register("fairyRingsUnlocked")} /> Fairy rings</label>
-        <fieldset><legend>Planted spirit trees</legend>{spiritTrees.map(([value, label]) => <label className="check-row" key={value}>
-          <input type="checkbox" value={value} {...register("plantedSpiritTrees")} /> {label}
-        </label>)}</fieldset>
+      <section><div className="section-heading"><div><h3>Travel unlocks</h3><p>Permanent unlocks available to this account.</p></div></div>
+        <div className="selection-grid"><label className="select-card"><input type="checkbox" {...register("fairyRingsUnlocked")} /><span><strong>Fairy rings</strong><small>Use the global fairy ring network</small></span></label></div>
+        <h4>Planted spirit trees</h4><div className="selection-grid">{spiritTrees.map(([value, label]) => <label className="select-card" key={value}>
+          <input type="checkbox" value={value} {...register("plantedSpiritTrees")} /><span><strong>{label}</strong><small>Spirit tree patch</small></span>
+        </label>)}</div>
       </section>
 
-      <section><h3>Player-owned house</h3>
-        <div className="two-column"><label>Location<select {...register("poh.location")}>{pohLocations.map(location => <option key={location}>{location}</option>)}</select></label>
-          <label>Jewellery box<select {...register("poh.jewelleryBox")}><option value="NoJewelleryBox">None</option><option value="FancyJewelleryBox">Fancy</option><option value="OrnateJewelleryBox">Ornate</option></select></label></div>
-        <div className="check-grid">
-          <label className="check-row"><input type="checkbox" {...register("poh.fairyRing")} /> Fairy ring</label>
-          <label className="check-row"><input type="checkbox" {...register("poh.spiritTree")} /> Spirit tree</label>
-          <label className="check-row"><input type="checkbox" {...register("poh.obelisk")} /> Obelisk</label>
-          <label className="check-row"><input type="checkbox" {...register("poh.mountedGlory")} /> Mounted glory</label>
-          <label className="check-row"><input type="checkbox" {...register("poh.mountedXerics")} /> Xeric's talisman</label>
-          <label className="check-row"><input type="checkbox" {...register("poh.mountedDigsite")} /> Digsite pendant</label>
-          <label className="check-row"><input type="checkbox" {...register("poh.mountedMythical")} /> Mythical cape</label>
+      <section><div className="section-heading"><div><h3>Player-owned house</h3><p>Rooms and fixtures that can be chained into a route.</p></div></div>
+        <div className="two-column"><label className="field-label">House location<select {...register("poh.location")}>{pohLocations.map(location => <option key={location}>{location}</option>)}</select></label>
+          <fieldset className="choice-group"><legend>Jewellery box</legend><div className="segmented-control">
+            {[['NoJewelleryBox', 'None'], ['FancyJewelleryBox', 'Fancy'], ['OrnateJewelleryBox', 'Ornate']].map(([value, label]) => <label key={value}><input type="radio" value={value} {...register("poh.jewelleryBox")} /><span>{label}</span></label>)}
+          </div></fieldset></div>
+        <h4>Fixtures</h4><div className="selection-grid">
+          {pohFixtures.map(([name, label]) => <label className="select-card compact" key={name}>
+            <input type="checkbox" {...register(`poh.${name}`)} /><span><strong>{label}</strong></span>
+          </label>)}
         </div>
-        <label>Portal nexus<select {...register("poh.portals.mode")}><option value="selected">Selected destinations</option><option value="all">All destinations</option></select></label>
-        {portalMode === "selected" && <fieldset className="portal-list"><legend>Portal destinations</legend>{portals.map(portal => <label className="check-row" key={portal}>
-          <input type="checkbox" value={portal} {...register("poh.portals.destinations")} /> {portal.replace(" Portal", "")}
-        </label>)}</fieldset>}
+        <div className="portal-heading"><fieldset className="choice-group"><legend>Portal nexus</legend><div className="segmented-control">
+          <label><input type="radio" value="selected" {...register("poh.portals.mode")} /><span>Choose portals</span></label>
+          <label><input type="radio" value="all" {...register("poh.portals.mode")} /><span>All portals</span></label>
+        </div></fieldset>{portalMode === "selected" && <span>{selectedPortals.length} selected</span>}</div>
+        {portalMode === "selected" && <div className="portal-picker"><input type="search" value={portalFilter} onChange={event => setPortalFilter(event.target.value)} placeholder="Filter portal destinations" aria-label="Filter portal destinations" />
+          <fieldset className="portal-list"><legend className="sr-only">Portal destinations</legend>{visiblePortals.map(portal => <label className="check-pill" key={portal}>
+            <input type="checkbox" value={portal} {...register("poh.portals.destinations")} /><span>{portal.replace(" Portal", "")}</span>
+          </label>)}</fieldset></div>}
       </section>
 
-      <section><h3>Runtime state</h3><div className="two-column">
-        <label>Spellbook<select {...register("runtime.spellbook")}><option>Standard</option><option>Ancient</option><option>Lunar</option><option>Arceuus</option></select></label>
-        <label>Minigame teleport<select {...register("runtime.minigameTeleport.state")}><option value="ready">Ready</option><option value="usedAt">On cooldown</option></select></label>
-      </div>
-      {cooldown === "usedAt" && <label>Used at game minute<input type="number" min="0" {...register("runtime.minigameTeleport.minutes", { valueAsNumber: true, required: true, min: 0 })} /></label>}</section>
+      <section><div className="section-heading"><div><h3>Current state</h3><p>Temporary state that affects teleports right now.</p></div></div>
+        <fieldset className="choice-group"><legend>Active spellbook</legend><div className="segmented-control four">
+          {["Standard", "Ancient", "Lunar", "Arceuus"].map(value => <label key={value}><input type="radio" value={value} {...register("runtime.spellbook")} /><span>{value}</span></label>)}
+        </div></fieldset>
+        <fieldset className="choice-group runtime-choice"><legend>Minigame teleport</legend><div className="segmented-control">
+          <label><input type="radio" value="ready" {...register("runtime.minigameTeleport.state")} /><span>Ready</span></label>
+          <label><input type="radio" value="usedAt" {...register("runtime.minigameTeleport.state")} /><span>On cooldown</span></label>
+        </div></fieldset>
+        {cooldown === "usedAt" && <label className="field-label cooldown-field">Used at game minute<input type="number" min="0" {...register("runtime.minigameTeleport.minutes", { valueAsNumber: true, required: true, min: 0 })} /></label>}</section>
 
-      <section><h3>Completed quests</h3>
-        <input type="search" value={questFilter} onChange={event => setQuestFilter(event.target.value)} placeholder="Filter quests" aria-label="Filter quests" />
-        <fieldset className="quest-list"><legend className="sr-only">Completed quests</legend>{visibleQuests.map(quest => <label className="check-row" key={quest}>
-          <input type="checkbox" value={quest} {...register("completedQuests")} /> {quest}
+      <section><div className="section-heading"><div><h3>Completed quests</h3><p>{completedQuests.length} of {quests.length} marked complete.</p></div>
+        <div className="list-actions"><button type="button" onClick={() => setValue("completedQuests", Array.from(new Set([...completedQuests, ...visibleQuests])), { shouldDirty: true })}>Select visible</button>
+          <button type="button" onClick={() => setValue("completedQuests", completedQuests.filter(quest => !visibleQuests.includes(quest)), { shouldDirty: true })}>Clear visible</button></div></div>
+        <input className="list-filter" type="search" value={questFilter} onChange={event => setQuestFilter(event.target.value)} placeholder="Filter quests" aria-label="Filter quests" />
+        <fieldset className="quest-list"><legend className="sr-only">Completed quests</legend>{visibleQuests.map(quest => <label className="check-pill" key={quest}>
+          <input type="checkbox" value={quest} {...register("completedQuests")} /><span>{quest}</span>
         </label>)}</fieldset>
       </section>
 
