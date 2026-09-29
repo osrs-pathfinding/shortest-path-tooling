@@ -3,7 +3,7 @@ import {
   agilityIcon, attackIcon, constructionIcon, cookingIcon, craftingIcon, defenceIcon, farmingIcon,
   firemakingIcon, fishingIcon, fletchingIcon, herbloreIcon, hitpointsIcon, hunterIcon, magicIcon,
   miningIcon, prayerIcon, rangedIcon, runecraftIcon, slayerIcon, smithingIcon, strengthIcon,
-  thievingIcon, toDataUrl, woodcuttingIcon,
+  thievingIcon, toDataUrl, woodcuttingIcon, questListIcon,
 } from "@dava96/osrs-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -162,23 +162,24 @@ export function AccountEditor({ account, quests, open, onClose, onSave }: {
         <button type="button" className="close-button" aria-label="Close account editor" onClick={onClose}>×</button>
       </header>
 
-      <div className="editor-file-actions">
-        <button type="button" className="secondary-button" onClick={() => importInput.current?.click()}>Import JSON</button>
-        <button type="button" className="secondary-button" onClick={exportAccount}>Export JSON</button>
-        <input ref={importInput} className="sr-only" type="file" accept="application/json,.json" onChange={event => void importAccount(event.target.files?.[0])} />
+      <div className="editor-meta">
+        <label className="editor-name">Build name
+          <input {...register("name", { required: "Enter a build name", validate: value => value.trim().length > 0 || "Enter a build name" })} />
+          {errors.name && <span role="alert">{errors.name.message}</span>}
+        </label>
+        <div className="editor-file-actions">
+          <button type="button" className="secondary-button" onClick={() => importInput.current?.click()}>Import</button>
+          <button type="button" className="secondary-button" onClick={exportAccount}>Export</button>
+          <input ref={importInput} className="sr-only" type="file" accept="application/json,.json" onChange={event => void importAccount(event.target.files?.[0])} />
+        </div>
       </div>
       {fileError && <p className="editor-error" role="alert">{fileError}</p>}
-
-      <label className="editor-name">Build name
-        <input {...register("name", { required: "Enter a build name", validate: value => value.trim().length > 0 || "Enter a build name" })} />
-        {errors.name && <span role="alert">{errors.name.message}</span>}
-      </label>
 
       <section><div className="section-heading"><div><h3>Levels</h3><p>Used for shortcuts, spells and transport requirements.</p></div></div>
         <div className="skill-grid">{skills.map(skill => <label className="skill-card" key={skill} title={skill}>
         <img src={skillIcons[skill] || `https://oldschool.runescape.wiki/images/${skill}_icon.png`} alt="" /><span className="sr-only">{skill}</span>
         <input type="number" min="1" max="99" {...register(`levels.${skill}`, { valueAsNumber: true, min: 1, max: 99 })} />
-      </label>)}<label className="skill-card" title="Quest points"><img src="https://oldschool.runescape.wiki/images/Quest_points_icon.png" alt="" /><span className="sr-only">Quest points</span><input type="number" min="0" max="32767" defaultValue={account.levels.Quest || 0}
+      </label>)}<label className="skill-card" title="Quest points"><img src={toDataUrl(questListIcon)} alt="" /><span className="sr-only">Quest points</span><input type="number" min="0" max="32767" defaultValue={account.levels.Quest || 0}
         {...register("levels.Quest", { valueAsNumber: true, min: 0, max: 32767 })} /></label></div></section>
 
       <section><div className="section-heading"><div><h3>Items</h3><p>Search by name, then set the quantity available in each container.</p></div></div>{itemFields.map(field => <ItemCollectionEditor key={field}
