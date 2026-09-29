@@ -11,6 +11,9 @@ npm run dev
 
 Open <http://localhost:5173/route>. `/` redirects there.
 
+Account presets can be customized from the planner. Custom builds contain semantic skills,
+quests, unlocks, and POH settings and are saved in the browser; raw routing variables remain hidden.
+
 The existing developer viewer is intentionally not imported, mounted, or exposed by this application. Add shared code only when a public feature demonstrates a need for it.
 
 Use established ecosystem libraries for UI, routing, map rendering, forms, API state, validation, and server implementation where they are the idiomatic choice. Do not replace them with local substitutes merely because the first version looks small.

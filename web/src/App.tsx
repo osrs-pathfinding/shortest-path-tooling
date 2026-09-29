@@ -3,9 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { loadPresets } from "./api/presets";
 import { calculateRoute } from "./api/routes";
+import { AccountEditor } from "./components/AccountEditor";
 import { RouteMap } from "./components/RouteMap";
 import { locationFromParam, locationParam, places } from "./data/places";
-import type { Location, RoutePolicy, WorldPoint } from "./domain/contracts";
+import type { AccountBuild, Location, RoutePolicy, WorldPoint } from "./domain/contracts";
 
 const defaultPolicy: RoutePolicy = {
   avoidWilderness: true,
@@ -13,6 +14,17 @@ const defaultPolicy: RoutePolicy = {
   resources: "fastest",
   avoidedTransportTypes: [],
 };
+
+const customAccountKey = "osrs-travel.custom-account.v1";
+
+function loadCustomAccount(): AccountBuild | undefined {
+  try {
+    const value = JSON.parse(localStorage.getItem(customAccountKey) || "null") as AccountBuild | null;
+    return value?.schemaVersion === 1 && value.id === "custom" && value.levels && value.poh ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function PlaceInput({ label, location, onSelect }: {
   label: string;
@@ -38,23 +50,35 @@ export default function App() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [start, setStart] = useState(() => locationFromParam(searchParams.get("from")));
   const [destination, setDestination] = useState(() => locationFromParam(searchParams.get("to")));
-  const [accountId, setAccountId] = useState(searchParams.get("account") || "mid");
+  const [customAccount, setCustomAccount] = useState(loadCustomAccount);
+  const [accountId, setAccountId] = useState(() => {
+    const requested = searchParams.get("account") || "mid";
+    return requested === "custom" && !customAccount ? "mid" : requested;
+  });
+  const [editingAccount, setEditingAccount] = useState(false);
   const [policy, setPolicy] = useState(defaultPolicy);
   const presets = useQuery({ queryKey: ["account-presets"], queryFn: loadPresets });
-  const account = presets.data?.find(preset => preset.id === accountId) || presets.data?.[0];
+  const account = accountId === "custom" ? customAccount
+    : presets.data?.find(preset => preset.id === accountId) || presets.data?.[0];
+  const quests = useMemo(() => Array.from(new Set([
+    ...(presets.data?.flatMap(preset => preset.completedQuests) || []),
+    ...(account?.completedQuests || []),
+  ])).sort(), [account, presets.data]);
   const request = useMemo(() => account && start && destination
     ? { account, start, destination, policy } : undefined, [account, start, destination, policy]);
   const route = useQuery({
-    queryKey: ["route", accountId, start?.coordinate, destination?.coordinate, policy],
+    queryKey: ["route", account, start?.coordinate, destination?.coordinate, policy],
     queryFn: ({ signal }) => calculateRoute(request!, signal),
     enabled: Boolean(request),
     retry: false,
   });
 
   const remember = (field: "from" | "to" | "account", value?: string) => {
-    const next = new URLSearchParams(searchParams);
-    if (value) next.set(field, value); else next.delete(field);
-    setSearchParams(next, { replace: true });
+    setSearchParams(current => {
+      const next = new URLSearchParams(current);
+      if (value) next.set(field, value); else next.delete(field);
+      return next;
+    }, { replace: true });
   };
   const chooseStart = (location?: Location) => {
     setStart(location);
@@ -83,16 +107,20 @@ export default function App() {
         <span className="arrow" aria-hidden="true">→</span>
         <PlaceInput label="To" location={destination} onSelect={chooseDestination} />
       </div>
-      <label className="account">
-        <span>Account</span>
-        <select aria-label="Account" value={accountId} disabled={!presets.data}
-          onChange={event => {
-            setAccountId(event.target.value);
-            remember("account", event.target.value);
-          }}>
-          {(presets.data || []).map(preset => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
-        </select>
-      </label>
+      <div className="account-controls">
+        <label className="account">
+          <span>Account</span>
+          <select aria-label="Account" value={accountId} disabled={!presets.data && !customAccount}
+            onChange={event => {
+              setAccountId(event.target.value);
+              remember("account", event.target.value);
+            }}>
+            {(presets.data || []).map(preset => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
+            {customAccount && <option value="custom">{customAccount.name}</option>}
+          </select>
+        </label>
+        <button type="button" className="edit-account" disabled={!account} onClick={() => setEditingAccount(true)}>Edit</button>
+      </div>
     </header>
 
     <main className="workspace">
@@ -138,5 +166,13 @@ export default function App() {
         </div>}
       </aside>
     </main>
+    {account && <AccountEditor account={account} quests={quests} open={editingAccount}
+      onClose={() => setEditingAccount(false)} onSave={value => {
+        localStorage.setItem(customAccountKey, JSON.stringify(value));
+        setCustomAccount(value);
+        setAccountId("custom");
+        remember("account", "custom");
+        setEditingAccount(false);
+      }} />}
   </div>;
 }

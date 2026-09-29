@@ -53,8 +53,7 @@ final class AccountCompiler
 					case "getWorldType": return EnumSet.noneOf(WorldType.class);
 					case "getVarbitValue":
 						int varbit = (Integer) args[0];
-						if (varbit == VarbitID.FAIRY2_QUEENCURE_QUEST
-							&& !account.routingVariables.varbits.containsKey(varbit))
+						if (varbit == VarbitID.FAIRY2_QUEENCURE_QUEST)
 							return account.fairyRingsUnlocked ? 100 : 0;
 						return account.routingVariables.varbits.getOrDefault(varbit, 0);
 					case "getVarpValue":
