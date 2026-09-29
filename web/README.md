@@ -40,7 +40,7 @@ Use established ecosystem libraries for UI, routing, map rendering, forms, API s
 
 ## Deploy
 
-Keep the production `shortest-path` checkout beside this repository, then run:
+Local Docker Compose deployment:
 
 ```sh
 docker compose up --build -d
@@ -50,3 +50,8 @@ curl http://localhost:8080/api/ready
 The public site is served on `HTTP_PORT` (default `8080`). The service is private to the
 Compose network. Set `SERVICE_HEAP_MIN` and `SERVICE_HEAP_MAX` for the host; the defaults are
 `512m` and `4g`.
+
+Production is designed for a Hetzner Cloud `ccx13` or `cpx32` VM, with Hetzner Object Storage
+for OpenTofu state and optional Hetzner DNS. See the
+[production deployment runbook](infra/README.md) for server installation, firewall/DNS IaC,
+host hardening, deployment, verification, and rollback.

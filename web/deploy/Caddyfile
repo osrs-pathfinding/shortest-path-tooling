@@ -1,5 +1,10 @@
-:80 {
+{$SITE_ADDRESS::80} {
 	encode zstd gzip
+
+	# Service metrics are for host-local collection only.
+	handle /api/metrics {
+		respond 404
+	}
 
 	handle_path /api/* {
 		reverse_proxy service:8080
