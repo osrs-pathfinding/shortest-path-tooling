@@ -71,6 +71,14 @@ class RoutingEngineTest
 		assertTrue(ItemCatalog.find("bronze dagger", null).isEmpty());
 	}
 
+	@Test
+	void itemCatalogIncludesItemsCheckedOutsideTransportData()
+	{
+		assertEquals("Dramen staff", ItemCatalog.find(null, "772").get(0).name);
+		assertTrue(ItemCatalog.find("lunar staff", null).stream().anyMatch(item -> "9084".equals(item.key)));
+		assertTrue(ItemCatalog.find("rune pouch", null).stream().anyMatch(item -> "12791".equals(item.key)));
+	}
+
 	private static ApiModels.Location location(int x, int y, int plane)
 	{
 		ApiModels.Location location = new ApiModels.Location();

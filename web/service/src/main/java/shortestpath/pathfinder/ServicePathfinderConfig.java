@@ -8,6 +8,7 @@ import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
 import shortestpath.Destination;
 import shortestpath.DestinationRequirements;
+import shortestpath.ItemVariations;
 import shortestpath.ShortestPathConfig;
 import shortestpath.transport.Transport;
 import shortestpath.transport.TransportLoader;
@@ -16,14 +17,11 @@ import shortestpath.transport.requirement.ItemRequirement;
 /** Resource-sharing PathfinderConfig for the headless service. */
 public final class ServicePathfinderConfig extends PathfinderConfig
 {
-	private static final class Resources
+	/** Transport data only, so route items can be listed without loading the collision map. */
+	private static final class Transports
 	{
-		static final SplitFlagMap MAP = SplitFlagMap.fromResources();
-		static final Map<Integer, Set<Transport>> TRANSPORTS = transports();
+		static final Map<Integer, Set<Transport>> ALL = transports();
 		static final Set<Integer> ROUTE_ITEM_IDS = routeItemIds();
-		static final Map<String, Set<Integer>> DESTINATIONS = Destination.loadAllFromResources();
-		static final Map<String, Set<Integer>> FILTERED = PathfinderConfig.filterDestinations(DESTINATIONS);
-		static final Map<Integer, DestinationRequirements> BANKS = Destination.loadBankRequirementsFromResources();
 
 		private static Map<Integer, Set<Transport>> transports()
 		{
@@ -35,7 +33,7 @@ public final class ServicePathfinderConfig extends PathfinderConfig
 		private static Set<Integer> routeItemIds()
 		{
 			Set<Integer> result = new HashSet<>();
-			for (Set<Transport> transports : TRANSPORTS.values())
+			for (Set<Transport> transports : ALL.values())
 				for (Transport transport : transports)
 					if (transport.getItemRequirements() != null)
 						for (ItemRequirement requirement : transport.getItemRequirements().getRequirements())
@@ -44,6 +42,11 @@ public final class ServicePathfinderConfig extends PathfinderConfig
 							add(result, requirement.getStaffIds());
 							add(result, requirement.getOffhandIds());
 						}
+			// PathfinderConfig checks these in code rather than through transport requirements:
+			// fairy rings need a staff, pouch runes need a pouch, and currencies pay for fares.
+			add(result, ItemVariations.DRAMEN_STAFF.getIds());
+			result.addAll(PathfinderConfig.RUNE_POUCHES);
+			result.addAll(PathfinderConfig.CURRENCIES);
 			return Set.copyOf(result);
 		}
 
@@ -53,18 +56,26 @@ public final class ServicePathfinderConfig extends PathfinderConfig
 		}
 	}
 
+	private static final class Resources
+	{
+		static final SplitFlagMap MAP = SplitFlagMap.fromResources();
+		static final Map<String, Set<Integer>> DESTINATIONS = Destination.loadAllFromResources();
+		static final Map<String, Set<Integer>> FILTERED = PathfinderConfig.filterDestinations(DESTINATIONS);
+		static final Map<Integer, DestinationRequirements> BANKS = Destination.loadBankRequirementsFromResources();
+	}
+
 	private final Set<String> completedQuests;
 	private final long nowMinutes;
 
 	public static Set<Integer> routeItemIds()
 	{
-		return Resources.ROUTE_ITEM_IDS;
+		return Transports.ROUTE_ITEM_IDS;
 	}
 
 	public ServicePathfinderConfig(Client client, ShortestPathConfig config,
 		Set<String> completedQuests, long nowMinutes)
 	{
-		super(client, config, Resources.MAP, Resources.TRANSPORTS, Resources.DESTINATIONS,
+		super(client, config, Resources.MAP, Transports.ALL, Resources.DESTINATIONS,
 			Resources.FILTERED, Resources.BANKS);
 		this.completedQuests = Set.copyOf(completedQuests);
 		this.nowMinutes = nowMinutes;
