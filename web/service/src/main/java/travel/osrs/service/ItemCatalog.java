@@ -1,15 +1,19 @@
 package travel.osrs.service;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
-import net.runelite.api.gameval.ItemID;
+import shortestpath.pathfinder.ServicePathfinderConfig;
 
 final class ItemCatalog
 {
@@ -31,23 +35,30 @@ final class ItemCatalog
 
 	private static Map<Integer, ApiModels.ItemOption> load()
 	{
+		Map<Integer, String> names = loadNames();
+		List<ApiModels.ItemOption> items = ServicePathfinderConfig.routeItemIds().stream().map(id -> {
+			String name = names.get(id);
+			if (name == null) throw new IllegalStateException("missing MOID name for route item " + id);
+			return new ApiModels.ItemOption(Integer.toString(id), name);
+		}).sorted(Comparator.comparing((ApiModels.ItemOption item) -> item.name).thenComparing(item -> item.key))
+			.collect(Collectors.toList());
 		Map<Integer, ApiModels.ItemOption> result = new LinkedHashMap<>();
-		Arrays.stream(ItemID.class.getFields()).filter(field -> Modifier.isStatic(field.getModifiers()) && field.getType() == int.class)
-			.sorted(Comparator.comparingInt(field -> field.getName().length()))
-			.forEach(field -> add(result, field));
+		items.forEach(item -> result.put(Integer.valueOf(item.key), item));
 		return result;
 	}
 
-	private static void add(Map<Integer, ApiModels.ItemOption> result, Field field)
+	private static Map<Integer, String> loadNames()
 	{
-		try
+		Map<Integer, String> result = new LinkedHashMap<>();
+		InputStream input = Objects.requireNonNull(ItemCatalog.class.getResourceAsStream("/route-item-names.tsv"));
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8)))
 		{
-			int id = field.getInt(null);
-			String name = Arrays.stream(field.getName().split("_"))
-				.map(word -> word.isEmpty() ? word : word.substring(0, 1) + word.substring(1).toLowerCase(Locale.ROOT))
-				.collect(Collectors.joining(" "));
-			result.putIfAbsent(id, new ApiModels.ItemOption(Integer.toString(id), name));
+			reader.lines().filter(line -> !line.isBlank()).forEach(line -> {
+				String[] fields = line.split("\\t", 2);
+				result.put(Integer.valueOf(fields[0]), fields[1]);
+			});
 		}
-		catch (IllegalAccessException error) { throw new ExceptionInInitializerError(error); }
+		catch (IOException error) { throw new ExceptionInInitializerError(error); }
+		return result;
 	}
 }

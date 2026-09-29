@@ -1,6 +1,7 @@
 package travel.osrs.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -64,6 +65,10 @@ class RoutingEngineTest
 	{
 		assertEquals("995", ItemCatalog.find(null, "995").get(0).key);
 		assertTrue(ItemCatalog.find("coins", null).stream().anyMatch(item -> "995".equals(item.key)));
+		assertTrue(ItemCatalog.find("teleport to house", null).stream()
+			.anyMatch(item -> "8013".equals(item.key) && "Teleport to house".equals(item.name)));
+		assertFalse(ItemCatalog.find("teleporttohouse", null).stream().anyMatch(item -> "8013".equals(item.key)));
+		assertTrue(ItemCatalog.find("bronze dagger", null).isEmpty());
 	}
 
 	private static ApiModels.Location location(int x, int y, int plane)

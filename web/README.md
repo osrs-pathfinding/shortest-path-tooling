@@ -17,7 +17,7 @@ quests, unlocks, and POH settings and are saved in the browser; raw routing vari
 The existing developer viewer is intentionally not imported, mounted, or exposed by this application. Add shared code only when a public feature demonstrates a need for it.
 
 Skill sprites are provided by [@dava96/osrs-icons](https://github.com/Dava96/osrs-icons)
-under CC BY-NC-SA 3.0. Item sprites are served by the OSRS Wiki's
+under CC BY-NC-SA 3.0. Canonical item names and sprites come from the OSRS Wiki's
 [Chisel item database](https://chisel.weirdgloop.org/moid/item_id.html).
 
 Use established ecosystem libraries for UI, routing, map rendering, forms, API state, validation, and server implementation where they are the idiomatic choice. Do not replace them with local substitutes merely because the first version looks small.
