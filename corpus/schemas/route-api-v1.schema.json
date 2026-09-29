@@ -71,10 +71,10 @@
       "additionalProperties": false,
       "required": ["account", "start", "destination", "policy"],
       "properties": {
-        "account": { "$ref": "https://osrs.travel/schemas/account-build-v1.schema.json" },
+        "account": { "$ref": "account-build-v1.schema.json" },
         "start": { "$ref": "#/$defs/location" },
         "destination": { "$ref": "#/$defs/location" },
-        "policy": { "$ref": "https://osrs.travel/schemas/route-policy-v1.schema.json" }
+        "policy": { "$ref": "route-policy-v1.schema.json" }
       }
     },
     "routePlan": {
