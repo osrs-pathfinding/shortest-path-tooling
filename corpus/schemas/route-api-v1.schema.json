@@ -2,6 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://osrs.travel/schemas/route-api-v1.schema.json",
   "title": "Route API v1",
+  "oneOf": [
+    { "$ref": "#/$defs/routeRequest" },
+    { "$ref": "#/$defs/routePlan" }
+  ],
   "$defs": {
     "worldPoint": {
       "type": "object",
