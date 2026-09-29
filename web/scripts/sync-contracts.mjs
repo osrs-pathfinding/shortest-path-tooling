@@ -9,7 +9,7 @@ const generated = path.join(root, "src/generated");
 const publicProfiles = path.join(root, "public/data/profiles");
 const serviceSchemas = path.join(root, "service/src/main/resources/schemas");
 const serviceProfiles = path.join(root, "service/src/main/resources/profiles");
-const schemas = ["account-build-v1", "route-policy-v1", "place-v1", "route-api-v1"];
+const schemas = ["account-build-v1", "route-policy-v1", "route-api-v1"];
 const profiles = ["early", "mid", "end", "maxed"];
 
 await mkdir(generated, { recursive: true });
@@ -19,12 +19,14 @@ await mkdir(serviceProfiles, { recursive: true });
 
 for (const name of schemas) {
   const source = path.join(corpus, `schemas/${name}.schema.json`);
-  const types = await compileFromFile(source, {
-    bannerComment: "/* Generated from shortest-path-corpus. Do not edit. */",
-    cwd: path.join(corpus, "schemas"),
-    style: { singleQuote: false },
-  });
-  await writeFile(path.join(generated, `${name}.d.ts`), types);
+  if (name === "route-api-v1") {
+    const types = await compileFromFile(source, {
+      bannerComment: "/* Generated from shortest-path-corpus. Do not edit. */",
+      cwd: path.join(corpus, "schemas"),
+      style: { singleQuote: false },
+    });
+    await writeFile(path.join(generated, `${name}.d.ts`), types);
+  }
   if (name === "account-build-v1") await copyFile(source, path.join(generated, `${name}.schema.json`));
   await copyFile(source, path.join(serviceSchemas, `${name}.schema.json`));
 }

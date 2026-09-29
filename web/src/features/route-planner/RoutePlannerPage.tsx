@@ -8,7 +8,7 @@ import { accountLabel } from "../../domain/accounts";
 import type { AccountBuild, Location, RoutePolicy, WorldPoint } from "../../domain/contracts";
 import { Itinerary } from "../itinerary/Itinerary";
 import { ShareRoute } from "./ShareRoute";
-import { defaultPolicy, plannerUrlWarnings, profileFromHash, readPlannerUrl, SharedProfileError, writePlannerUrl, type PlannerUrlState } from "./plannerState";
+import { defaultPolicy, isDefaultPolicy, plannerUrlWarnings, profileFromHash, readPlannerUrl, readStoredPolicy, SharedProfileError, writePlannerUrl, type PlannerUrlState } from "./plannerState";
 
 const customAccountKey = "osrs-travel.custom-account.v1";
 const policyKey = "osrs-travel.route-policy.v1";
@@ -17,16 +17,27 @@ const OsrsMap = lazy(() => import("../../map/OsrsMap").then(module => ({ default
 
 function loadCustomAccount(): AccountBuild | undefined {
   try {
-    const value = JSON.parse(localStorage.getItem(customAccountKey) || "null") as AccountBuild | null;
-    return value?.schemaVersion === 1 && value.id === "custom" && value.levels && value.poh ? value : undefined;
+    const value: unknown = JSON.parse(localStorage.getItem(customAccountKey) || "null");
+    return isUsableStoredAccount(value) ? value : undefined;
   } catch { return undefined; }
 }
 
 function loadStoredPolicy(): RoutePolicy {
-  try {
-    const value = JSON.parse(localStorage.getItem(policyKey) || "null") as Partial<RoutePolicy> | null;
-    return value ? { ...defaultPolicy, ...value, avoidedTransportTypes: value.avoidedTransportTypes || [] } : defaultPolicy;
-  } catch { return defaultPolicy; }
+  try { return readStoredPolicy(localStorage.getItem(policyKey)); }
+  catch { return readStoredPolicy(null); }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isUsableStoredAccount(value: unknown): value is AccountBuild {
+  if (!isRecord(value) || value.schemaVersion !== 1 || value.id !== "custom" || typeof value.name !== "string") return false;
+  return isRecord(value.levels) && Array.isArray(value.completedQuests) && isRecord(value.diaries)
+    && isRecord(value.inventory) && isRecord(value.equipment) && isRecord(value.runePouch) && isRecord(value.bank)
+    && Array.isArray(value.plantedSpiritTrees) && isRecord(value.poh) && isRecord(value.poh.portals)
+    && Array.isArray(value.poh.portals.destinations) && isRecord(value.runtime) && isRecord(value.runtime.minigameTeleport)
+    && isRecord(value.routingVariables);
 }
 
 function PlaceInput({ label, location, onSelect }: { label: string; location?: Location; onSelect(location?: Location): void }) {
@@ -39,7 +50,8 @@ function PlaceInput({ label, location, onSelect }: { label: string; location?: L
     else if (!value) onSelect(undefined);
   };
   return <label><span>{label}</span><input type="search" list="places" value={text}
-    placeholder={`Choose ${label.toLowerCase()}`} onChange={event => choose(event.target.value)} /></label>;
+    placeholder={`Choose ${label.toLowerCase()}`} onChange={event => choose(event.target.value)}
+    onBlur={() => { if (!places.some(place => place.name?.toLowerCase() === text.toLowerCase())) setText(location?.name || ""); }} /></label>;
 }
 
 function PolicyControls({ policy, onChange }: { policy: RoutePolicy; onChange(policy: RoutePolicy): void }) {
@@ -54,8 +66,8 @@ function PolicyControls({ policy, onChange }: { policy: RoutePolicy; onChange(po
       onChange={event => onChange({ ...policy, resources: event.target.value as RoutePolicy["resources"] })}>
       <option value="fastest">Fastest</option><option value="preserve-consumables">Preserve consumables</option>
     </select></label>
-    {JSON.stringify(policy) !== JSON.stringify(defaultPolicy) && <button type="button" className="text-button reset-policy"
-      onClick={() => onChange(defaultPolicy)}>Reset route policy</button>}
+    {!isDefaultPolicy(policy) && <button type="button" className="text-button reset-policy"
+      onClick={() => onChange({ ...defaultPolicy, avoidedTransportTypes: [] })}>Reset route policy</button>}
   </div>;
 }
 
@@ -111,7 +123,10 @@ export function RoutePlannerPage() {
   const update = (partial: Partial<PlannerUrlState>, replace = false) => updateUrl({ ...urlState, ...partial }, { replace });
   const chooseAccount = (id: string) => updateUrl({ ...urlState, accountId: id }, { hash: id === "shared" ? location.hash : "" });
 
-  useEffect(() => { localStorage.setItem(policyKey, JSON.stringify(urlState.policy)); }, [urlState.policy]);
+  useEffect(() => {
+    try { localStorage.setItem(policyKey, JSON.stringify(urlState.policy)); }
+    catch { /* The URL still preserves the active policy when storage is unavailable. */ }
+  }, [urlState.policy]);
   useEffect(() => { setSelectedSegment(undefined); }, [urlState.start, urlState.destination, account, urlState.policy]);
 
   const request = useMemo(() => account && urlState.start && urlState.destination
@@ -153,7 +168,9 @@ export function RoutePlannerPage() {
       {account && accountPanel !== "closed" && <Suspense fallback={<aside className="account-panel"><p className="panel-loading">Loading account…</p></aside>}>
         <AccountPanel accounts={accounts} account={account} quests={quests} open={accountPanel === "open"}
           onSelect={chooseAccount} onClose={closeAccountPanel} onSave={value => {
-            localStorage.setItem(customAccountKey, JSON.stringify(value)); setCustomAccount(value); chooseAccount("custom");
+            try { localStorage.setItem(customAccountKey, JSON.stringify(value)); }
+            catch { throw new Error("This browser could not save the custom build. Check its storage permissions and try again."); }
+            setCustomAccount(value); chooseAccount("custom");
           }} />
       </Suspense>}
       <section className="map" aria-label="OSRS route map">

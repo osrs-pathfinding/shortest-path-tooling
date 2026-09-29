@@ -97,28 +97,28 @@ final class AccountCompiler
 		diary(bits, account.diaries.getOrDefault("Varrock", "NoDiary"), VarbitID.VARROCK_DIARY_EASY_COMPLETE, VarbitID.VARROCK_DIARY_MEDIUM_COMPLETE, VarbitID.VARROCK_DIARY_HARD_COMPLETE, VarbitID.VARROCK_DIARY_ELITE_COMPLETE);
 		diary(bits, account.diaries.getOrDefault("WesternProvinces", "NoDiary"), VarbitID.WESTERN_DIARY_EASY_COMPLETE, VarbitID.WESTERN_DIARY_MEDIUM_COMPLETE, VarbitID.WESTERN_DIARY_HARD_COMPLETE, VarbitID.WESTERN_DIARY_ELITE_COMPLETE);
 		diary(bits, account.diaries.getOrDefault("Wilderness", "NoDiary"), VarbitID.WILDERNESS_DIARY_EASY_COMPLETE, VarbitID.WILDERNESS_DIARY_MEDIUM_COMPLETE, VarbitID.WILDERNESS_DIARY_HARD_COMPLETE, VarbitID.WILDERNESS_DIARY_ELITE_COMPLETE);
-		questBit(bits, account, VarbitID.LOVAQUEST, "The Forsaken Tower", 11);
-		questBit(bits, account, VarbitID.MY2ARM_STATUS, "Making Friends with My Arm", 207);
-		questBit(bits, account, VarbitID.THZFE_BLOCKING_BARRICADE, "Zogre Flesh Eaters", 1);
-		questBit(bits, account, VarbitID.HOSIDIUSQUEST, "The Depths of Despair", 7);
-		questBit(bits, account, VarbitID.DRAGONSLAYER_CRANDOR_FOUND_SECRET_DOOR, "Dragon Slayer I", 1);
-		questBit(bits, account, VarbitID.MYQ3_MAIN_QUEST, "Darkness of Hallowvale", 320);
-		questBit(bits, account, VarbitID.MDAUGHTER_QUEST_VAR, "Mountain Daughter", 70);
-		questBit(bits, account, VarbitID.DWARFROCK_QUEST, "Between a Rock...", 10);
-		questBit(bits, account, VarbitID.GOLEM_A, "The Golem", 10);
-		questBit(bits, account, VarbitID.ICS_LITTLE_VAR, "Icthlarin's Little Helper", 26);
-		questBit(bits, account, VarbitID.TOG_JUNA_BOWL, "Tears of Guthix", 2);
-		questBit(bits, account, VarbitID.ZOGRE, "Zogre Flesh Eaters", 14);
-		questBit(bits, account, VarbitID.LOST_TRIBE_QUEST, "The Lost Tribe", 12);
-		questBit(bits, account, VarbitID.SWANSONG, "Swan Song", 200);
-		questBit(bits, account, VarbitID.FRIS_QUEST, "The Fremennik Isles", 340);
-		questBit(bits, account, VarbitID.VEOS_PROGRESS, "Client of Kourend", 1);
-		questBit(bits, account, VarbitID.HOSIDIUSQUEST_REWARD, "The Depths of Despair", 1);
-		questBit(bits, account, VarbitID.PISCQUEST_REWARD, "The Queen of Thieves", 1);
-		questBit(bits, account, VarbitID.SHAYZIENQUEST_REWARD, "The Tale of the Righteous", 1);
-		questBit(bits, account, VarbitID.LOVAQUEST_REWARD, "The Forsaken Tower", 1);
-		questBit(bits, account, VarbitID.ARCQUEST_REWARD, "Architectural Alliance", 1);
-		questBit(bits, account, VarbitID.BCS, "Beneath Cursed Sands", 108);
+		questProgress(bits, account, VarbitID.LOVAQUEST, "The Forsaken Tower", 11);
+		questProgress(bits, account, VarbitID.MY2ARM_STATUS, "Making Friends with My Arm", 207);
+		questProgress(bits, account, VarbitID.THZFE_BLOCKING_BARRICADE, "Zogre Flesh Eaters", 1);
+		questProgress(bits, account, VarbitID.HOSIDIUSQUEST, "The Depths of Despair", 7);
+		questProgress(bits, account, VarbitID.DRAGONSLAYER_CRANDOR_FOUND_SECRET_DOOR, "Dragon Slayer I", 1);
+		questProgress(bits, account, VarbitID.MYQ3_MAIN_QUEST, "Darkness of Hallowvale", 320);
+		questProgress(bits, account, VarbitID.MDAUGHTER_QUEST_VAR, "Mountain Daughter", 70);
+		questProgress(bits, account, VarbitID.DWARFROCK_QUEST, "Between a Rock...", 10);
+		questProgress(bits, account, VarbitID.GOLEM_A, "The Golem", 10);
+		questProgress(bits, account, VarbitID.ICS_LITTLE_VAR, "Icthlarin's Little Helper", 26);
+		questProgress(bits, account, VarbitID.TOG_JUNA_BOWL, "Tears of Guthix", 2);
+		questProgress(bits, account, VarbitID.ZOGRE, "Zogre Flesh Eaters", 14);
+		questProgress(bits, account, VarbitID.LOST_TRIBE_QUEST, "The Lost Tribe", 12);
+		questProgress(bits, account, VarbitID.SWANSONG, "Swan Song", 200);
+		questProgress(bits, account, VarbitID.FRIS_QUEST, "The Fremennik Isles", 340);
+		questProgress(bits, account, VarbitID.VEOS_PROGRESS, "Client of Kourend", 1);
+		questProgress(bits, account, VarbitID.HOSIDIUSQUEST_REWARD, "The Depths of Despair", 1);
+		questProgress(bits, account, VarbitID.PISCQUEST_REWARD, "The Queen of Thieves", 1);
+		questProgress(bits, account, VarbitID.SHAYZIENQUEST_REWARD, "The Tale of the Righteous", 1);
+		questProgress(bits, account, VarbitID.LOVAQUEST_REWARD, "The Forsaken Tower", 1);
+		questProgress(bits, account, VarbitID.ARCQUEST_REWARD, "Architectural Alliance", 1);
+		questProgress(bits, account, VarbitID.BCS, "Beneath Cursed Sands", 108);
 		return bits;
 	}
 
@@ -127,27 +127,22 @@ final class AccountCompiler
 		Map<Integer, Integer> players = new HashMap<>();
 		players.put(VarPlayerID.SLUG2_REGIONUID, "ready".equals(account.runtime.minigameTeleport.state)
 			? Math.toIntExact(account.benchmarkNowMinutes - 21) : Math.toIntExact(account.runtime.minigameTeleport.minutes));
-		questPlayer(players, account, VarPlayerID.LEGENDSQUEST, "Legends' Quest", 75);
-		questPlayer(players, account, VarPlayerID.ZOMBIEQUEEN, "Shilo Village", 15);
-		questPlayer(players, account, VarPlayerID.WATERFALL_QUEST, "Waterfall Quest", 10);
-		questPlayer(players, account, VarPlayerID.FISHINGCOMPO, "Fishing Contest", 5);
-		questPlayer(players, account, VarPlayerID.TREEQUEST, "Tree Gnome Village", 9);
-		questPlayer(players, account, VarPlayerID.GRANDTREE, "The Grand Tree", 160);
-		questPlayer(players, account, VarPlayerID.ELENAQUEST, "Plague City", 30);
-		questPlayer(players, account, VarPlayerID.DRAGONQUEST, "Dragon Slayer I", 10);
-		questPlayer(players, account, VarPlayerID.ITWATCHTOWER, "Watchtower", 14);
-		questPlayer(players, account, VarPlayerID.REGICIDE_QUEST, "Regicide", 15);
-		questPlayer(players, account, VarPlayerID.MISC_QUEST, "Throne of Miscellania", 100);
-		questPlayer(players, account, VarPlayerID.MOURNING_QUEST, "Mourning's End Part I", 9);
+		questProgress(players, account, VarPlayerID.LEGENDSQUEST, "Legends' Quest", 75);
+		questProgress(players, account, VarPlayerID.ZOMBIEQUEEN, "Shilo Village", 15);
+		questProgress(players, account, VarPlayerID.WATERFALL_QUEST, "Waterfall Quest", 10);
+		questProgress(players, account, VarPlayerID.FISHINGCOMPO, "Fishing Contest", 5);
+		questProgress(players, account, VarPlayerID.TREEQUEST, "Tree Gnome Village", 9);
+		questProgress(players, account, VarPlayerID.GRANDTREE, "The Grand Tree", 160);
+		questProgress(players, account, VarPlayerID.ELENAQUEST, "Plague City", 30);
+		questProgress(players, account, VarPlayerID.DRAGONQUEST, "Dragon Slayer I", 10);
+		questProgress(players, account, VarPlayerID.ITWATCHTOWER, "Watchtower", 14);
+		questProgress(players, account, VarPlayerID.REGICIDE_QUEST, "Regicide", 15);
+		questProgress(players, account, VarPlayerID.MISC_QUEST, "Throne of Miscellania", 100);
+		questProgress(players, account, VarPlayerID.MOURNING_QUEST, "Mourning's End Part I", 9);
 		return players;
 	}
 
-	private static void questBit(Map<Integer, Integer> target, ApiModels.AccountBuild account, int id, String quest, int complete)
-	{
-		target.put(id, account.completedQuests.contains(quest) ? complete : 0);
-	}
-
-	private static void questPlayer(Map<Integer, Integer> target, ApiModels.AccountBuild account, int id, String quest, int complete)
+	private static void questProgress(Map<Integer, Integer> target, ApiModels.AccountBuild account, int id, String quest, int complete)
 	{
 		target.put(id, account.completedQuests.contains(quest) ? complete : 0);
 	}

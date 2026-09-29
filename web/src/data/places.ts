@@ -24,8 +24,11 @@ export function locationFromParam(value: string | null): Location | undefined {
   const place = places.find(candidate => candidate.placeId === value);
   if (place) return place;
   const coordinates = value.split(",").map(Number);
-  if (coordinates.length !== 3 || coordinates.some(Number.isNaN)) return undefined;
-  return { name: `${coordinates[0]}, ${coordinates[1]}`, coordinate: {
-    x: coordinates[0], y: coordinates[1], plane: coordinates[2],
-  } };
+  if (coordinates.length !== 3 || coordinates.some(coordinate => !Number.isInteger(coordinate))) return undefined;
+  const [x, y, plane] = coordinates;
+  if (x < 0 || x > 32767 || y < 0 || y > 32767 || plane < 0 || plane > 3) return undefined;
+  return {
+    name: `${x}, ${y}${plane ? `, plane ${plane}` : ""}`,
+    coordinate: { x, y, plane },
+  };
 }

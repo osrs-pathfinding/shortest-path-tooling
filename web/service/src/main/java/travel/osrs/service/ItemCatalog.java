@@ -31,7 +31,7 @@ final class ItemCatalog
 	{
 		if (ids != null && !ids.isBlank()) return Arrays.stream(ids.split(","))
 			.map(String::trim).filter(value -> value.matches("\\d+"))
-			.map(Integer::valueOf).distinct().map(ITEMS::get).filter(java.util.Objects::nonNull)
+			.map(Integer::valueOf).distinct().map(ITEMS::get).filter(Objects::nonNull)
 			.collect(Collectors.toList());
 		String needle = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
 		if (needle.length() < 2) return List.of();

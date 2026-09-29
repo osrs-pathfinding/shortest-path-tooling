@@ -1,6 +1,6 @@
 import { CRS, map as leafletMap } from "leaflet";
 import { describe, expect, it } from "vitest";
-import { fromLatLng, segmentPoints, toLatLng } from "./RouteMap";
+import { fromLatLng, segmentPoints, toLatLng } from "./OsrsMap";
 
 describe("route map coordinates", () => {
   it("maps a picked tile back to the same tile", () => {

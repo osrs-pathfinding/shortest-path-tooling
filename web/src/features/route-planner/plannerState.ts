@@ -22,6 +22,33 @@ export interface PlannerUrlState {
   policy: RoutePolicy;
 }
 
+export function readStoredPolicy(value: string | null): RoutePolicy {
+  if (!value) return { ...defaultPolicy, avoidedTransportTypes: [] };
+  try {
+    const stored = JSON.parse(value) as Partial<RoutePolicy>;
+    return {
+      avoidWilderness: typeof stored.avoidWilderness === "boolean" ? stored.avoidWilderness : defaultPolicy.avoidWilderness,
+      banking: stored.banking === "never" || stored.banking === "allow" ? stored.banking : defaultPolicy.banking,
+      resources: stored.resources === "preserve-consumables" || stored.resources === "fastest"
+        ? stored.resources : defaultPolicy.resources,
+      avoidedTransportTypes: Array.isArray(stored.avoidedTransportTypes)
+        ? Array.from(new Set(stored.avoidedTransportTypes
+          .filter(value => typeof value === "string" && value.trim())
+          .map(value => value.trim()))).sort()
+        : [],
+    };
+  } catch {
+    return { ...defaultPolicy, avoidedTransportTypes: [] };
+  }
+}
+
+export function isDefaultPolicy(policy: RoutePolicy): boolean {
+  return policy.avoidWilderness === defaultPolicy.avoidWilderness
+    && policy.banking === defaultPolicy.banking
+    && policy.resources === defaultPolicy.resources
+    && policy.avoidedTransportTypes.length === 0;
+}
+
 export function readPlannerUrl(params: URLSearchParams, fallbackPolicy: RoutePolicy = defaultPolicy): PlannerUrlState {
   return {
     start: locationFromParam(params.get("from")),
@@ -62,7 +89,11 @@ export function writePlannerUrl(state: PlannerUrlState): URLSearchParams {
 
 export function encodeSharedProfile(account: AccountBuild): string {
   const json = JSON.stringify(sortObject(account));
-  const encoded = bytesToBase64Url(gzipSync(strToU8(json), { level: 9 }));
+  const decoded = strToU8(json);
+  if (decoded.byteLength > maxDecodedProfileBytes) {
+    throw new SharedProfileError("This account is too large to share as a single link.");
+  }
+  const encoded = bytesToBase64Url(gzipSync(decoded, { level: 9 }));
   const result = profilePrefix + encoded;
   if (result.length > maxShareProfileLength) {
     throw new SharedProfileError("This account is too large to share as a single link.");
@@ -75,7 +106,9 @@ export async function decodeSharedProfile(value: string | null): Promise<Account
   if (value.length > maxShareProfileLength) throw new SharedProfileError("This route link contains an account that is too large.");
   try {
     const compressed = base64UrlToBytes(value.slice(profilePrefix.length));
-    const decoded = gunzipSync(compressed);
+    const decodedSize = gzipDecodedSize(compressed);
+    if (decodedSize > maxDecodedProfileBytes) throw new SharedProfileError("This route link contains an account that is too large.");
+    const decoded = gunzipSync(compressed, { out: new Uint8Array(decodedSize) });
     if (decoded.byteLength > maxDecodedProfileBytes) throw new SharedProfileError("This route link contains an account that is too large.");
     const { validateAccount } = await import("../../domain/accountValidation");
     const account = validateAccount(JSON.parse(strFromU8(decoded)));
@@ -127,4 +160,10 @@ function base64UrlToBytes(value: string): Uint8Array {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
   const binary = atob(padded);
   return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
+function gzipDecodedSize(value: Uint8Array): number {
+  if (value.length < 4) throw new Error("invalid gzip stream");
+  const offset = value.length - 4;
+  return new DataView(value.buffer, value.byteOffset + offset, 4).getUint32(0, true);
 }

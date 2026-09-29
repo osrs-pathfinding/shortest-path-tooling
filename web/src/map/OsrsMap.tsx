@@ -69,7 +69,7 @@ function MapContents({ start, destination, route, selectedSegment, fitRequest, o
     fitPoints(map, segmentPoints(route.segments[selectedSegment]), 10);
   }, [map, route, selectedSegment]);
 
-  useMapEvents({ click: event => onPick(fromLatLng(map, event.latlng, start?.coordinate.plane || destination?.coordinate.plane || 0)) });
+  useMapEvents({ click: event => onPick(fromLatLng(map, event.latlng, start?.coordinate.plane ?? destination?.coordinate.plane ?? 0)) });
 
   return <>
     {start && <Marker position={toLatLng(map, start.coordinate)} icon={startIcon} title={`Start: ${start.name}`}

@@ -3,7 +3,7 @@ import early from "../../../public/data/profiles/early.json";
 import type { AccountBuild } from "../../domain/contracts";
 import {
   buildShareUrl, decodeSharedProfile, defaultPolicy, encodeSharedProfile, profileFromHash,
-  plannerUrlWarnings, readPlannerUrl, SharedProfileError, writePlannerUrl,
+  isDefaultPolicy, plannerUrlWarnings, readPlannerUrl, readStoredPolicy, SharedProfileError, writePlannerUrl,
 } from "./plannerState";
 
 const account = early as AccountBuild;
@@ -16,7 +16,7 @@ describe("planner URL state", () => {
       accountId: "early",
       policy: { ...defaultPolicy, avoidWilderness: false, banking: "never" as const },
     };
-    expect(readPlannerUrl(writePlannerUrl(state))).toEqual({ ...state, start: { ...state.start, name: "3200, 3201" } });
+    expect(readPlannerUrl(writePlannerUrl(state))).toEqual({ ...state, start: { ...state.start, name: "3200, 3201, plane 1" } });
   });
 
   it("embeds a complete custom account in a self-contained link", async () => {
@@ -36,10 +36,26 @@ describe("planner URL state", () => {
     // Highly repetitive content may compress well, so use incompressible-enough item keys.
     huge.bank = Object.fromEntries(Array.from({ length: 5000 }, (_, index) => [`ITEM_${index.toString(36).toUpperCase()}_${(index * 7919).toString(36).toUpperCase()}`, index + 1]));
     expect(() => encodeSharedProfile(huge)).toThrow("too large");
+    expect(() => encodeSharedProfile({ ...account, name: "x".repeat(130_000) })).toThrow("too large");
   });
 
   it("reports invalid shared state instead of silently accepting it", () => {
     expect(plannerUrlWarnings(new URLSearchParams("from=bad&account=missing&banking=sometimes"), ["mid"]))
       .toEqual(expect.arrayContaining([expect.stringContaining("start location"), expect.stringContaining("account"), expect.stringContaining("banking")]));
+  });
+
+  it("sanitizes stored policy instead of trusting browser storage", () => {
+    expect(readStoredPolicy('{"avoidWilderness":false,"banking":"sometimes","avoidedTransportTypes":["BOAT","BOAT",4]}'))
+      .toEqual({ ...defaultPolicy, avoidWilderness: false, avoidedTransportTypes: ["BOAT"] });
+    expect(readStoredPolicy("broken")).toEqual(defaultPolicy);
+    expect(isDefaultPolicy(readStoredPolicy(null))).toBe(true);
+  });
+
+  it("rejects coordinates outside the public route contract", () => {
+    for (const from of ["1.5,2,0", "Infinity,2,0", "-1,2,0", "1,2,4"]) {
+      const params = new URLSearchParams({ from });
+      expect(readPlannerUrl(params).start).toBeUndefined();
+      expect(plannerUrlWarnings(params, ["mid"])).toContain("The shared start location was invalid and has been ignored.");
+    }
   });
 });
