@@ -138,10 +138,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .list-actions button { padding: 6px 8px; color: #3e5c4e; background: transparent; border: 0; font-size: 12px; font-weight: 800; }
 .list-filter { margin: 0 !important; }
 .item-collection { margin-top: 5px; overflow: hidden; background: #fffdf7; border: 1px solid #cec5b0; border-radius: 6px; }
-.item-collection summary { position: relative; padding: 8px 36px 8px 11px; cursor: pointer; list-style: none; }
+.item-collection summary { position: relative; display: flex; align-items: center; min-height: 44px; padding: 8px 42px 8px 14px; cursor: pointer; list-style: none; }
 .item-collection summary::-webkit-details-marker { display: none; }
-.item-collection summary::after { content: "⌄"; position: absolute; right: 12px; top: 9px; color: #637169; font-weight: 900; }
-.item-collection[open] summary::after { transform: rotate(180deg); }
+.item-collection summary::after { content: "⌄"; position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #637169; font-size: 16px; font-weight: 900; }
+.item-collection[open] summary::after { transform: translateY(-50%) rotate(180deg); }
 .item-heading strong, .item-heading small { display: inline; }
 .item-heading strong { color: #315044; font-size: 14px; }
 .item-heading small { margin-left: 7px; color: #81857f; font-size: 11px; }
