@@ -1,5 +1,10 @@
 # shortest-path-corpus
 
+Canonical cross-language routing contracts live in `schemas/`. Generated account presets live in
+`profiles/`; the profile generator owns them, and consumers must treat their `schemaVersion` as the
+wire compatibility boundary. `routingVariables` exists for exact engine compatibility and must not
+be exposed as public account-editor fields.
+
 This repository is the implementation-neutral benchmark corpus for OSRS
 pathfinding. It owns canonical routes, four account profiles (`early`, `mid`,
 `end`, `maxed`), exclusions, and runtime state. `end` and `maxed` are

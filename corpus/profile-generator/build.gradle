@@ -33,13 +33,15 @@ tasks.withType(JavaCompile).configureEach {
 tasks.register('generateAccountProfiles', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'shortestpath.corpus.profiles.Main'
-    args 'generate', new File(projectDir, '../accounts/account-profiles-v1.json').path
+    args 'generate', new File(projectDir, '../accounts/account-profiles-v1.json').path,
+        new File(projectDir, '../profiles').path
 }
 
 tasks.register('verifyAccountProfiles', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'shortestpath.corpus.profiles.Main'
-    args 'verify', new File(projectDir, '../accounts/account-profiles-v1.json').path
+    args 'verify', new File(projectDir, '../accounts/account-profiles-v1.json').path,
+        new File(projectDir, '../profiles').path
 }
 
 test { useJUnit() }

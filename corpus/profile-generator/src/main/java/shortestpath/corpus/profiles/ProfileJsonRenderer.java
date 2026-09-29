@@ -45,6 +45,19 @@ final class ProfileJsonRenderer {
         return result;
     }
 
+    static String preset(ProfileSpec source) {
+        JsonObject result = profile(source);
+        JsonObject routingVariables = new JsonObject();
+        routingVariables.add("varbits", result.remove("varbits"));
+        routingVariables.add("varplayers", result.remove("varplayers"));
+        result.addProperty("schemaVersion", 1);
+        result.addProperty("id", source.name());
+        result.addProperty("name", title(source.name()));
+        result.addProperty("benchmarkNowMinutes", RoutingVariables.BENCHMARK_NOW_MINUTES);
+        result.add("routingVariables", routingVariables);
+        return GSON.toJson(result) + "\n";
+    }
+
     private static JsonObject poh(ProfileSpec source) {
         PohSpec poh = source.poh();
         JsonObject result = new JsonObject();

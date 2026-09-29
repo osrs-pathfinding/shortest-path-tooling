@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://osrs.travel/schemas/route-policy-v1.schema.json",
+  "title": "RoutePolicy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["avoidWilderness", "banking", "resources", "avoidedTransportTypes"],
+  "properties": {
+    "avoidWilderness": { "type": "boolean" },
+    "banking": { "enum": ["allow", "avoid", "never"] },
+    "resources": { "enum": ["fastest", "preserve-consumables"] },
+    "avoidedTransportTypes": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+  }
+}

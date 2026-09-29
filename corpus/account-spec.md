@@ -22,6 +22,11 @@ Item inventories and banks use the reusable data in `CanonicalItems.java`.
 state and keyed raw baselines into varbits and varplayers with conflict checks.
 Compilation is deterministic and profile names are labels only.
 
+The same generator writes player-facing `AccountBuild` documents to `profiles/`. Those documents
+validate against `schemas/account-build-v1.schema.json`; their semantic fields are the public
+contract, while `routingVariables` preserves exact compatibility with engines that have not yet
+replaced every raw game-state check.
+
 ## Maintainer workflow
 
 From the repository root:

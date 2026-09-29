@@ -1,0 +1,10 @@
+{
+  "name": "shortest-path-corpus",
+  "private": true,
+  "scripts": {
+    "validate": "node tools/validate.js"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1"
+  }
+}

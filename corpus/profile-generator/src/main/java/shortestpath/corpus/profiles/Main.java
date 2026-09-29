@@ -17,19 +17,28 @@ public final class Main {
     private Main() { }
 
     public static void main(String[] args) throws IOException {
-        if (args.length != 2 || !(args[0].equals("generate") || args[0].equals("verify"))) {
-            throw new IllegalArgumentException("usage: generate|verify OUTPUT");
+        if (args.length != 3 || !(args[0].equals("generate") || args[0].equals("verify"))) {
+            throw new IllegalArgumentException("usage: generate|verify FIXTURE PRESET_DIRECTORY");
         }
         List<ProfileSpec> profiles = CanonicalProfiles.all();
         validate(profiles);
         String generated = ProfileJsonRenderer.render(profiles);
         Path output = Paths.get(args[1]);
+        Path presetDirectory = Paths.get(args[2]);
         if (args[0].equals("generate")) {
             if (output.getParent() != null) Files.createDirectories(output.getParent());
             Files.writeString(output, generated, StandardCharsets.UTF_8);
+            Files.createDirectories(presetDirectory);
+            for (ProfileSpec profile : profiles) {
+                Files.writeString(presetDirectory.resolve(profile.name() + ".json"),
+                    ProfileJsonRenderer.preset(profile), StandardCharsets.UTF_8);
+            }
             return;
         }
         verifyAccountProfiles(output, generated);
+        for (ProfileSpec profile : profiles) {
+            verify(presetDirectory.resolve(profile.name() + ".json"), ProfileJsonRenderer.preset(profile));
+        }
     }
 
     static void verifyAccountProfiles(Path output) throws IOException {
@@ -37,10 +46,14 @@ public final class Main {
     }
 
     private static void verifyAccountProfiles(Path output, String generated) throws IOException {
+        verify(output, generated);
+    }
+
+    private static void verify(Path output, String generated) throws IOException {
         JsonElement committed = new JsonParser().parse(Files.readString(output, StandardCharsets.UTF_8));
         JsonElement actual = new JsonParser().parse(generated);
         if (!committed.equals(actual)) {
-            throw new IllegalStateException("generated account fixture differs: "
+            throw new IllegalStateException("generated account file differs at " + output + ": "
                 + difference(committed, actual, "$"));
         }
     }

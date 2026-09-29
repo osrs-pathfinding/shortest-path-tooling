@@ -17,5 +17,10 @@ jobs:
         with:
           gradle-version: '8.10'
       - run: gradle -p profile-generator test verifyAccountProfiles
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
       - run: tools/format-json.sh --check accounts/account-profiles-v1.json
-      - run: node tools/validate.js
+      - run: npm run validate

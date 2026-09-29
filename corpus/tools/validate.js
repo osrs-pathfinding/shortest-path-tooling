@@ -2,6 +2,8 @@
 
 const fs = require("fs");
 const path = require("path");
+const assert = require("node:assert/strict");
+const Ajv = require("ajv/dist/2020");
 const root = path.resolve(__dirname, "..");
 const read = file => JSON.parse(fs.readFileSync(path.join(root, file), "utf8"));
 const fail = message => { throw new Error(message); };
@@ -17,12 +19,20 @@ const isStringArray = (value, label) => {
   if (!Array.isArray(value) || value.some(entry => typeof entry !== "string")) fail(`${label} must be a string array`);
 };
 const isCoordinate = value => Array.isArray(value) && value.length === 3 && value.every(Number.isInteger);
+const ajv = new Ajv({ allErrors: true });
+const accountSchema = read("schemas/account-build-v1.schema.json");
+const policySchema = read("schemas/route-policy-v1.schema.json");
+ajv.addSchema(accountSchema).addSchema(policySchema);
+ajv.compile(read("schemas/place-v1.schema.json"));
+ajv.compile(read("schemas/route-api-v1.schema.json"));
+const validateAccount = ajv.getSchema(accountSchema.$id);
 
 const manifest = read("manifest.json");
 if (manifest.formatVersion !== 2) fail("manifest formatVersion must be 2");
 for (const field of ["accountProfilesVersion", "routesVersion"]) {
   if (manifest[field] !== 1) fail(`manifest ${field} must be 1`);
 }
+if (manifest.accountSchemaVersion !== 1) fail("manifest accountSchemaVersion must be 1");
 const accounts = read("accounts/account-profiles-v1.json");
 if (accounts.formatVersion !== manifest.accountProfilesVersion) fail("account profile version disagrees with manifest");
 if (Object.keys(accounts.profiles || {}).length !== 4 || [...profiles].some(name => !accounts.profiles[name])) {
@@ -58,6 +68,16 @@ for (const [name, profile] of Object.entries(accounts.profiles)) {
     || (runtime.minigameTeleport.state === "usedAt" && !Number.isInteger(runtime.minigameTeleport.minutes))) {
     fail(`${name}.runtime has invalid shape`);
   }
+}
+for (const name of profiles) {
+  const preset = read(`profiles/${name}.json`);
+  if (!validateAccount(preset)) fail(`${name} preset: ${ajv.errorsText(validateAccount.errors)}`);
+  if (preset.id !== name) fail(`${name} preset ID must match its filename`);
+  const { schemaVersion, id, name: label, benchmarkNowMinutes, routingVariables, ...semantic } = preset;
+  assert.equal(schemaVersion, 1);
+  assert.equal(benchmarkNowMinutes, accounts.benchmarkNowMinutes);
+  assert.deepEqual({ ...semantic, varbits: routingVariables.varbits, varplayers: routingVariables.varplayers },
+    accounts.profiles[name], `${name} preset differs from the benchmark fixture`);
 }
 const routes = read("corpus/routes-v1.json");
 const ids = routes.map(route => route.id);
