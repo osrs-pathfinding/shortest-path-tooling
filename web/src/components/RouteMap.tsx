@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import type { LatLngExpression, Map as LeafletMap } from "leaflet";
 import type { Location, RoutePlan, WorldPoint } from "../domain/contracts";
@@ -23,6 +24,13 @@ function fromLatLng(map: LeafletMap, latlng: { lat: number; lng: number }, plane
 
 function MapContents({ start, destination, route, onPick }: RouteMapProps) {
   const map = useMap();
+  // The account sidebar resizes the map without resizing the window.
+  useEffect(() => {
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
   useMapEvents({ click: event => onPick(fromLatLng(map, event.latlng, start?.coordinate.plane || 0)) });
   const line = route?.segments.flatMap(segment => {
     if (segment.kind === "walk") return segment.path;

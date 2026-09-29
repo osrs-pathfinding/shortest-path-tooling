@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { loadPresets } from "./api/presets";
 import { calculateRoute } from "./api/routes";
 import { RouteMap } from "./components/RouteMap";
 import { locationFromParam, locationParam, places } from "./data/places";
+import { accountLabel } from "./domain/accounts";
 import type { AccountBuild, Location, RoutePolicy, WorldPoint } from "./domain/contracts";
 
 const defaultPolicy: RoutePolicy = {
@@ -15,7 +16,7 @@ const defaultPolicy: RoutePolicy = {
 };
 
 const customAccountKey = "osrs-travel.custom-account.v1";
-const AccountEditor = lazy(() => import("./components/AccountEditor").then(module => ({ default: module.AccountEditor })));
+const AccountPanel = lazy(() => import("./components/AccountPanel").then(module => ({ default: module.AccountPanel })));
 
 function loadCustomAccount(): AccountBuild | undefined {
   try {
@@ -55,11 +56,12 @@ export default function App() {
     const requested = searchParams.get("account") || "mid";
     return requested === "custom" && !customAccount ? "mid" : requested;
   });
-  const [editingAccount, setEditingAccount] = useState(false);
+  const [accountPanel, setAccountPanel] = useState<"closed" | "open" | "hidden">("closed");
+  const accountToggle = useRef<HTMLButtonElement>(null);
   const [policy, setPolicy] = useState(defaultPolicy);
   const presets = useQuery({ queryKey: ["account-presets"], queryFn: loadPresets });
-  const account = accountId === "custom" ? customAccount
-    : presets.data?.find(preset => preset.id === accountId) || presets.data?.[0];
+  const accounts = useMemo(() => [...presets.data || [], ...customAccount ? [customAccount] : []], [presets.data, customAccount]);
+  const account = accounts.find(candidate => candidate.id === accountId) || presets.data?.[0];
   const quests = useMemo(() => Array.from(new Set([
     ...(presets.data?.flatMap(preset => preset.completedQuests) || []),
     ...(account?.completedQuests || []),
@@ -88,6 +90,14 @@ export default function App() {
     setDestination(location);
     remember("to", location && locationParam(location));
   };
+  const chooseAccount = (id: string) => {
+    setAccountId(id);
+    remember("account", id);
+  };
+  const closeAccountPanel = () => {
+    setAccountPanel("hidden");
+    accountToggle.current?.focus();
+  };
   const pickMap = (coordinate: WorldPoint) => {
     const location = { name: `${coordinate.x}, ${coordinate.y}`, coordinate };
     if (!start || destination) {
@@ -107,23 +117,23 @@ export default function App() {
         <span className="arrow" aria-hidden="true">→</span>
         <PlaceInput label="To" location={destination} onSelect={chooseDestination} />
       </div>
-      <div className="account-controls">
-        <label className="account">
-          <span>Account</span>
-          <select aria-label="Account" value={accountId} disabled={!presets.data && !customAccount}
-            onChange={event => {
-              setAccountId(event.target.value);
-              remember("account", event.target.value);
-            }}>
-            {(presets.data || []).map(preset => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
-            {customAccount && <option value="custom">{customAccount.name}</option>}
-          </select>
-        </label>
-        <button type="button" className="edit-account" disabled={!account} onClick={() => setEditingAccount(true)}>Edit</button>
-      </div>
+      <button type="button" ref={accountToggle} className="account-toggle" disabled={!account}
+        aria-expanded={accountPanel === "open"} aria-controls="account-panel"
+        onClick={() => accountPanel === "open" ? closeAccountPanel() : setAccountPanel("open")}>
+        <span>Account</span><strong>{account ? accountLabel(account) : "Loading…"}</strong>
+      </button>
     </header>
 
-    <main className="workspace">
+    <main className={accountPanel === "open" ? "workspace with-account" : "workspace"}>
+      {/* Stays mounted once opened so unsaved edits survive closing the panel. */}
+      {account && accountPanel !== "closed" && <Suspense fallback={<aside className="account-panel"><p className="panel-loading">Loading account…</p></aside>}>
+        <AccountPanel accounts={accounts} account={account} quests={quests} open={accountPanel === "open"}
+          onSelect={chooseAccount} onClose={closeAccountPanel} onSave={value => {
+            localStorage.setItem(customAccountKey, JSON.stringify(value));
+            setCustomAccount(value);
+            chooseAccount("custom");
+          }} />
+      </Suspense>}
       <section className="map" aria-label="OSRS route map">
         <RouteMap start={start} destination={destination} route={route.data} onPick={pickMap} />
         {!start || !destination ? <p className="map-message">Search or click the map to choose two places</p> : null}
@@ -166,13 +176,5 @@ export default function App() {
         </div>}
       </aside>
     </main>
-    {account && editingAccount && <Suspense fallback={null}><AccountEditor account={account} quests={quests} open
-      onClose={() => setEditingAccount(false)} onSave={value => {
-        localStorage.setItem(customAccountKey, JSON.stringify(value));
-        setCustomAccount(value);
-        setAccountId("custom");
-        remember("account", "custom");
-        setEditingAccount(false);
-      }} /></Suspense>}
   </div>;
 }
