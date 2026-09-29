@@ -4,6 +4,9 @@ const pins = [
 ];
 
 export default function App() {
+  const [accountId, setAccountId] = useState("mid");
+  const presets = useQuery({ queryKey: ["account-presets"], queryFn: loadPresets });
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -16,7 +19,13 @@ export default function App() {
           <span className="arrow" aria-hidden="true">→</span>
           <label><span>To</span><input type="search" placeholder="Choose a destination" /></label>
         </div>
-        <button className="account" type="button">Account: Mid <span aria-hidden="true">⌄</span></button>
+        <label className="account">
+          <span>Account</span>
+          <select aria-label="Account" value={accountId} disabled={!presets.data}
+            onChange={event => setAccountId(event.target.value)}>
+            {(presets.data || []).map(preset => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
+          </select>
+        </label>
       </header>
 
       <main className="workspace">
@@ -41,3 +50,6 @@ export default function App() {
     </div>
   );
 }
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { loadPresets } from "./api/presets";

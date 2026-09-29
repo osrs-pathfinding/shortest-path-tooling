@@ -32,7 +32,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .searches input:focus { border-color: #d4a94d; box-shadow: 0 0 0 3px #d4a94d40; }
 .searches input::placeholder { color: #8b948f; }
 .arrow { color: #d9c999; font-size: 20px; }
-.account { justify-self: end; color: #fff8dc; background: #285443; border: 1px solid #4b7564; border-radius: 5px; padding: 11px 14px; cursor: pointer; }
+.account { justify-self: end; display: grid; gap: 2px; color: #d9c999; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.account select { min-width: 150px; color: #fff8dc; background: #285443; border: 1px solid #4b7564; border-radius: 5px; padding: 6px 10px; text-transform: none; cursor: pointer; }
 
 .workspace { min-height: calc(100vh - 76px); display: grid; grid-template-columns: minmax(0, 1fr) 370px; }
 .map { position: relative; overflow: hidden; min-height: 500px; background: #b7b08c; isolation: isolate; }
