@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { loadPresets } from "./api/presets";
 import { calculateRoute } from "./api/routes";
-import { AccountEditor } from "./components/AccountEditor";
 import { RouteMap } from "./components/RouteMap";
 import { locationFromParam, locationParam, places } from "./data/places";
 import type { AccountBuild, Location, RoutePolicy, WorldPoint } from "./domain/contracts";
@@ -16,6 +15,7 @@ const defaultPolicy: RoutePolicy = {
 };
 
 const customAccountKey = "osrs-travel.custom-account.v1";
+const AccountEditor = lazy(() => import("./components/AccountEditor").then(module => ({ default: module.AccountEditor })));
 
 function loadCustomAccount(): AccountBuild | undefined {
   try {
@@ -166,13 +166,13 @@ export default function App() {
         </div>}
       </aside>
     </main>
-    {account && <AccountEditor account={account} quests={quests} open={editingAccount}
+    {account && editingAccount && <Suspense fallback={null}><AccountEditor account={account} quests={quests} open
       onClose={() => setEditingAccount(false)} onSave={value => {
         localStorage.setItem(customAccountKey, JSON.stringify(value));
         setCustomAccount(value);
         setAccountId("custom");
         remember("account", "custom");
         setEditingAccount(false);
-      }} />}
+      }} /></Suspense>}
   </div>;
 }

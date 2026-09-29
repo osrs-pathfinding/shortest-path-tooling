@@ -25,6 +25,7 @@ for (const name of schemas) {
     style: { singleQuote: false },
   });
   await writeFile(path.join(generated, `${name}.d.ts`), types);
+  if (name === "account-build-v1") await copyFile(source, path.join(generated, `${name}.schema.json`));
   await copyFile(source, path.join(serviceSchemas, `${name}.schema.json`));
 }
 

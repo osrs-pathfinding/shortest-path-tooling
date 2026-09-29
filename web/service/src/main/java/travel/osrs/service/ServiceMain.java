@@ -51,6 +51,7 @@ public final class ServiceMain
 		app.get("/live", ctx -> ctx.json(Map.of("status", "ok")));
 		app.get("/ready", ctx -> ctx.json(Map.of("status", "ready")));
 		app.get("/metrics", ctx -> ctx.contentType("text/plain; version=0.0.4").result(metrics.scrape()));
+		app.get("/v1/items", ctx -> ctx.json(ItemCatalog.find(ctx.queryParam("q"), ctx.queryParam("ids"))));
 		app.post("/v1/route", ctx -> {
 			JsonNode body = mapper.readTree(ctx.body());
 			validator.validate(body);

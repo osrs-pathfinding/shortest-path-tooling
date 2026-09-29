@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.io.InputStream;
+import net.runelite.api.gameval.VarPlayerID;
+import net.runelite.api.gameval.VarbitID;
 import org.junit.jupiter.api.Test;
 
 class RoutingEngineTest
@@ -33,6 +35,35 @@ class RoutingEngineTest
 		assertTrue(plan.costTicks > 0);
 		assertEquals("exact-v1", plan.metadata.routingEngineVersion);
 		assertTrue(!plan.segments.isEmpty());
+	}
+
+	@Test
+	void semanticAccountStateOverridesCompatibilityVariables() throws Exception
+	{
+		ObjectMapper mapper = JsonMapper.builder().findAndAddModules().build();
+		ApiModels.AccountBuild account;
+		try (InputStream profile = getClass().getResourceAsStream("/profiles/mid.json"))
+		{
+			account = mapper.readValue(profile, ApiModels.AccountBuild.class);
+		}
+		account.diaries.put("Ardougne", "Easy");
+		account.runtime.spellbook = "Ancient";
+		account.runtime.minigameTeleport.state = "usedAt";
+		account.runtime.minigameTeleport.minutes = 123L;
+		account.completedQuests.remove("The Grand Tree");
+
+		assertEquals(1, AccountCompiler.semanticVarbits(account).get(VarbitID.ARDOUGNE_DIARY_EASY_COMPLETE));
+		assertEquals(0, AccountCompiler.semanticVarbits(account).get(VarbitID.ARDOUGNE_DIARY_MEDIUM_COMPLETE));
+		assertEquals(1, AccountCompiler.semanticVarbits(account).get(VarbitID.SPELLBOOK));
+		assertEquals(0, AccountCompiler.semanticVarplayers(account).get(VarPlayerID.GRANDTREE));
+		assertEquals(123, AccountCompiler.semanticVarplayers(account).get(VarPlayerID.SLUG2_REGIONUID));
+	}
+
+	@Test
+	void itemCatalogResolvesIdsAndSearchesNames()
+	{
+		assertEquals("995", ItemCatalog.find(null, "995").get(0).key);
+		assertTrue(ItemCatalog.find("coins", null).stream().anyMatch(item -> "995".equals(item.key)));
 	}
 
 	private static ApiModels.Location location(int x, int y, int plane)

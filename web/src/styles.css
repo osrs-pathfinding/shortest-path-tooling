@@ -85,6 +85,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .account-editor input[type="text"], .account-editor input[type="search"], .account-editor input:not([type]), .account-editor select, .editor-name input { width: 100%; margin-top: 5px; padding: 8px 10px; color: #21372e; background: #fffdf7; border: 1px solid #b7ad97; border-radius: 4px; }
 .editor-name { display: block; margin-top: 24px; font-weight: 700; }
 .editor-name span { display: block; margin-top: 4px; color: #8b2f24; }
+.editor-file-actions { display: flex; gap: 8px; margin-top: 20px; }
+.editor-error { margin: 12px 0 0; padding: 10px 12px; color: #7d2e22; background: #f5dfd8; border-radius: 4px; font-size: 13px; }
 .skill-grid { display: grid; grid-template-columns: repeat(4, minmax(100px, 1fr)); gap: 12px; }
 .skill-grid input { display: block; width: 100%; margin-top: 4px; padding: 7px; border: 1px solid #b7ad97; border-radius: 4px; }
 .check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-bottom: 14px; }
@@ -93,6 +95,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .account-editor fieldset { margin: 14px 0 0; padding: 12px; border: 1px solid #cec3aa; border-radius: 5px; }
 .account-editor legend { color: #655e50; font-size: 12px; font-weight: 800; }
 .quest-list { display: grid; grid-template-columns: 1fr 1fr; max-height: 260px; overflow: auto; }
+.diary-grid, .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.portal-list { display: grid; grid-template-columns: 1fr 1fr; max-height: 260px; overflow: auto; }
+.item-collection { margin-top: 9px; border: 1px solid #cec3aa; border-radius: 5px; background: #fbf8ee; }
+.item-collection summary { padding: 11px 12px; color: #325145; cursor: pointer; font-weight: 800; }
+.item-collection summary span { color: #7b817a; font-size: 12px; font-weight: 500; }
+.item-add { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 8px; padding: 0 12px 12px; }
+.item-list { max-height: 280px; overflow: auto; border-top: 1px solid #ded5c1; }
+.item-row { display: grid; grid-template-columns: 1fr 100px auto; align-items: center; gap: 8px; min-height: 43px; padding: 5px 10px; border-bottom: 1px solid #e7dfcd; font-size: 13px; }
+.item-row input { width: 100%; padding: 6px; border: 1px solid #b7ad97; border-radius: 4px; }
+.item-row button { padding: 6px 8px; color: #7d2e22; background: transparent; border: 0; }
 .account-editor footer { display: flex; justify-content: flex-end; gap: 10px; position: sticky; bottom: -28px; margin: 28px -28px -28px; padding: 17px 28px; background: #eee6d2; border-top: 1px solid #d2c6a9; }
 .account-editor button { padding: 9px 14px; border-radius: 5px; cursor: pointer; }
 .close-button { padding: 0 7px !important; color: #59665f; background: transparent; border: 0; font-size: 30px; line-height: 1; }
@@ -116,7 +128,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .map-message { width: max-content; max-width: calc(100% - 32px); text-align: center; }
   .itinerary { padding: 30px 22px; }
   .skill-grid { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
-  .check-grid, .quest-list { grid-template-columns: 1fr; }
+  .check-grid, .quest-list, .portal-list, .diary-grid, .two-column { grid-template-columns: 1fr; }
+  .item-row { grid-template-columns: 1fr 80px auto; }
   .account-editor { padding: 20px; }
   .account-editor footer { bottom: -20px; margin: 24px -20px -20px; padding: 14px 20px; }
 }

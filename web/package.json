@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",
+    "ajv": "^8.20.0",
     "leaflet": "^1.9.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

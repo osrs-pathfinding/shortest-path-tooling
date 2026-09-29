@@ -174,4 +174,16 @@ public final class ApiModels
 			this.requestId = requestId;
 		}
 	}
+
+	public static final class ItemOption
+	{
+		public final String key;
+		public final String name;
+
+		public ItemOption(String key, String name)
+		{
+			this.key = key;
+			this.name = name;
+		}
+	}
 }
