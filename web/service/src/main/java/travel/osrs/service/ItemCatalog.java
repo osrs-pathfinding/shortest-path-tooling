@@ -21,6 +21,12 @@ final class ItemCatalog
 
 	private ItemCatalog() { }
 
+	static String name(int id)
+	{
+		ApiModels.ItemOption item = ITEMS.get(id);
+		return item == null ? "Item " + id : item.name;
+	}
+
 	static List<ApiModels.ItemOption> find(String query, String ids)
 	{
 		if (ids != null && !ids.isBlank()) return Arrays.stream(ids.split(","))

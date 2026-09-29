@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import net.runelite.api.Quest;
+import net.runelite.api.Skill;
 import shortestpath.WorldPointUtil;
 import shortestpath.pathfinder.CollisionMap;
 import shortestpath.pathfinder.ExactPathfinder;
@@ -21,6 +23,7 @@ import shortestpath.pathfinder.TransportAvailability;
 import shortestpath.pathfinder.exact.ExactRoutingSession;
 import shortestpath.pathfinder.exact.RoutingStatic;
 import shortestpath.transport.Transport;
+import shortestpath.transport.requirement.ItemRequirement;
 
 final class RoutingEngine
 {
@@ -107,6 +110,7 @@ final class RoutingEngine
 				travel.from = point(from.getPackedPosition());
 				travel.to = point(to.getPackedPosition());
 				travel.costTicks = Math.max(0, transport.getDuration());
+				travel.requirements = requirements(transport);
 				segments.add(travel);
 			}
 			else
@@ -124,6 +128,39 @@ final class RoutingEngine
 			segments.add(walk);
 		}
 		return segments;
+	}
+
+	private static List<ApiModels.Capability> requirements(Transport transport)
+	{
+		List<ApiModels.Capability> result = new ArrayList<>();
+		transport.getQuests().stream().sorted(Comparator.comparing(Quest::getName))
+			.forEach(quest -> result.add(capability("quest", quest.getName())));
+		int[] levels = transport.getSkillLevels();
+		Skill[] skills = Skill.values();
+		for (int i = 0; i < skills.length && i < levels.length; i++)
+			if (levels[i] > 0) result.add(capability("skill", levels[i] + " " + skills[i].getName()));
+		if (levels.length > skills.length && levels[skills.length] > 0)
+			result.add(capability("skill", levels[skills.length] + " total level"));
+		if (levels.length > skills.length + 1 && levels[skills.length + 1] > 0)
+			result.add(capability("skill", levels[skills.length + 1] + " combat level"));
+		if (levels.length > skills.length + 2 && levels[skills.length + 2] > 0)
+			result.add(capability("skill", levels[skills.length + 2] + " quest points"));
+		if (transport.getItemRequirements() != null)
+			for (ItemRequirement item : transport.getItemRequirements().getRequirements())
+			{
+				if (item.getItemIds() == null || item.getItemIds().length == 0) continue;
+				String name = ItemCatalog.name(item.getItemIds()[0]);
+				result.add(capability("item", item.getQuantity() > 1 ? name + " x" + item.getQuantity() : name));
+			}
+		return result;
+	}
+
+	private static ApiModels.Capability capability(String kind, String name)
+	{
+		ApiModels.Capability capability = new ApiModels.Capability();
+		capability.kind = kind;
+		capability.name = name;
+		return capability;
 	}
 
 	private static void flushWalk(List<Object> segments, List<ApiModels.WorldPoint> walking)

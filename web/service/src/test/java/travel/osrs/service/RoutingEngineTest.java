@@ -36,6 +36,9 @@ class RoutingEngineTest
 		assertTrue(plan.costTicks > 0);
 		assertEquals("exact-v1", plan.metadata.routingEngineVersion);
 		assertTrue(!plan.segments.isEmpty());
+		assertTrue(plan.segments.stream().filter(ApiModels.TravelSegment.class::isInstance)
+			.map(ApiModels.TravelSegment.class::cast).anyMatch(segment -> !segment.requirements.isEmpty()),
+			"semantic travel steps should expose their player-facing requirements");
 	}
 
 	@Test

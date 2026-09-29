@@ -14,8 +14,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public final class ServiceMain
 {
@@ -65,6 +67,7 @@ public final class ServiceMain
 					.handle((plan, error) -> {
 						sample.stop(duration);
 						if (error == null) ctx.json(plan);
+						else if (cause(error) instanceof TimeoutException) error(ctx, 504, "route calculation timed out");
 						else error(ctx, 500, "route calculation failed");
 						return null;
 					});
@@ -83,6 +86,14 @@ public final class ServiceMain
 			(error, ctx) -> error(ctx, 400, "request body is not valid JSON"));
 		app.exception(Exception.class, (exception, ctx) -> error(ctx, 500, "internal server error"));
 		return app;
+	}
+
+	private static Throwable cause(Throwable error)
+	{
+		Throwable result = error;
+		while ((result instanceof CompletionException || result instanceof java.util.concurrent.ExecutionException)
+			&& result.getCause() != null) result = result.getCause();
+		return result;
 	}
 
 	private static void error(Context ctx, int status, String message)
