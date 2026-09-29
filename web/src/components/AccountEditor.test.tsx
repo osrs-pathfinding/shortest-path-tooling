@@ -18,6 +18,12 @@ describe("semantic account editor", () => {
       <AccountEditor account={account} quests={["Lost City"]} open onClose={() => {}} onSave={onSave} />
     </QueryClientProvider>);
 
+    expect(screen.getByLabelText("Agility").closest("label")?.querySelector("img")?.src).toMatch(/^data:image\/png;base64,/);
+    const coins = await screen.findByRole("button", { name: "Coins, quantity 10" });
+    expect(coins.querySelector("img")?.src).toBe("https://chisel.weirdgloop.org/static/img/osrs-sprite/995.png");
+    fireEvent.click(coins);
+    expect((screen.getByLabelText("Coins quantity") as HTMLInputElement).value).toBe("10");
+
     fireEvent.change(screen.getByLabelText("Build name"), { target: { value: "My build" } });
     fireEvent.change(screen.getByLabelText("Agility"), { target: { value: "80" } });
     fireEvent.change(screen.getByLabelText("Quest points"), { target: { value: "123" } });

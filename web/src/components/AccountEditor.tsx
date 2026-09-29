@@ -1,4 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+  agilityIcon, attackIcon, constructionIcon, cookingIcon, craftingIcon, defenceIcon, farmingIcon,
+  firemakingIcon, fishingIcon, fletchingIcon, herbloreIcon, hitpointsIcon, hunterIcon, magicIcon,
+  miningIcon, prayerIcon, rangedIcon, runecraftIcon, slayerIcon, smithingIcon, strengthIcon,
+  thievingIcon, toDataUrl, woodcuttingIcon,
+} from "@dava96/osrs-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { findItems, lookupItems } from "../api/items";
@@ -31,6 +37,15 @@ const pohFixtures = [
   ["mountedDigsite", "Digsite pendant"], ["mountedMythical", "Mythical cape"],
 ] as const;
 type ItemField = typeof itemFields[number];
+const skillIcons: Record<string, string> = toDataUrl({
+  Agility: agilityIcon, Attack: attackIcon, Construction: constructionIcon, Cooking: cookingIcon,
+  Crafting: craftingIcon, Defence: defenceIcon, Farming: farmingIcon, Firemaking: firemakingIcon,
+  Fishing: fishingIcon, Fletching: fletchingIcon, Herblore: herbloreIcon, Hitpoints: hitpointsIcon,
+  Hunter: hunterIcon, Magic: magicIcon, Mining: miningIcon, Prayer: prayerIcon, Ranged: rangedIcon,
+  Runecraft: runecraftIcon, Slayer: slayerIcon, Smithing: smithingIcon, Strength: strengthIcon,
+  Thieving: thievingIcon, Woodcutting: woodcuttingIcon,
+});
+const quantityFormatter = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
 function ItemCollectionEditor({ title, values, names, onChange, open = false }: {
   title: string;
@@ -41,12 +56,14 @@ function ItemCollectionEditor({ title, values, names, onChange, open = false }: 
 }) {
   const [expanded, setExpanded] = useState(open);
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<string>();
   const results = useQuery({
     queryKey: ["items", search], queryFn: () => findItems(search), enabled: search.trim().length >= 2,
   });
   const options = results.data || [];
   const add = (key: string) => {
     onChange({ ...values, [key]: values[key] || 1 });
+    setSelected(key);
     setSearch("");
   };
   return <details className="item-collection" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}>
@@ -57,19 +74,26 @@ function ItemCollectionEditor({ title, values, names, onChange, open = false }: 
       {search.trim().length >= 2 && <div className="item-results" aria-label="Item search results">
         {results.isFetching && <p>Searching…</p>}
         {!results.isFetching && options.slice(0, 8).map(item => <button type="button" key={item.key} onClick={() => add(item.key)}>
-          <span>{item.name}</span>{values[item.key] && <small>Already added</small>}
+          <img src={itemSprite(item.key)} alt="" /><span>{item.name}</span>{values[item.key] && <small>Added</small>}
         </button>)}
         {!results.isFetching && !options.length && <p>No matching items</p>}
       </div>}
     </div>
-    {!!Object.keys(values).length && <div className="item-list">{Object.entries(values).sort(([a], [b]) => (names.get(a) || a).localeCompare(names.get(b) || b)).map(([key, quantity]) => <div className="item-row" key={key}>
-      <span>{names.get(key) || `Item ${key}`}</span>
-      <label><span className="sr-only">{names.get(key) || key} quantity</span><input type="number" min="1" max="2147483647" value={quantity}
-        onChange={event => onChange({ ...values, [key]: Math.max(1, Number(event.target.value)) })} /></label>
-      <button type="button" aria-label={`Remove ${names.get(key) || key}`} onClick={() => {
-        const next = { ...values }; delete next[key]; onChange(next);
-      }}>×</button>
-    </div>)}</div>}
+    {!!Object.keys(values).length && <div className="item-grid" aria-label={`${title} items`}>{Object.entries(values).map(([key, quantity]) => {
+      const name = names.get(key) || `Item ${key}`;
+      return <button type="button" className={selected === key ? "selected" : ""} key={key} title={name}
+        aria-label={`${name}, quantity ${quantity}`} onClick={() => setSelected(key)}>
+        <img src={itemSprite(key)} alt="" /><span>{quantity > 1 ? quantityFormatter.format(quantity) : ""}</span>
+      </button>;
+    })}</div>}
+    {selected && values[selected] && <div className="item-editor">
+      <strong>{names.get(selected) || `Item ${selected}`}</strong>
+      <label><span className="sr-only">{names.get(selected) || selected} quantity</span><input type="number" min="1" max="2147483647" value={values[selected]}
+        onChange={event => onChange({ ...values, [selected]: Math.max(1, Number(event.target.value)) })} /></label>
+      <button type="button" aria-label={`Remove ${names.get(selected) || selected}`} onClick={() => {
+        const next = { ...values }; delete next[selected]; onChange(next); setSelected(undefined);
+      }}>Remove</button>
+    </div>}
   </details>;
 }
 
@@ -151,9 +175,10 @@ export function AccountEditor({ account, quests, open, onClose, onSave }: {
       </label>
 
       <section><div className="section-heading"><div><h3>Levels</h3><p>Used for shortcuts, spells and transport requirements.</p></div></div>
-        <div className="skill-grid">{skills.map(skill => <label className="skill-card" key={skill}><span>{skill}</span>
+        <div className="skill-grid">{skills.map(skill => <label className="skill-card" key={skill} title={skill}>
+        <img src={skillIcons[skill] || `https://oldschool.runescape.wiki/images/${skill}_icon.png`} alt="" /><span className="sr-only">{skill}</span>
         <input type="number" min="1" max="99" {...register(`levels.${skill}`, { valueAsNumber: true, min: 1, max: 99 })} />
-      </label>)}<label className="skill-card"><span>Quest points</span><input type="number" min="0" max="32767" defaultValue={account.levels.Quest || 0}
+      </label>)}<label className="skill-card" title="Quest points"><img src="https://oldschool.runescape.wiki/images/Quest_points_icon.png" alt="" /><span className="sr-only">Quest points</span><input type="number" min="0" max="32767" defaultValue={account.levels.Quest || 0}
         {...register("levels.Quest", { valueAsNumber: true, min: 0, max: 32767 })} /></label></div></section>
 
       <section><div className="section-heading"><div><h3>Items</h3><p>Search by name, then set the quantity available in each container.</p></div></div>{itemFields.map(field => <ItemCollectionEditor key={field}
@@ -225,4 +250,8 @@ function pickItems(account: AccountBuild): Record<ItemField, Record<string, numb
 
 function splitName(value: string): string {
   return value.replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
+function itemSprite(key: string): string {
+  return `https://chisel.weirdgloop.org/static/img/osrs-sprite/${key}.png`;
 }
