@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://osrs.travel/schemas/place-v1.schema.json",
+  "title": "Place v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "category", "coordinate"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "category": { "enum": ["bank", "boss", "clue", "quest", "hub", "transport", "other"] },
+    "coordinate": { "$ref": "#/$defs/worldPoint" }
+  },
+  "$defs": {
+    "worldPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "plane"],
+      "properties": {
+        "x": { "type": "integer", "minimum": 0, "maximum": 32767 },
+        "y": { "type": "integer", "minimum": 0, "maximum": 32767 },
+        "plane": { "type": "integer", "minimum": 0, "maximum": 3 }
+      }
+    }
+  }
+}
