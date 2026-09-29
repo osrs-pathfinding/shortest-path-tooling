@@ -1,0 +1,20 @@
+services:
+  service:
+    build:
+      context: .
+      dockerfile: service/Dockerfile
+      additional_contexts:
+        shortest-path: ../shortest-path
+    environment:
+      JAVA_OPTS: "-Xms${SERVICE_HEAP_MIN:-512m} -Xmx${SERVICE_HEAP_MAX:-4g}"
+      PORT: "8080"
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  web:
+    build: .
+    depends_on:
+      - service
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    restart: unless-stopped
