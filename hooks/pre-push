@@ -17,6 +17,12 @@
 set -e
 cd "$(git rev-parse --show-toplevel)"
 
+# Git exports GIT_DIR (and friends) while hooks run. validate_data.py
+# shells out to `git -C shortest-path ls-files`, and an inherited
+# GIT_DIR overrides that -C path, silently reading the parent index
+# instead of the submodule's and emptying the corpus under test.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_QUARANTINE_PATH GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+
 if [ -z "$SKIP_TESTS" ]; then
     echo "pre-push: python3 -m pytest tests/ -x -q"
     python3 -m pytest tests/ -x -q
