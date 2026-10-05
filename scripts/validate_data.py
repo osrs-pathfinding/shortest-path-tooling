@@ -144,6 +144,7 @@ SCENARIO_CONFIG_KEYS = frozenset({
     "collisionAwareBlockedTargets",
     "unlockCanoeAxe", "unlockXericsHonour", "unlockDragontoothPassage",
     "pathfinderBackend", "exactHeuristicWeight",
+    "blockedTeleportItems", "unlockBalloonLogBasket",
 })
 
 # Optional-column cell grammars — mirrors the loader's parseItems /
