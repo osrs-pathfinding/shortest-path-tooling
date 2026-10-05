@@ -75,6 +75,14 @@ DESTINATION_FIELDS = frozenset({
     "VarPlayers",
 })
 
+# Files skipped entirely (git path basenames): generated family->id map
+# resource, not a transport TSV — its familyName/displayItemId/
+# memberItemIds/memberLabels columns are not transport columns and it
+# carries no Origin/Destination endpoints.  Mirrors SKIP_FILES in the
+# submodule's scripts/check_tsv.py.
+SKIP_FILES = frozenset({
+    "teleport_restrictions.tsv",
+})
 # League region enum names — mirrors the LeagueRegion enum in
 # shortest-path/src/main/java/shortestpath/leagues/LeagueRegion.java.
 # The plugin resolves `Region override` cells via
@@ -169,7 +177,8 @@ def check_tsv_structure():
     anchor_exceptions = _load_anchor_exceptions(ANCHOR_EXCEPTIONS)
     rels = _git_ls_files(
         f"{RESOURCES}/transports", f"{RESOURCES}/destinations")
-    for rel in sorted(r for r in rels if r.endswith(".tsv")):
+    for rel in sorted(r for r in rels if r.endswith(".tsv")
+                      and r.rsplit("/", 1)[-1] not in SKIP_FILES):
         headers, hln, rows = _parse_tsv(PLUGIN / rel)
         if headers is None:
             findings.append(f"{rel}:1: no header line")
