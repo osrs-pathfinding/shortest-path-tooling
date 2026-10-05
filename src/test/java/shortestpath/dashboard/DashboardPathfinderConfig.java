@@ -93,6 +93,7 @@ public class DashboardPathfinderConfig implements ShortestPathConfig {
     // -------------------------------------------------------------------------
     private String builtTeleportationBoxes = "";
     private String builtTeleportationPortalsPoh = "";
+    private String blockedTeleportItems = "";
 
     // -------------------------------------------------------------------------
     // Cost thresholds
@@ -131,6 +132,7 @@ public class DashboardPathfinderConfig implements ShortestPathConfig {
     private boolean unlockCanoeAxe = false;
     private boolean unlockXericsHonour = false;
     private boolean unlockDragontoothPassage = false;
+    private boolean unlockBalloonLogBasket = false;
 
     // =========================================================================
     // Getters (implements ShortestPathConfig)
@@ -182,6 +184,7 @@ public class DashboardPathfinderConfig implements ShortestPathConfig {
 
     @Override public String builtTeleportationBoxes() { return builtTeleportationBoxes; }
     @Override public String builtTeleportationPortalsPoh() { return builtTeleportationPortalsPoh; }
+    @Override public String blockedTeleportItems() { return blockedTeleportItems; }
 
     @Override public int costAgilityShortcuts() { return costAgilityShortcuts; }
     @Override public int costGrappleShortcuts() { return costGrappleShortcuts; }
@@ -210,14 +213,10 @@ public class DashboardPathfinderConfig implements ShortestPathConfig {
     @Override public int costSeasonalTransports() { return costSeasonalTransports; }
     @Override public int costBankVisit() { return costBankVisit; }
     @Override public boolean respawnPrifddinas() { return respawnPrifddinas; }
-    // No @Override: the interface method only exists on the pending upstream
-    // branch, so the annotation would break compilation at the pin. The parity
-    // lint detects twins by declared method, so the surface still counts.
-    public boolean unlockCanoeAxe() { return unlockCanoeAxe; }
-    // Same in-flight state as unlockCanoeAxe — no @Override until merge + re-pin.
-    public boolean unlockXericsHonour() { return unlockXericsHonour; }
-    // Same in-flight state as unlockCanoeAxe — no @Override until merge + re-pin.
-    public boolean unlockDragontoothPassage() { return unlockDragontoothPassage; }
+    @Override public boolean unlockCanoeAxe() { return unlockCanoeAxe; }
+    @Override public boolean unlockXericsHonour() { return unlockXericsHonour; }
+    @Override public boolean unlockDragontoothPassage() { return unlockDragontoothPassage; }
+    @Override public boolean unlockBalloonLogBasket() { return unlockBalloonLogBasket; }
 
     // =========================================================================
     // Abstract void setters required by the interface
@@ -325,4 +324,6 @@ public class DashboardPathfinderConfig implements ShortestPathConfig {
     public void setUnlockCanoeAxe(boolean v) { unlockCanoeAxe = v; }
     public void setUnlockXericsHonour(boolean v) { unlockXericsHonour = v; }
     public void setUnlockDragontoothPassage(boolean v) { unlockDragontoothPassage = v; }
+    public void setUnlockBalloonLogBasket(boolean v) { unlockBalloonLogBasket = v; }
+    public void setBlockedTeleportItems(String v) { blockedTeleportItems = v != null ? v : ""; }
 }
