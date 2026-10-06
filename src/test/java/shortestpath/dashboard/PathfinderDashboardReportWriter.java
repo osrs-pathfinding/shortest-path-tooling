@@ -18,8 +18,8 @@ import shortestpath.pathfinder.TransportAvailability;
 import shortestpath.transport.Transport;
 import shortestpath.transport.TransportLoader;
 import shortestpath.transport.TransportType;
-import shortestpath.transport.requirement.ItemRequirement;
-import shortestpath.transport.requirement.TransportItems;
+import shortestpath.requirement.model.ItemRequirement;
+import shortestpath.requirement.model.TransportItems;
 
 public class PathfinderDashboardReportWriter {
     // This class is the translation layer from pathfinder/test domain objects into the JSON model consumed by the
