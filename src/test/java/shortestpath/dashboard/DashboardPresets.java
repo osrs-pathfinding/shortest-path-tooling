@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
-import shortestpath.TeleportationItem;
+import shortestpath.requirement.TeleportationItem;
 
 /**
  * Static registry of named dashboard presets.
