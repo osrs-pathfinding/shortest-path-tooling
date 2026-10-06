@@ -46,11 +46,31 @@ import static org.junit.Assert.*;
  * <p>{@link #observedSites(Path)} is factored out so
  * {@link #flagsUnlistedCoupling()} can prove both failure branches against
  * temporary fixture roots — the submodule tree is never written to.
+ *
+ * <p>Known gaps, by design. The scan token is the dotted form
+ * {@code ShortestPathPlugin.}, so instance coupling — a leaf class that
+ * accepts an injected {@code ShortestPathPlugin} and calls it through a
+ * field, as several overlay classes do today — is not counted. Those sites
+ * are documented in the architectural survey and migrate with their owning
+ * extractions; widening the token set is a future enhancement, not a
+ * silent rule change. And when the last allowlist entry is retired,
+ * {@link #scanHasReach()} intentionally fails: the empty-allowlist
+ * assertion exists to prevent a vacuous guard, so the change that removes
+ * the final coupling should delete this lint (or relax that assertion) in
+ * the same commit.
+ *
+ * <p>Two maintenance properties to know before touching allowlisted code.
+ * The match is a raw substring scan — comments and string literals
+ * containing {@code ShortestPathPlugin.} count as sites. And keys are
+ * {@code path:line}, so edits above an allowlisted reference shift its
+ * line number and must update the affected keys in the same change; that
+ * line-granularity is what lets the lint detect stale entries.
  */
 public class PluginDependencyRuleTest
 {
 	private static final Path MAIN_ROOT = Paths.get("shortest-path/src/main/java");
 
+	// New leaf packages must be added here — the lint only covers what it enumerates.
 	private static final List<String> LEAF_PACKAGES = List.of(
 		"transport", "pathfinder", "requirement", "leagues", "overlay");
 
@@ -172,7 +192,7 @@ public class PluginDependencyRuleTest
 			try (Stream<Path> stream = Files.walk(dir))
 			{
 				sources = stream
-					.filter(p -> p.toString().endsWith(".java"))
+					.filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".java"))
 					.collect(Collectors.toList());
 			}
 			for (Path source : sources)
@@ -233,7 +253,7 @@ public class PluginDependencyRuleTest
 			long sources;
 			try (Stream<Path> stream = Files.walk(dir))
 			{
-				sources = stream.filter(p -> p.toString().endsWith(".java")).count();
+				sources = stream.filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".java")).count();
 			}
 			assertTrue("leaf package scanned no .java files: " + dir, sources > 0);
 		}
