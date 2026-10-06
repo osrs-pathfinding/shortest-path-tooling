@@ -3,7 +3,7 @@ package shortestpath.pathfinder;
 import java.util.Map;
 import java.util.Set;
 import shortestpath.Destination;
-import shortestpath.DestinationRequirements;
+import shortestpath.requirement.model.DestinationRequirements;
 import shortestpath.transport.Transport;
 import shortestpath.transport.TransportLoader;
 

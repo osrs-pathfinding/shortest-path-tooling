@@ -8,7 +8,7 @@ import net.runelite.api.QuestState;
 import net.runelite.api.Skill;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarbitID;
-import shortestpath.TeleportationItem;
+import shortestpath.requirement.TeleportationItem;
 
 /**
  * Routes from the plugin's PathfinderTest, on its UNIT_TEST baseline. Suite {@code unit-tests}; exact lengths in

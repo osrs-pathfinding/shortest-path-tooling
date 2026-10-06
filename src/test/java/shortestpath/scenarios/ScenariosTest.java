@@ -22,8 +22,8 @@ import shortestpath.leagues.LeagueRegion;
 import shortestpath.profiles.CompiledAccount;
 import shortestpath.profiles.Profiles;
 import shortestpath.transport.Transport;
-import shortestpath.transport.parser.VarCheckType;
-import shortestpath.transport.parser.VarRequirement;
+import shortestpath.requirement.model.VarCheckType;
+import shortestpath.requirement.model.VarRequirement;
 
 public class ScenariosTest {
     private static final Path RESOURCES = Path.of("src/test/resources");
