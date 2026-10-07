@@ -151,6 +151,13 @@ belong to the submodule's branch/PR flow, not this repo.
   `TestPathfinderConfig.java` and `TestShortestPathConfig.java` straight
   from `shortest-path/src/test/java` into `compileTestJava`.
 - Run submodule tests with `./gradlew -p shortest-path test`.
+- **No Java reflection in plugin code** (`java.lang.reflect`, `getAnnotation`,
+  `getMethods()`, `Proxy`, `Class.forName`, …) — RuneLite forbids it and the
+  plugin fails review/verification. For config metadata, use RuneLite's own
+  surface: `ConfigManager.getConfigDescriptor(config)` →
+  `ConfigDescriptor`/`ConfigItemDescriptor` (group name, `@ConfigItem`,
+  `@Range`). Known pre-existing exception on upstream: `RoutingStatic`'s
+  `Array.getLength` — leave it, it's not ours to remove.
 
 ## Upstream PR workflow
 
