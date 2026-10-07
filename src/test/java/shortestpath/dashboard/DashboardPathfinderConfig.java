@@ -184,7 +184,9 @@ public class DashboardPathfinderConfig implements ShortestPathConfig {
 
     @Override public String builtTeleportationBoxes() { return builtTeleportationBoxes; }
     @Override public String builtTeleportationPortalsPoh() { return builtTeleportationPortalsPoh; }
-    @Override public String blockedTeleportItems() { return blockedTeleportItems; }
+    // @Override omitted: this member exists only on the integrated config head;
+    // the twin must compile against interface surfaces both with and without it.
+    public String blockedTeleportItems() { return blockedTeleportItems; }
 
     @Override public int costAgilityShortcuts() { return costAgilityShortcuts; }
     @Override public int costGrappleShortcuts() { return costGrappleShortcuts; }
@@ -216,7 +218,9 @@ public class DashboardPathfinderConfig implements ShortestPathConfig {
     @Override public boolean unlockCanoeAxe() { return unlockCanoeAxe; }
     @Override public boolean unlockXericsHonour() { return unlockXericsHonour; }
     @Override public boolean unlockDragontoothPassage() { return unlockDragontoothPassage; }
-    @Override public boolean unlockBalloonLogBasket() { return unlockBalloonLogBasket; }
+    // @Override omitted: this member exists only on the integrated config head;
+    // the twin must compile against interface surfaces both with and without it.
+    public boolean unlockBalloonLogBasket() { return unlockBalloonLogBasket; }
 
     // =========================================================================
     // Abstract void setters required by the interface
