@@ -8,7 +8,7 @@ import net.runelite.api.QuestState;
 import net.runelite.api.Skill;
 import org.junit.Before;
 import org.junit.Test;
-import shortestpath.requirement.TeleportationItem;
+import shortestpath.settings.TeleportationItem;
 import shortestpath.TestShortestPathConfig;
 import shortestpath.WorldPointUtil;
 import shortestpath.leagues.LeagueRegion;
