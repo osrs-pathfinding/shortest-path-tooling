@@ -167,6 +167,12 @@ spread across several places, so subtle changes are expensive to review.
   `-Dtile.probe.*` flags); cross-check with the Quest Helper plugin.
   If a condition genuinely isn't var-exposed, use the config-option
   mechanism rather than dropping the data.
+- Label conventions (upstream `Skretzo/shortest-path`): PRs carry no
+  labels — labels go on issues only. Extraction/architecture tracking
+  issues get `refactor`, defects get `bug`, feature requests get
+  `enhancement`, missing-transport reports get `Missing Transport`.
+  Apply the label in the same `gh issue create`/`gh issue edit` step
+  that files the issue. This repo's own issues/PRs carry no labels.
 
 ## Verify-command rules
 
