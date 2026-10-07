@@ -109,7 +109,7 @@ public class PluginDependencyRuleTest
 			"import static of POH_LANDING_Y — migrates to the POH service");
 
 		// isInsidePoh world-geometry reads — migrate to the POH service.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:757",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:762",
 			"isInsidePoh redirect filter — migrates to the POH service");
 		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:100",
 			"isInsidePoh origin check — migrates to the POH service");
