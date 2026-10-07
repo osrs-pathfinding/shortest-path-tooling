@@ -11,7 +11,7 @@ import net.runelite.api.Skill;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
-import shortestpath.requirement.TeleportationItem;
+import shortestpath.settings.TeleportationItem;
 import shortestpath.accounts.Spellbook;
 import shortestpath.accounts.Unlock;
 

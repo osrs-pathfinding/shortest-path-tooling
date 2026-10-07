@@ -8,7 +8,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import net.runelite.api.QuestState;
 import net.runelite.api.WorldType;
-import shortestpath.requirement.TeleportationItem;
+import shortestpath.settings.TeleportationItem;
 import shortestpath.WorldPointUtil;
 import shortestpath.accounts.Account;
 import shortestpath.accounts.Diary;

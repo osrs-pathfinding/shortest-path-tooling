@@ -4,7 +4,7 @@ import static shortestpath.profiles.Profiles.UNIT_TEST;
 
 import net.runelite.api.Skill;
 import net.runelite.api.gameval.ItemID;
-import shortestpath.requirement.TeleportationItem;
+import shortestpath.settings.TeleportationItem;
 
 /**
  * Regression routes for upstream collision-map issues; the category names the issue. Suite {@code collision-map-issues}; exact lengths in

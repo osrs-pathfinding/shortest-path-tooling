@@ -6,7 +6,7 @@ import static shortestpath.scenarios.Overrides.bankTeleports;
 import net.runelite.api.Skill;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarPlayerID;
-import shortestpath.requirement.TeleportationItem;
+import shortestpath.settings.TeleportationItem;
 
 /**
  * Walking and transport routes with exact lengths. Suite {@code routes}; exact lengths in

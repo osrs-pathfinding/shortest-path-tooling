@@ -3,7 +3,7 @@ package shortestpath.scenarios;
 import java.util.Map;
 import java.util.function.Consumer;
 import net.runelite.api.gameval.VarbitID;
-import shortestpath.requirement.TeleportationItem;
+import shortestpath.settings.TeleportationItem;
 import shortestpath.accounts.Account;
 import shortestpath.accounts.Diary;
 import shortestpath.leagues.LeagueRegion;

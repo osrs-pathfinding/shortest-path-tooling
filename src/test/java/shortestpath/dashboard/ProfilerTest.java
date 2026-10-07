@@ -4,7 +4,6 @@ import java.util.EnumSet;
 import java.util.Set;
 import org.junit.Before;
 import org.junit.Test;
-
 import shortestpath.WorldPointUtil;
 import shortestpath.leagues.LeagueRegion;
 import shortestpath.pathfinder.PathfinderConfig;
