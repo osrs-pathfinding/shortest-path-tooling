@@ -26,7 +26,7 @@ import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.gameval.VarPlayerID;
 import shortestpath.ItemVariations;
 import shortestpath.requirement.model.JewelleryBoxTier;
-import shortestpath.requirement.TeleportationItem;
+import shortestpath.settings.TeleportationItem;
 import shortestpath.dashboard.DashboardPathfinderConfig;
 import shortestpath.pathfinder.TestPathfinderConfig;
 import shortestpath.transport.PohNexusPortal;

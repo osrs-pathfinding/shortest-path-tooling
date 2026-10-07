@@ -17,7 +17,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.VarbitID;
 import shortestpath.requirement.model.JewelleryBoxTier;
-import shortestpath.requirement.TeleportationItem;
+import shortestpath.settings.TeleportationItem;
 import shortestpath.WorldPointUtil;
 import shortestpath.pathfinder.PathfinderBackend;
 import shortestpath.pathfinder.TestPathfinderConfig;
