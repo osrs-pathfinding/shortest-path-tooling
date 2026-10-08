@@ -161,7 +161,12 @@ public class PluginDependencyRuleTest
 	 * {@code items -> pathfinder}/{@code pathfinder -> items} are the
 	 * bank-pickup projection and its {@code getBankPickup} facade — the
 	 * projection is a candidate for moving back onto
-	 * {@code PathfinderConfig} if the mutual edge needs breaking.
+	 * {@code PathfinderConfig} if the mutual edge needs breaking. The
+	 * {@code spirittree <-> requirement} pair is likewise a documented
+	 * seam: the service reads {@code PlayerStateSource} while the
+	 * requirement side consumes its statics
+	 * ({@code patchNameForTile}/{@code modalWidgetOpen}) — candidates for a
+	 * leaf-neutral type if the mutual edge needs breaking.
 	 */
 	private static final Map<String, String> LEAF_EDGES = new TreeMap<>();
 
@@ -178,6 +183,16 @@ public class PluginDependencyRuleTest
 			"PathfinderConfig holds the ItemStateService reference and the getBankPickup facade");
 		LEAF_EDGES.put("requirement -> items",
 			"ClientPlayerStateSource/RequirementContext read OwnedItems and collectEligibility");
+
+		// spirittree package — the extraction's seams.
+		LEAF_EDGES.put("pathfinder -> spirittree",
+			"PathfinderConfig holds the SpiritTreeService reference");
+		LEAF_EDGES.put("requirement -> spirittree",
+			"Requirements/ClientPlayerStateSource consume SpiritTreeService.patchNameForTile and modalWidgetOpen");
+		LEAF_EDGES.put("spirittree -> requirement",
+			"SpiritTreeService reads PlayerStateSource for the availability refresh");
+		LEAF_EDGES.put("spirittree -> settings",
+			"TreeChange/SpiritTreeService read Effect facts and the teleportation settings");
 
 		// Pre-existing edges frozen at lint introduction.
 		LEAF_EDGES.put("leagues -> requirement",
