@@ -74,7 +74,7 @@ public class PluginDependencyRuleTest
 	// New leaf packages must be added here — the lint only covers what it enumerates.
 	private static final List<String> LEAF_PACKAGES = List.of(
 		"transport", "pathfinder", "requirement", "leagues", "overlay",
-		"settings");
+		"settings", "items");
 
 	private static final String PLUGIN_REFERENCE = "ShortestPathPlugin.";
 
@@ -99,9 +99,9 @@ public class PluginDependencyRuleTest
 			"resource anchor — league-region TSV read; the loader migrates self-anchored");
 
 		// Static imports of the POH landing-tile constants.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:31",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:30",
 			"import static of POH_LANDING_X — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:32",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:31",
 			"import static of POH_LANDING_Y — migrates to the POH service");
 		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:9",
 			"import static of POH_LANDING_X — migrates to the POH service");
@@ -109,7 +109,7 @@ public class PluginDependencyRuleTest
 			"import static of POH_LANDING_Y — migrates to the POH service");
 
 		// isInsidePoh world-geometry reads — migrate to the POH service.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:661",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:677",
 			"isInsidePoh redirect filter — migrates to the POH service");
 		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:100",
 			"isInsidePoh origin check — migrates to the POH service");
