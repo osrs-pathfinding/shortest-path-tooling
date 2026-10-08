@@ -157,9 +157,9 @@ public final class DashboardScenarioRunner {
         boolean isBankPreset = "BANK".equalsIgnoreCase(scenario.getPreset())
             || "BANK_PERM".equalsIgnoreCase(scenario.getPreset());
         if (isBankPreset) {
-            pfConfig.bank = universalBankContainer;
+            pfConfig.getItemState().noteBankContainer(universalBankContainer);
         } else if (!scenario.getBank().isEmpty()) {
-            pfConfig.bank = buildItemContainer(scenario.getBank());
+            pfConfig.getItemState().noteBankContainer(buildItemContainer(scenario.getBank()));
         }
 
         // Step 10: refresh

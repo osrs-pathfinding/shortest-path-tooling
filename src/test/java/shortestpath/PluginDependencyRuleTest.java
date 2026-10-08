@@ -99,9 +99,9 @@ public class PluginDependencyRuleTest
 			"resource anchor — league-region TSV read; the loader migrates self-anchored");
 
 		// Static imports of the POH landing-tile constants.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:33",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:31",
 			"import static of POH_LANDING_X — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:34",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:32",
 			"import static of POH_LANDING_Y — migrates to the POH service");
 		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:9",
 			"import static of POH_LANDING_X — migrates to the POH service");
@@ -109,7 +109,7 @@ public class PluginDependencyRuleTest
 			"import static of POH_LANDING_Y — migrates to the POH service");
 
 		// isInsidePoh world-geometry reads — migrate to the POH service.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:762",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:780",
 			"isInsidePoh redirect filter — migrates to the POH service");
 		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:100",
 			"isInsidePoh origin check — migrates to the POH service");

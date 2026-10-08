@@ -47,8 +47,9 @@ public final class CanonicalAccountCompiler {
         DashboardPathfinderConfig config = canonicalConfig(profile, allowTransports);
         CanonicalTestPathfinderConfig pathfinderConfig = new CanonicalTestPathfinderConfig(
             client, config, profile.getCompletedQuests(), benchmarkNowMinutes);
-        pathfinderConfig.bank = itemContainer(translateItems("profile " + profileName + " bank", profile.getBank()));
-        pathfinderConfig.availableSpiritTrees = plantedSpiritTreeNames(profile);
+        pathfinderConfig.getItemState().noteBankContainer(
+            itemContainer(translateItems("profile " + profileName + " bank", profile.getBank())));
+        pathfinderConfig.getSpiritTrees().setAvailableSpiritTreesForTest(plantedSpiritTreeNames(profile));
         pathfinderConfig.refresh();
         return new CompiledAccount(pathfinderConfig, client);
     }
