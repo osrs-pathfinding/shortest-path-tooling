@@ -22,8 +22,9 @@ every quest finished, nothing carried) with preset settings. `PluginSettings` is
 settings object every profile and scenario uses.
 
 **Expectations.** A scenario is expected reachable or unreachable, and may set a minimum path
-length. *Reached* means the path ends on the target or next to it (targets such as NPCs and objects
-cannot be stood on); `Observation.isReached()` is the only definition. A suite may also keep exact
+length. *Reached* is the engine's verdict, `PathfinderResult.isReached()` (for a target that
+cannot be stood on, the plugin routes to its fallback tiles before searching);
+`Observation.isReached()` is the only definition. A suite may also keep exact
 lengths in `src/test/resources/scenarios/expected-lengths/<suite>.json`, which only the dashboard
 checks and `captureExpectedLengths` rewrites.
 
