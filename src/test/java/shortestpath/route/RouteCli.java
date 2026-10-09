@@ -14,7 +14,6 @@ import shortestpath.pathfinder.ExactPathfinder;
 import shortestpath.pathfinder.PathfinderConfig;
 import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.TransportAvailability;
-import shortestpath.profiles.CompiledAccount;
 import shortestpath.profiles.Profiles;
 import shortestpath.scenarios.CanonicalCorpus;
 import shortestpath.scenarios.Observation;
@@ -60,7 +59,7 @@ public final class RouteCli {
                     .orElseThrow(() -> new IllegalArgumentException("unknown route: " + routeId));
                 String profile = arguments.profiles.get(i);
                 checkProfile(profile);
-                query(route.scenario(profile).build(), route, null, profile, arguments, runner);
+                print(new Query(route.scenario(profile).build(), route, null, profile), arguments, runner);
             }
             return;
         }
@@ -69,15 +68,15 @@ public final class RouteCli {
             Route route = findRoute(routes, arguments.routeSelector);
             checkProfile(arguments.profile);
             // The named-route form has always allowed transports.
-            query(route.scenario(arguments.profile).allowTransports(true).build(), route, null,
-                arguments.profile, arguments, runner);
+            print(new Query(route.scenario(arguments.profile).allowTransports(true).build(), route, null,
+                arguments.profile), arguments, runner);
             return;
         }
 
         checkProfile(arguments.profile);
-        Scenario query = Scenario.scenario("query", "query")
+        Scenario scenario = Scenario.scenario("query", "query")
             .fromTile(arguments.start).toTile(arguments.target).profile(Profiles.get(arguments.profile)).build();
-        query(query, null, null, arguments.profile, arguments, runner);
+        print(new Query(scenario, null, null, arguments.profile), arguments, runner);
     }
 
     /** {@code --suite S --list} lists its scenarios; {@code --suite S --scenario Q} runs one. */
@@ -103,7 +102,7 @@ public final class RouteCli {
             return;
         }
         Scenario scenario = Suites.find(arguments.suite, arguments.scenario);
-        query(scenario, null, arguments.suite, scenario.getProfile().name(), arguments,
+        print(new Query(scenario, null, arguments.suite, scenario.getProfile().name()), arguments,
             new ScenarioRunner(ScenarioRunner.Backend.parse(arguments.algorithm)));
     }
 
@@ -125,44 +124,54 @@ public final class RouteCli {
         }
     }
 
-    /**
-     * Runs {@code scenario} and prints it. {@code route} is the corpus route of the route forms;
-     * {@code suite} names the suite of the {@code --suite} form; both are {@code null} for coordinates.
-     */
-    private static void query(Scenario scenario, Route route, String suite, String profileName,
-            Arguments arguments, ScenarioRunner runner) {
-        Observation observation = runner.run(scenario);
-        CompiledAccount account = observation.getAccount();
-        ExactPathfinder exact = observation.getExact();
-        PathfinderResult result = observation.getResult();
-        int start = scenario.getRouteStart();
-        int target = scenario.getTarget();
-        Scenario suiteScenario = suite != null ? scenario : null;
-        List<MatchedTransport> transports = observation.isReached()
-            ? transports(result.getPathSteps(), account.getConfig()) : List.of();
-        if (arguments.json) {
-            System.out.println(new GsonBuilder().serializeNulls().create().toJson(
-                jsonResult(start, target, route, suite, suiteScenario, profileName, arguments.algorithm,
-                    observation, transports)));
-        } else {
-            printHuman(start, target, route, suite, suiteScenario, profileName, arguments.algorithm, observation,
-                transports, arguments.counters, exact);
+    /** What a query runs and how it is labelled in the output. */
+    private static final class Query {
+        final Scenario scenario;
+        /** The corpus route of the route forms, else {@code null}. */
+        final Route route;
+        /** The suite of the {@code --suite} form, else {@code null}. */
+        final String suite;
+        /** The profile as the user named it. */
+        final String profile;
+
+        Query(Scenario scenario, Route route, String suite, String profile) {
+            this.scenario = scenario;
+            this.route = route;
+            this.suite = suite;
+            this.profile = profile;
         }
     }
 
-    private static void printHuman(int start, int target, Route route, String suite, Scenario scenario,
-            String profile, String algorithm, Observation observation, List<MatchedTransport> transports,
-            boolean counters, ExactPathfinder exact) {
+    /** Runs the query's scenario and prints the result, as JSON or for people. */
+    private static void print(Query query, Arguments arguments, ScenarioRunner runner) {
+        Observation observation = runner.run(query.scenario);
+        List<MatchedTransport> transports = observation.isReached()
+            ? transports(observation.getResult().getPathSteps(), observation.getAccount().getConfig()) : List.of();
+        if (arguments.json) {
+            System.out.println(new GsonBuilder().serializeNulls().create().toJson(
+                jsonResult(query, arguments.algorithm, observation, transports)));
+        } else {
+            printHuman(query, arguments.algorithm, observation, transports, arguments.counters);
+        }
+    }
+
+    private static void printHuman(Query query, String algorithm, Observation observation,
+            List<MatchedTransport> transports, boolean counters) {
         PathfinderResult result = observation.getResult();
+        ExactPathfinder exact = observation.getExact();
+        int start = query.scenario.getRouteStart();
+        int target = query.scenario.getTarget();
+        Route route = query.route;
+        String profile = query.profile;
         System.out.println("algorithm: " + algorithm);
         System.out.println("profile: " + profile);
-        if (scenario != null) {
-            System.out.println("suite: " + suite);
-            System.out.println("scenario: " + scenario.getName());
-            if (scenario.getDescription() != null) {
-                System.out.println("name: " + scenario.getDescription());
+        if (query.suite != null) {
+            System.out.println("suite: " + query.suite);
+            System.out.println("scenario: " + query.scenario.getName());
+            if (query.scenario.getDescription() != null) {
+                System.out.println("name: " + query.scenario.getDescription());
             }
-            System.out.println("expected: " + (scenario.isExpectedReachable() ? "reachable" : "unreachable"));
+            System.out.println("expected: " + (query.scenario.isExpectedReachable() ? "reachable" : "unreachable"));
         }
         if (route != null) {
             System.out.println("route: " + route.getId());
@@ -229,18 +238,21 @@ public final class RouteCli {
         }
     }
 
-    private static JsonObject jsonResult(int start, int target, Route route, String suite,
-            Scenario scenario, String profile, String algorithm, Observation observation,
+    private static JsonObject jsonResult(Query query, String algorithm, Observation observation,
             List<MatchedTransport> transports) {
         PathfinderResult result = observation.getResult();
+        int start = query.scenario.getRouteStart();
+        int target = query.scenario.getTarget();
+        Route route = query.route;
+        String profile = query.profile;
         JsonObject output = new JsonObject();
         output.addProperty("ok", true);
-        if (scenario != null) {
-            output.addProperty("suite", suite);
-            output.addProperty("scenario", scenario.getName());
-            output.addProperty("scenarioDescription", scenario.getDescription());
-            output.addProperty("allowTransports", scenario.isAllowTransports());
-            output.addProperty("expectedReachable", scenario.isExpectedReachable());
+        if (query.suite != null) {
+            output.addProperty("suite", query.suite);
+            output.addProperty("scenario", query.scenario.getName());
+            output.addProperty("scenarioDescription", query.scenario.getDescription());
+            output.addProperty("allowTransports", query.scenario.isAllowTransports());
+            output.addProperty("expectedReachable", query.scenario.isExpectedReachable());
         }
         if (route != null) {
             output.addProperty("routeId", route.getId());
