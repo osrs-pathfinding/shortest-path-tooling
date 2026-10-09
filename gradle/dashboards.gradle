@@ -98,7 +98,7 @@ tasks.register('dashboard', Test) {
     if (!dashboardTier.get().isEmpty()) {
         systemProperty 'dashboard.tier', dashboardTier.get()
     }
-    systemProperty 'benchmark.corpusDir', rootProject.file('corpus').absolutePath
+    systemProperty 'corpus.dir', rootProject.file('corpus').absolutePath
     if (!dashboardProfile.get().isEmpty()) {
         systemProperty 'dashboard.profile', dashboardProfile.get()
     }
@@ -151,7 +151,7 @@ tasks.register('captureExpectedLengths', Test) {
     if (!dashboardTier.get().isEmpty()) {
         systemProperty 'dashboard.tier', dashboardTier.get()
     }
-    systemProperty 'benchmark.corpusDir', rootProject.file('corpus').absolutePath
+    systemProperty 'corpus.dir', rootProject.file('corpus').absolutePath
     if (!dashboardProfile.get().isEmpty()) {
         systemProperty 'dashboard.profile', dashboardProfile.get()
     }
@@ -177,5 +177,5 @@ tasks.register('scenarioIndex', JavaExec) {
     dependsOn 'testClasses'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'shortestpath.scenarios.Suites'
-    systemProperty 'benchmark.corpusDir', rootProject.file('corpus').absolutePath
+    systemProperty 'corpus.dir', rootProject.file('corpus').absolutePath
 }

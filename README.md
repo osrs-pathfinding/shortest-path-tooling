@@ -113,7 +113,7 @@ All options are passed via `-P`:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `dashboardSuite` | `routes` | Scenario suite to run (`./gradlew -q scenarioSuites` lists them, including the `canonical*` corpus tiers) |
+| `dashboardSuite` | `routes` | Scenario suite to run (`./gradlew -q scenarioIndex` lists them; see [docs/scenarios.md](docs/scenarios.md)) |
 | `dashboardFilter` | *(empty)* | Run only scenarios whose name or category contains it |
 | `dashboardDataset` | *(empty)* | A data-only scenario CSV file to run instead of a suite |
 | `dashboardBundle` | derived from the suite name | Bundle name in the output site |

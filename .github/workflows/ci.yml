@@ -42,7 +42,8 @@ jobs:
         run: >-
           ./gradlew :test --stacktrace
           --tests 'shortestpath.scenarios.*' --tests 'shortestpath.profiles.*'
-          --tests 'shortestpath.benchmark.*' --tests 'shortestpath.dashboard.ConfigParityTest'
+          --tests 'shortestpath.benchmark.*' --tests 'shortestpath.route.*'
+          --tests 'shortestpath.dashboard.ConfigParityTest'
         shell: bash
 
   validate:

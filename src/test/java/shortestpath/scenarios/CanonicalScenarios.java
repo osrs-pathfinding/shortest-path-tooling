@@ -13,9 +13,9 @@ import shortestpath.profiles.Profiles;
 public final class CanonicalScenarios {
     private CanonicalScenarios() { }
 
-    /** The corpus directory: {@code -Dbenchmark.corpusDir}, default the repository's {@code corpus/}. */
+    /** The corpus directory: {@code -Dcorpus.dir}, default the repository's {@code corpus/}. */
     public static Path defaultCorpusDir() {
-        return Path.of(System.getProperty("benchmark.corpusDir", "corpus"));
+        return Path.of(System.getProperty("corpus.dir", "corpus"));
     }
 
     public static List<Route> routes(Path corpusDir) throws IOException {

@@ -26,7 +26,7 @@ def commitOf = { File directory -> git(directory, ['rev-parse', 'HEAD']) ?: 'unk
 def dirtyOf = { File directory -> !(git(directory, ['status', '--porcelain']) ?: '').isEmpty() }
 
 tasks.named('test') {
-    systemProperty 'benchmark.corpusDir',
+    systemProperty 'corpus.dir',
         (testCorpusDir.isPresent() ? file(testCorpusDir.get()) : defaultCorpusDir).absolutePath
 }
 
@@ -37,7 +37,7 @@ tasks.register('benchmarkCanonical', JavaExec) {
     description = 'Runs the exact resolved canonical manifest in one Java process.'
     dependsOn 'testClasses'
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'shortestpath.benchmark.canonical.BenchmarkMain'
+    mainClass = 'shortestpath.benchmark.BenchmarkMain'
     jvmArgs = ['-Xms1g', '-Xmx8g']
     doFirst {
         File plugin = gradle.ext.shortestPathProjectDir
@@ -56,7 +56,7 @@ tasks.register('route', JavaExec) {
             '-ProuteArgs=--list).'
     dependsOn 'testClasses'
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'shortestpath.benchmark.canonical.CanonicalRouteCli'
+    mainClass = 'shortestpath.route.RouteCli'
     def routeArgs = providers.gradleProperty('routeArgs')
     // Passed as single arguments, so scenario names may contain spaces.
     def routeSuite = providers.gradleProperty('routeSuite')

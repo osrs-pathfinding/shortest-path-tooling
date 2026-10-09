@@ -19,7 +19,7 @@ around it.
 | `shortest-path/` | Git submodule (pinned commit). Plugin sources + data in `src/main/resources/` (`collision-map.zip`, `destinations/`, `transports/`, `leagues/`). |
 | `accounts/` | Gradle subproject: the Java account profiles that generate `corpus/accounts/` and `corpus/profiles/`. |
 | `corpus/` | Canonical routes, generated account fixtures and schemas (see `corpus/README.md`). |
-| `src/test/java/shortestpath/` | All other Java lives under *test* sources: `profiles/` (every named profile, account compiler), `scenarios/` (scenario suites), `dashboard/` (site generator), `benchmark/canonical/` (canonical benchmark + `route` CLI), `dump/` (cache dumpers), `pathfinder/` (profiling). |
+| `src/test/java/shortestpath/` | All other Java lives under *test* sources: `profiles/` (every named profile, account compiler), `scenarios/` (scenario suites), `dashboard/` (site generator), `benchmark/` (benchmark adapter), `route/` (`route` CLI); model in `docs/scenarios.md`, `dump/` (cache dumpers), `pathfinder/` (profiling). |
 | `src/test/resources/` | Dashboard web assets, scenario data + expected lengths under `scenarios/`, region TSVs. |
 | `gradle/` | Task definitions: `dashboards.gradle`, `cache-dumpers.gradle`. |
 | `scripts/` | Python orchestration (see Scripts map below). |
@@ -51,8 +51,8 @@ python3 scripts/maintenance.py validate  # data validation: hard gate + advisory
 ```
 
 Dashboard options are `-P` properties: `dashboardSuite` (default
-`routes`; `./gradlew -q scenarioSuites` lists every suite, including the
-canonical corpus tiers `canonical-smoke`/`canonical-standard`/`canonical`),
+`routes`; `./gradlew -q scenarioIndex` lists every suite; `-PdashboardTier=smoke`
+selects a canonical tier; `-PdashboardBackend=exact`),
 `dashboardFilter` (only scenarios whose name or category contains it),
 `dashboardDataset` (a data-only scenario CSV file to run instead),
 `dashboardBundle`, `dashboardTitle`,
@@ -215,7 +215,7 @@ agent-facing, keep them stable):
 ./gradlew route -ProuteArgs="maxed 2411 4434 0 2995 3114 0 --json"   # any profile, incl. presets
 ./gradlew route -ProuteArgs="gps-natural-0012 maxed --algorithm exact"
 ./gradlew route -ProuteSuite=routing-issues -ProuteScenario="#140) usable"  # any suite scenario
-./gradlew route -ProuteSuite=canonical-smoke -ProuteArgs=--list
+./gradlew route -ProuteSuite=canonical -ProuteArgs=--list
 ```
 
 ## OSRS wiki lookups

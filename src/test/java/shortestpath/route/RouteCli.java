@@ -1,4 +1,4 @@
-package shortestpath.benchmark.canonical;
+package shortestpath.route;
 
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -8,17 +8,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import shortestpath.WorldPointUtil;
 import shortestpath.pathfinder.PathStep;
 import shortestpath.pathfinder.ExactPathfinder;
 import shortestpath.pathfinder.PathfinderConfig;
 import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.TransportAvailability;
-import shortestpath.pathfinder.exact.RoutingStatic;
 import shortestpath.profiles.CompiledAccount;
-import shortestpath.profiles.Profile;
-import shortestpath.profiles.ProfileContext;
 import shortestpath.profiles.Profiles;
 import shortestpath.scenarios.CanonicalScenarios;
 import shortestpath.scenarios.Observation;
@@ -30,8 +26,8 @@ import shortestpath.pathfinder.exact.ExactForwardSearch;
 import shortestpath.transport.Transport;
 
 /** Command-line frontend for querying one route: a canonical route, coordinates, or any suite scenario. */
-public final class CanonicalRouteCli {
-    private CanonicalRouteCli() { }
+public final class RouteCli {
+    private RouteCli() { }
 
     public static void main(String[] args) throws Exception {
         try {
@@ -46,7 +42,7 @@ public final class CanonicalRouteCli {
         Arguments arguments = Arguments.parse(rawArgs);
         if (arguments.corpus != null) {
             // The canonical suites read the corpus the query names.
-            System.setProperty("benchmark.corpusDir", arguments.corpus.toString());
+            System.setProperty("corpus.dir", arguments.corpus.toString());
         }
         if (arguments.suite != null) {
             runSuite(arguments);

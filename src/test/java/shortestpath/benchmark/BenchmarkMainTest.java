@@ -1,4 +1,4 @@
-package shortestpath.benchmark.canonical;
+package shortestpath.benchmark;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -10,6 +10,7 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import shortestpath.scenarios.CanonicalScenarios;
 import shortestpath.scenarios.Route;
 
 public class BenchmarkMainTest {
@@ -17,7 +18,7 @@ public class BenchmarkMainTest {
 
     @BeforeClass
     public static void requireCorpus() {
-        CORPUS = TestCorpus.dir();
+        CORPUS = CanonicalScenarios.defaultCorpusDir();
     }
 
     @Test

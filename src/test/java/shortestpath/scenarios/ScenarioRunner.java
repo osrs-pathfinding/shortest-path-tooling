@@ -9,7 +9,6 @@ import shortestpath.pathfinder.ExactPathfinder;
 import shortestpath.pathfinder.ExactRoutingStaticProvider;
 import shortestpath.pathfinder.Pathfinder;
 import shortestpath.pathfinder.PathfinderConfig;
-import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.ProfilingPathfinder;
 import shortestpath.pathfinder.SplitFlagMap;
 import shortestpath.pathfinder.exact.ExactRoutingSession;

@@ -1,4 +1,4 @@
-package shortestpath.benchmark.canonical;
+package shortestpath.benchmark;
 
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;

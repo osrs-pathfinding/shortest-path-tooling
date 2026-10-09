@@ -1,5 +1,8 @@
 package shortestpath.scenarios;
 
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -8,6 +11,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
@@ -45,15 +49,15 @@ public final class Suites {
      * description}, ...]}}: {@code ./gradlew -q scenarioIndex}. Scripts read suites from it.
      */
     public static void main(String[] args) throws IOException {
-        com.google.gson.JsonObject index = new com.google.gson.JsonObject();
+        JsonObject index = new JsonObject();
         for (String suite : names()) {
-            com.google.gson.JsonArray scenarios = new com.google.gson.JsonArray();
+            JsonArray scenarios = new JsonArray();
             for (Scenario scenario : load(suite)) {
-                com.google.gson.JsonObject entry = new com.google.gson.JsonObject();
+                JsonObject entry = new JsonObject();
                 entry.addProperty("name", scenario.getName());
                 entry.addProperty("category", scenario.getCategory());
                 entry.addProperty("profile", scenario.getProfile().name());
-                com.google.gson.JsonArray tiers = new com.google.gson.JsonArray();
+                JsonArray tiers = new JsonArray();
                 scenario.getTiers().stream().sorted().forEach(tiers::add);
                 entry.add("tiers", tiers);
                 entry.addProperty("description", scenario.getDescription());
@@ -61,7 +65,7 @@ public final class Suites {
             }
             index.add(suite, scenarios);
         }
-        System.out.println(new com.google.gson.GsonBuilder().disableHtmlEscaping().create().toJson(index));
+        System.out.println(new GsonBuilder().disableHtmlEscaping().create().toJson(index));
     }
 
     public static Set<String> names() {
@@ -105,11 +109,11 @@ public final class Suites {
 
     /** The scenarios whose name or category contains {@code query}, ignoring case. */
     public static List<Scenario> filter(List<Scenario> scenarios, String query) {
-        String needle = query.toLowerCase(java.util.Locale.ROOT);
+        String needle = query.toLowerCase(Locale.ROOT);
         List<Scenario> result = new ArrayList<>();
         for (Scenario scenario : scenarios) {
-            if (scenario.getName().toLowerCase(java.util.Locale.ROOT).contains(needle)
-                    || scenario.getCategory().toLowerCase(java.util.Locale.ROOT).contains(needle)) {
+            if (scenario.getName().toLowerCase(Locale.ROOT).contains(needle)
+                    || scenario.getCategory().toLowerCase(Locale.ROOT).contains(needle)) {
                 result.add(scenario);
             }
         }

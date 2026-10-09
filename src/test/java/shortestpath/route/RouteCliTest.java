@@ -1,4 +1,4 @@
-package shortestpath.benchmark.canonical;
+package shortestpath.route;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -13,9 +13,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import org.junit.Test;
 import shortestpath.WorldPointUtil;
+import shortestpath.scenarios.CanonicalScenarios;
 import shortestpath.scenarios.Route;
 
-public class CanonicalRouteCliTest {
+public class RouteCliTest {
     @Test
     public void reportsWalkingTransportBankRestrictedAndUnreachableRoutes() throws Exception {
         JsonObject walking = query("gps-natural-0001", "early");
@@ -87,7 +88,7 @@ public class CanonicalRouteCliTest {
 
     @Test
     public void namedRouteMatchesNamedCoordinatesAndSupportsRouteNames() throws Exception {
-        Path corpus = TestCorpus.dir();
+        Path corpus = CanonicalScenarios.defaultCorpusDir();
         Route route = Route.load(corpus.resolve("corpus/routes-v1.json")).stream()
             .filter(candidate -> candidate.getId().equals("transport-heavy-0001"))
             .findFirst().orElseThrow();
@@ -106,9 +107,9 @@ public class CanonicalRouteCliTest {
 
     @Test
     public void rejectsUnknownOrAmbiguousNamedRoutes() throws Exception {
-        Path corpus = TestCorpus.dir();
+        Path corpus = CanonicalScenarios.defaultCorpusDir();
         try {
-            CanonicalRouteCli.run(new String[] {"--corpus", corpus.toString(), "--route",
+            RouteCli.run(new String[] {"--corpus", corpus.toString(), "--route",
                 "regression-9999", "--profile", "maxed"});
             fail("unknown route should fail");
         } catch (IllegalArgumentException exception) {
@@ -131,7 +132,7 @@ public class CanonicalRouteCliTest {
         PrintStream previous = System.out;
         try {
             System.setOut(new PrintStream(output, true, StandardCharsets.UTF_8.name()));
-            CanonicalRouteCli.run(withCorpus(args));
+            RouteCli.run(withCorpus(args));
         } finally {
             System.setOut(previous);
         }
@@ -141,7 +142,7 @@ public class CanonicalRouteCliTest {
 
     private static void assertRejected(String... args) throws Exception {
         try {
-            CanonicalRouteCli.run(withCorpus(args));
+            RouteCli.run(withCorpus(args));
             fail("invalid route source should fail");
         } catch (IllegalArgumentException expected) {
             // expected
@@ -165,7 +166,7 @@ public class CanonicalRouteCliTest {
     private static String[] withCorpus(String... args) {
         String[] result = new String[args.length + 2];
         result[0] = "--corpus";
-        result[1] = TestCorpus.dir().toString();
+        result[1] = CanonicalScenarios.defaultCorpusDir().toString();
         System.arraycopy(args, 0, result, 2, args.length);
         return result;
     }
