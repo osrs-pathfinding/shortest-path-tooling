@@ -1173,7 +1173,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
 VALIDATE_HARD_CHECKS: Tuple[Tuple[str, str], ...] = (
     ("tsv-structure", "leaf"), ("collision-zip", "leaf"),
     ("walkability", "leaf"), ("bbox", "leaf"), ("regions", "leaf"),
-    ("scenario-data", "leaf"), ("region-override", "leaf"),
+    ("region-override", "leaf"),
     ("freshness", "internal"))
 VALIDATE_ADVISORY_CHECKS: Tuple[Tuple[str, str], ...] = (
     ("destinations", "leaf"),
@@ -1607,10 +1607,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     vd.add_argument(
         "--skip-regions", action="store_true",
         help="Omit the generated leagues/regions.tsv consistency check")
-    vd.add_argument(
-        "--skip-scenario-data", action="store_true",
-        help="Omit the scenario data check (data-only scenario CSVs "
-             "and expected-length files)")
     vd.add_argument(
         "--skip-region-override", action="store_true",
         help="Omit the transport Region override enum check")

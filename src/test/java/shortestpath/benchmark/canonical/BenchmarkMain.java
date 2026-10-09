@@ -25,7 +25,10 @@ import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.exact.ExactForwardSearch;
 import shortestpath.profiles.CompiledAccount;
 import shortestpath.profiles.Profiles;
+import shortestpath.profiles.Setup;
+import shortestpath.scenarios.CanonicalScenarios;
 import shortestpath.scenarios.Observation;
+import shortestpath.scenarios.Route;
 import shortestpath.scenarios.Scenario;
 import shortestpath.scenarios.ScenarioRunner;
 
@@ -64,15 +67,19 @@ public final class BenchmarkMain {
         long routingStaticBuildNanos = runner.getRoutingStaticBuildNanos();
         Map<String, CompiledAccount> accounts = new HashMap<>();
         Map<String, String> accountFailures = new HashMap<>();
-        for (String profileName : plan.profiles) {
-            for (boolean allowTransports : plan.transportModes) {
-                String key = accountKey(profileName, allowTransports);
-                try {
-                    accounts.put(key, CanonicalAccountCompiler.compile(profileName, allowTransports,
-                        plan.syntheticBenchmarkTime));
-                } catch (RuntimeException exception) {
-                    accountFailures.put(key, exception.getClass().getName() + ": " + exception.getMessage());
-                }
+        // A canonical scenario is its profile and nothing else, so one compiled account serves every
+        // case with the same profile and transport mode; it is evaluated at the manifest's clock.
+        for (Case current : plan.logicalCases) {
+            String key = accountKey(current.profile, current.route.isAllowTransports());
+            if (accounts.containsKey(key) || accountFailures.containsKey(key)) {
+                continue;
+            }
+            try {
+                Setup setup = current.scenario().setup();
+                setup.account.nowMinutes(plan.syntheticBenchmarkTime);
+                accounts.put(key, setup.compile());
+            } catch (RuntimeException exception) {
+                accountFailures.put(key, exception.getClass().getName() + ": " + exception.getMessage());
             }
         }
 
@@ -175,9 +182,8 @@ public final class BenchmarkMain {
             throw new IllegalArgumentException("exact_session requires the exact algorithm");
         }
 
-        Map<String, CanonicalRoute> routes = new LinkedHashMap<>();
-        for (CanonicalRoute route : CanonicalCorpusLoader.loadRoutes(
-                corpus.resolve("corpus/routes-v1.json"))) {
+        Map<String, Route> routes = new LinkedHashMap<>();
+        for (Route route : CanonicalScenarios.routes(corpus)) {
             routes.put(route.getId(), route);
         }
         JsonArray rawCases = requiredArray(manifest, "cases");
@@ -196,11 +202,11 @@ public final class BenchmarkMain {
             if (repetition >= repetitions) {
                 throw new IllegalArgumentException("repetition outside policy: " + repetition);
             }
-            CanonicalRoute route = routes.get(routeId);
+            Route route = routes.get(routeId);
             if (route == null) {
                 throw new IllegalArgumentException("unknown route ID: " + routeId);
             }
-            if (!CanonicalCorpusLoader.PROFILES.contains(profile)) {
+            if (!Profiles.canonicalNames().contains(profile)) {
                 throw new IllegalArgumentException("unknown profile ID: " + profile);
             }
             String identity = caseKey(routeId, profile, repetition);
@@ -508,23 +514,21 @@ public final class BenchmarkMain {
     }
 
     static final class Case {
-        final CanonicalRoute route;
+        final Route route;
         final String profile;
         final int repetition;
         final boolean expectedReachable;
 
-        Case(CanonicalRoute route, String profile, int repetition, boolean expectedReachable) {
+        Case(Route route, String profile, int repetition, boolean expectedReachable) {
             this.route = route;
             this.profile = profile;
             this.repetition = repetition;
             this.expectedReachable = expectedReachable;
         }
 
+        /** The {@code canonical} suite scenario {@code <route id>/<profile>}. */
         Scenario scenario() {
-            return Scenario.scenario(route.getId() + "/" + profile, "canonical")
-                .fromTile(route.getStartPacked()).toTile(route.getTargetPacked())
-                .profile(Profiles.get(profile)).allowTransports(route.isAllowTransports())
-                .expectReachable(expectedReachable).build();
+            return route.scenario(profile).build();
         }
     }
 

@@ -20,7 +20,9 @@ import shortestpath.profiles.CompiledAccount;
 import shortestpath.profiles.Profile;
 import shortestpath.profiles.ProfileContext;
 import shortestpath.profiles.Profiles;
+import shortestpath.scenarios.CanonicalScenarios;
 import shortestpath.scenarios.Observation;
+import shortestpath.scenarios.Route;
 import shortestpath.scenarios.Scenario;
 import shortestpath.scenarios.ScenarioRunner;
 import shortestpath.scenarios.Suites;
@@ -50,31 +52,36 @@ public final class CanonicalRouteCli {
             runSuite(arguments);
             return;
         }
-        List<CanonicalRoute> routes = CanonicalCorpusLoader.loadRoutes(
-            arguments.corpus.resolve("corpus/routes-v1.json"));
+        List<Route> routes = CanonicalScenarios.routes(arguments.corpus);
         ScenarioRunner runner = new ScenarioRunner(ScenarioRunner.Backend.parse(arguments.algorithm));
 
         if (arguments.routeIds != null) {
             for (int i = 0; i < arguments.routeIds.size(); i++) {
                 String routeId = arguments.routeIds.get(i);
-                CanonicalRoute route = routes.stream()
+                Route route = routes.stream()
                     .filter(candidate -> candidate.getId().equals(routeId))
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("unknown route: " + routeId));
-                query(route.getStartPacked(), route.getTargetPacked(), route,
-                    arguments.profiles.get(i), route.isAllowTransports(), arguments, runner);
+                String profile = arguments.profiles.get(i);
+                checkProfile(profile);
+                query(route.scenario(profile).build(), route, null, profile, arguments, runner);
             }
             return;
         }
 
         if (arguments.routeSelector != null) {
-            CanonicalRoute route = findRoute(routes, arguments.routeSelector);
-            query(route.getStartPacked(), route.getTargetPacked(), route,
-                arguments.profile, true, arguments, runner);
+            Route route = findRoute(routes, arguments.routeSelector);
+            checkProfile(arguments.profile);
+            // The named-route form has always allowed transports.
+            query(route.scenario(arguments.profile).allowTransports(true).build(), route, null,
+                arguments.profile, arguments, runner);
             return;
         }
 
-        query(arguments.start, arguments.target, null, arguments.profile, true, arguments, runner);
+        checkProfile(arguments.profile);
+        Scenario query = Scenario.scenario("query", "query")
+            .fromTile(arguments.start).toTile(arguments.target).profile(Profiles.get(arguments.profile)).build();
+        query(query, null, null, arguments.profile, arguments, runner);
     }
 
     /** {@code --suite S --list} lists its scenarios; {@code --suite S --scenario Q} runs one. */
@@ -104,32 +111,29 @@ public final class CanonicalRouteCli {
             new ScenarioRunner(ScenarioRunner.Backend.parse(arguments.algorithm)));
     }
 
-    private static CanonicalRoute findRoute(List<CanonicalRoute> routes, String selector) {
+    private static Route findRoute(List<Route> routes, String selector) {
         return routes.stream()
             .filter(route -> route.getId().equals(selector) || route.getName().equals(selector))
             .findFirst()
             .orElseThrow(() -> new IllegalArgumentException("Unknown corpus route: " + selector));
     }
 
-    /** A one-off query: {@code profileName}'s account and settings, no overrides. */
-    private static void query(int start, int target, CanonicalRoute route, String profileName,
-            boolean allowTransports, Arguments arguments, ScenarioRunner runner) throws Exception {
-        Profile profile;
+    private static void checkProfile(String profileName) {
         try {
-            profile = Profiles.get(profileName);
+            Profiles.get(profileName);
         } catch (IllegalArgumentException unknown) {
             List<String> names = new ArrayList<>(Profiles.canonicalNames());
             names.addAll(Profiles.presetNames());
             throw new IllegalArgumentException("unknown profile \"" + profileName + "\"; expected "
                 + String.join(", ", names));
         }
-        Scenario query = Scenario.scenario(route != null ? route.getId() : "query", "query")
-            .fromTile(start).toTile(target).profile(profile).allowTransports(allowTransports).build();
-        query(query, route, null, profileName, arguments, runner);
     }
 
-    /** Runs {@code scenario}; {@code suite} names its suite, or is {@code null} for a one-off query. */
-    private static void query(Scenario scenario, CanonicalRoute route, String suite, String profileName,
+    /**
+     * Runs {@code scenario} and prints it. {@code route} is the corpus route of the route forms;
+     * {@code suite} names the suite of the {@code --suite} form; both are {@code null} for coordinates.
+     */
+    private static void query(Scenario scenario, Route route, String suite, String profileName,
             Arguments arguments, ScenarioRunner runner) {
         Observation observation = runner.run(scenario);
         CompiledAccount account = observation.getAccount();
@@ -137,24 +141,23 @@ public final class CanonicalRouteCli {
         PathfinderResult result = observation.getResult();
         int start = scenario.getRouteStart();
         int target = scenario.getEndPoint();
-        if (suite == null) {
-            scenario = null;
-        }
-        List<MatchedTransport> transports = result.isReached()
+        Scenario suiteScenario = suite != null ? scenario : null;
+        List<MatchedTransport> transports = observation.isReached()
             ? transports(result.getPathSteps(), account.getConfig()) : List.of();
         if (arguments.json) {
             System.out.println(new GsonBuilder().serializeNulls().create().toJson(
-                jsonResult(start, target, route, suite, scenario, profileName, arguments.algorithm, result,
-                    transports)));
+                jsonResult(start, target, route, suite, suiteScenario, profileName, arguments.algorithm,
+                    observation, transports)));
         } else {
-            printHuman(start, target, route, suite, scenario, profileName, arguments.algorithm, result,
+            printHuman(start, target, route, suite, suiteScenario, profileName, arguments.algorithm, observation,
                 transports, arguments.counters, exact);
         }
     }
 
-    private static void printHuman(int start, int target, CanonicalRoute route, String suite, Scenario scenario,
-            String profile, String algorithm, PathfinderResult result, List<MatchedTransport> transports,
+    private static void printHuman(int start, int target, Route route, String suite, Scenario scenario,
+            String profile, String algorithm, Observation observation, List<MatchedTransport> transports,
             boolean counters, ExactPathfinder exact) {
+        PathfinderResult result = observation.getResult();
         System.out.println("algorithm: " + algorithm);
         System.out.println("profile: " + profile);
         if (scenario != null) {
@@ -171,10 +174,10 @@ public final class CanonicalRouteCli {
         }
         System.out.println("start: " + coordinate(start));
         System.out.println("target: " + coordinate(target));
-        if (!result.isReached()) {
+        if (!observation.isReached()) {
             System.out.println("unreachable");
         } else {
-            System.out.println("cost: " + result.getPathCost());
+            System.out.println("cost: " + observation.getCost());
             System.out.println("expanded nodes: " + result.getNodesChecked());
             System.out.println("route:");
             List<PathStep> path = result.getPathSteps();
@@ -201,7 +204,7 @@ public final class CanonicalRouteCli {
         }
         if (counters) {
             System.out.println("metrics:");
-            System.out.println("  route_cost: " + (result.isReached() ? result.getPathCost() : "unreachable"));
+            System.out.println("  route_cost: " + (observation.isReached() ? observation.getCost() : "unreachable"));
             System.out.println("  route_steps: " + result.getPathSteps().size());
             System.out.println("  nodes_expanded: " + result.getNodesChecked());
             System.out.println("  transports_checked: " + result.getTransportsChecked());
@@ -230,9 +233,10 @@ public final class CanonicalRouteCli {
         }
     }
 
-    private static JsonObject jsonResult(int start, int target, CanonicalRoute route, String suite,
-            Scenario scenario, String profile, String algorithm, PathfinderResult result,
+    private static JsonObject jsonResult(int start, int target, Route route, String suite,
+            Scenario scenario, String profile, String algorithm, Observation observation,
             List<MatchedTransport> transports) {
+        PathfinderResult result = observation.getResult();
         JsonObject output = new JsonObject();
         output.addProperty("ok", true);
         if (scenario != null) {
@@ -251,10 +255,11 @@ public final class CanonicalRouteCli {
         output.addProperty("algorithm", algorithm);
         output.add("start", point(start, false));
         output.add("target", point(target, false));
-        output.addProperty("reachable", result.isReached());
-        output.addProperty("reached", result.isReached());
-        if (result.isReached()) {
-            output.addProperty("cost", result.getPathCost());
+        output.addProperty("reachable", observation.isReached());
+        output.addProperty("reached", observation.isReached());
+        Integer cost = observation.getCost();
+        if (cost != null) {
+            output.addProperty("cost", cost);
         } else {
             output.add("cost", JsonNull.INSTANCE);
         }
@@ -264,7 +269,7 @@ public final class CanonicalRouteCli {
         output.addProperty("terminationReason", result.getTerminationReason().name());
 
         JsonArray path = new JsonArray();
-        List<PathStep> steps = result.isReached() ? result.getPathSteps() : List.of();
+        List<PathStep> steps = observation.isReached() ? result.getPathSteps() : List.of();
         for (int i = 1; i < steps.size(); i++) {
             PathStep step = steps.get(i);
             MatchedTransport transport = findAt(transports, i);

@@ -20,7 +20,7 @@ import shortestpath.profiles.CompiledAccount;
 /**
  * Runs scenarios on one pathfinder backend. The only place the route CLI, the dashboard and the
  * benchmark adapter call a pathfinder, so they agree on what a run measures and what "reached"
- * means: the backend's own {@link PathfinderResult#isReached()}.
+ * means ({@link Observation#isReached()}).
  *
  * <p>Thread-safe: the exact backend's static routing data is built once and shared; sessions are
  * keyed by account fingerprint.

@@ -39,20 +39,19 @@ public class ScenariosTest {
     }
 
     @Test
-    public void canonicalSuitesAreEveryTierRouteWithEveryProfile() throws IOException {
-        List<shortestpath.benchmark.canonical.CanonicalRoute> routes =
-            shortestpath.benchmark.canonical.CanonicalCorpusLoader.loadRoutes(
-                CanonicalScenarios.corpusDir().resolve("corpus/routes-v1.json"));
-        for (String[] suite : new String[][] {{"canonical-smoke", "smoke"}, {"canonical-standard", "standard"},
-                {"canonical", "full"}}) {
-            long tierRoutes = routes.stream().filter(route -> route.getTiers().contains(suite[1])).count();
-            assertEquals(suite[0], tierRoutes * 4, Suites.load(suite[0]).size());
+    public void canonicalIsEveryRouteWithEveryProfileTaggedWithItsTiers() throws IOException {
+        List<Route> routes = CanonicalScenarios.routes(CanonicalScenarios.defaultCorpusDir());
+        List<Scenario> canonical = Suites.load("canonical");
+        assertEquals(routes.size() * 4, canonical.size());
+        for (String tier : List.of("smoke", "standard", "full")) {
+            long tierRoutes = routes.stream().filter(route -> route.getTiers().contains(tier)).count();
+            assertEquals(tier, tierRoutes * 4, Suites.withTier(canonical, tier).size());
         }
-        Map<String, Scenario> canonical = Suites.load("canonical").stream()
+        Map<String, Scenario> byName = canonical.stream()
             .collect(Collectors.toMap(Scenario::getName, scenario -> scenario));
-        for (var route : routes) {
+        for (Route route : routes) {
             for (String profile : List.of("early", "mid", "end", "maxed")) {
-                Scenario scenario = canonical.get(route.getId() + "/" + profile);
+                Scenario scenario = byName.get(route.getId() + "/" + profile);
                 assertEquals(route.getName(), scenario.getDescription());
                 assertEquals(profile, scenario.getProfile().name());
                 assertEquals(route.isAllowTransports(), scenario.isAllowTransports());
@@ -75,7 +74,7 @@ public class ScenariosTest {
     @Test
     public void javaSuitesCompile() throws IOException {
         for (String suite : Suites.names()) {
-            if (suite.equals("clue_locations_full") || suite.startsWith("canonical")) {
+            if (suite.equals("clue_locations_full") || suite.equals("canonical")) {
                 continue;
             }
             for (Scenario scenario : Suites.load(suite)) {
@@ -149,28 +148,34 @@ public class ScenariosTest {
     }
 
     @Test
-    public void dataRejectsOverrideColumns() {
+    public void routesRejectUnknownFields() {
         try {
-            ScenarioData.parse("name,category,start_x,start_y,start_plane,x,y,plane,profile,varbits\n"
-                + "a,b,1,2,0,3,4,0,ALL,1=2\n", "test.csv");
-            fail("override columns belong in Java suites");
+            Route.parse("[{\"id\": \"a-1\", \"name\": \"a\", \"target\": [3, 4, 0], \"varbits\": {}}]", "test.json");
+            fail("overrides belong in Java suites");
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains("varbits"));
         }
     }
 
     @Test
-    public void dataLoadsProfilesAndExpectations() {
-        List<Scenario.Builder> rows = ScenarioData.parse(
-            "name,category,start_x,start_y,start_plane,x,y,plane,profile,minimum_length,expect_reachable\n"
-                + "# comment\n"
-                + "a,walk,3222,3218,0,3105,3251,0,unit_test,10,false\n"
-                + "b,clue,,,,3105,3251,0,ALL,,\n", "test.csv");
-        Scenario a = rows.get(0).build();
-        assertEquals(UNIT_TEST, a.getProfile());
-        assertEquals(10, a.getMinimumLength().getAsInt());
-        assertFalse(a.isExpectedReachable());
-        assertEquals(shortestpath.WorldPointUtil.UNDEFINED, rows.get(1).build().getStartPoint());
+    public void routesBecomeOneScenarioPerProfile() {
+        List<Route> routes = Route.parse("[{\"id\": \"walk-0001\", \"name\": \"Walk\", \"start\": [3222, 3218, 0],"
+            + " \"target\": [3105, 3251, 0], \"tiers\": [\"smoke\"], \"negativeProfiles\": [\"early\"]},"
+            + " {\"id\": \"clue-1\", \"name\": \"Clue\", \"category\": \"anagram\", \"target\": [3105, 3251, 0],"
+            + " \"allowTransports\": false, \"profiles\": [\"NONE\"]}]", "test.json");
+        Suite suite = new Suite();
+        Suites.addRoutes(suite, routes, List.of("early", "maxed"));
+        List<Scenario> scenarios = Suites.build("test", suite.scenarios());
+        assertEquals(List.of("walk-0001/early", "walk-0001/maxed", "clue-1/NONE"),
+            scenarios.stream().map(Scenario::getName).collect(Collectors.toList()));
+        assertFalse(scenarios.get(0).isExpectedReachable());
+        assertTrue(scenarios.get(1).isExpectedReachable());
+        assertEquals("walk", scenarios.get(0).getCategory());
+        assertEquals(Set.of("smoke"), scenarios.get(0).getTiers());
+        assertEquals("anagram", scenarios.get(2).getCategory());
+        assertEquals(shortestpath.WorldPointUtil.UNDEFINED, scenarios.get(2).getStartPoint());
+        assertFalse(scenarios.get(2).isAllowTransports());
+        assertEquals("Clue", scenarios.get(2).getDescription());
     }
 
     @Test

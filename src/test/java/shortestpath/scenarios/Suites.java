@@ -15,9 +15,8 @@ import java.util.function.Consumer;
 
 /**
  * Every scenario suite, by name. Suites with account or settings overrides are Java;
- * {@code clue_locations_full} is data ({@link ScenarioData}); {@code canonical},
- * {@code canonical-standard} and {@code canonical-smoke} are the canonical corpus tiers
- * ({@link CanonicalScenarios}). A suite's optional exact lengths are in
+ * {@code clue_locations_full} and {@code canonical} (the canonical corpus, tagged with its tiers;
+ * {@link CanonicalScenarios}) are route data ({@link Route}). A suite's optional exact lengths are in
  * {@code /scenarios/expected-lengths/<suite>.json}.
  */
 public final class Suites {
@@ -31,10 +30,12 @@ public final class Suites {
         SUITES.put("f2p_routes", F2pRouteScenarios::define);
         SUITES.put("seasonal_briefcase_routes", SeasonalBriefcaseScenarios::define);
         SUITES.put("quetzal_whistle_routes", QuetzalWhistleScenarios::define);
-        SUITES.put("clue_locations_full", suite -> data(suite, "/scenarios/clue_locations_full.csv"));
-        SUITES.put("canonical-smoke", suite -> CanonicalScenarios.define(suite, "smoke"));
-        SUITES.put("canonical-standard", suite -> CanonicalScenarios.define(suite, "standard"));
-        SUITES.put("canonical", suite -> CanonicalScenarios.define(suite, "full"));
+        SUITES.put("clue_locations_full", suite -> addRoutes(suite,
+            unchecked(() -> Route.loadResource("/scenarios/clue-locations.json")), List.of("ALL")));
+        SUITES.put("canonical", suite -> unchecked(() -> {
+            CanonicalScenarios.define(suite, CanonicalScenarios.defaultCorpusDir());
+            return null;
+        }));
     }
 
     private Suites() { }
@@ -96,9 +97,34 @@ public final class Suites {
         return result;
     }
 
-    /** A data-only scenario file outside the committed suites; it has no expected lengths. */
+    /**
+     * A route file outside the committed suites (the {@link Route} format), run with
+     * {@code ALL} unless a route lists its profiles; it has no expected lengths.
+     */
     public static List<Scenario> loadFile(Path path) throws IOException {
-        return build(path.toString(), ScenarioData.loadFile(path));
+        Suite suite = new Suite();
+        addRoutes(suite, Route.load(path), List.of("ALL"));
+        return build(path.toString(), suite.scenarios());
+    }
+
+    /** Adds each route with each of its profiles (the route's own, else {@code profiles}). */
+    static void addRoutes(Suite suite, List<Route> routes, List<String> profiles) {
+        for (Route route : routes) {
+            for (String profile : route.getProfiles() != null ? route.getProfiles() : profiles) {
+                suite.add(route.scenario(profile));
+            }
+        }
+    }
+
+    /** The scenarios tagged with {@code tier}. */
+    public static List<Scenario> withTier(List<Scenario> scenarios, String tier) {
+        List<Scenario> result = new ArrayList<>();
+        for (Scenario scenario : scenarios) {
+            if (scenario.getTiers().contains(tier)) {
+                result.add(scenario);
+            }
+        }
+        return result;
     }
 
     static List<Scenario> build(String suite, List<Scenario.Builder> builders) {
@@ -124,11 +150,13 @@ public final class Suites {
         return result;
     }
 
-    private static void data(Suite suite, String resource) {
+    private interface IoSupplier<T> {
+        T get() throws IOException;
+    }
+
+    private static <T> T unchecked(IoSupplier<T> supplier) {
         try {
-            for (Scenario.Builder scenario : ScenarioData.loadResource(resource)) {
-                suite.add(scenario);
-            }
+            return supplier.get();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

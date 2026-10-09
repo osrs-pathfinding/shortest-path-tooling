@@ -55,10 +55,12 @@ import shortestpath.scenarios.Suites;
  * <table>
  *   <tr><th>Property</th><th>Default</th></tr>
  *   <tr><td>{@code dashboard.suite}</td><td>{@code routes} (see {@link Suites})</td></tr>
- *   <tr><td>{@code dashboard.dataset}</td><td>unset; a data-only scenario CSV file
- *       ({@link shortestpath.scenarios.ScenarioData}) to run instead of a suite</td></tr>
+ *   <tr><td>{@code dashboard.dataset}</td><td>unset; a route file
+ *       ({@link shortestpath.scenarios.Route}) to run instead of a suite</td></tr>
  *   <tr><td>{@code dashboard.bundleName}</td><td>{@code routes}</td></tr>
  *   <tr><td>{@code dashboard.title}</td><td>{@code Dashboard}</td></tr>
+ *   <tr><td>{@code dashboard.tier}</td><td>unset; run only scenarios tagged with this tier
+ *       (the canonical suite's {@code smoke}, {@code standard}, {@code full})</td></tr>
  *   <tr><td>{@code dashboard.filter}</td><td>unset; run only the scenarios whose name or
  *       category contains it (ignoring case)</td></tr>
  *   <tr><td>{@code dashboard.subtitle}</td><td>suite or file name</td></tr>
@@ -82,6 +84,7 @@ public class DashboardTest {
     private static final String SUITE_PROPERTY = "dashboard.suite";
     private static final String DATASET_PROPERTY = "dashboard.dataset";
     private static final String FILTER_PROPERTY = "dashboard.filter";
+    private static final String TIER_PROPERTY = "dashboard.tier";
     private static final String BUNDLE_NAME_PROPERTY = DashboardBundlePublisher.BUNDLE_NAME_PROPERTY;
     private static final String DEFAULT_SUITE = "routes";
     private static final int MAX_SCENARIOS = Integer.getInteger("reachability.maxTargets", 10000);
@@ -132,6 +135,10 @@ public class DashboardTest {
         Path siteRoot = bundlePublisher.getOutputRoot();
 
         List<Scenario> allScenarios = suite != null ? Suites.load(suite) : Suites.loadFile(Paths.get(file));
+        String tier = System.getProperty(TIER_PROPERTY, "");
+        if (!tier.isEmpty()) {
+            allScenarios = Suites.withTier(allScenarios, tier);
+        }
         String filter = System.getProperty(FILTER_PROPERTY, "");
         if (!filter.isEmpty()) {
             allScenarios = Suites.filter(allScenarios, filter);

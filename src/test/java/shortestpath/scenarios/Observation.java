@@ -1,6 +1,9 @@
 package shortestpath.scenarios;
 
+import java.util.List;
 import java.util.OptionalInt;
+import shortestpath.WorldPointUtil;
+import shortestpath.pathfinder.PathStep;
 import shortestpath.pathfinder.ExactPathfinder;
 import shortestpath.pathfinder.PathfinderProfile;
 import shortestpath.pathfinder.PathfinderResult;
@@ -38,18 +41,23 @@ public final class Observation {
     /** Nanoseconds spent constructing and running the pathfinder. */
     public long getTotalNanos() { return totalNanos; }
 
-    /** Whether the pathfinder reached the target tile. */
+    /**
+     * Whether the path ends on the target or on a tile next to it. Many targets (NPCs, objects,
+     * clue spots) cannot be stood on, so a path that stops beside one has reached it.
+     */
     public boolean isReached() {
-        return result.isReached();
+        if (result.isReached()) {
+            return true;
+        }
+        List<PathStep> path = result.getPathSteps();
+        return !path.isEmpty() && WorldPointUtil.distanceBetween(
+            path.get(path.size() - 1).getPackedPosition(), scenario.getEndPoint()) <= 1;
     }
 
-    /** The path cost when reached, otherwise {@code null}. */
+    /** The path cost when reached and the backend reports one, otherwise {@code null}. */
     public Integer getCost() {
-        if (!isReached()) {
+        if (!isReached() || result.getPathCost() == PathfinderResult.NO_PATH_COST) {
             return null;
-        }
-        if (result.getPathCost() == PathfinderResult.NO_PATH_COST) {
-            throw new IllegalStateException("reached result has no path cost");
         }
         return result.getPathCost();
     }

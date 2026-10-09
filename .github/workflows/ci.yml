@@ -36,6 +36,15 @@ jobs:
         run: ./gradlew :accounts:check --stacktrace
         shell: bash
 
+      - name: Check the scenario suites and profiles
+        # Loads every suite (Java and route data), compiles the Java suites' accounts, and
+        # tests the profiles, the runner's frontends and the CLI.
+        run: >-
+          ./gradlew :test --stacktrace
+          --tests 'shortestpath.scenarios.*' --tests 'shortestpath.profiles.*'
+          --tests 'shortestpath.benchmark.*' --tests 'shortestpath.dashboard.ConfigParityTest'
+        shell: bash
+
   validate:
     name: Validate data + Python tests
     runs-on: ubuntu-latest

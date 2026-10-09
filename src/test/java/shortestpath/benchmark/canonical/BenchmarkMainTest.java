@@ -10,6 +10,7 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import shortestpath.scenarios.Route;
 
 public class BenchmarkMainTest {
     private static Path CORPUS;
@@ -27,14 +28,14 @@ public class BenchmarkMainTest {
 
     @Test
     public void rejectsUnknownProfile() throws Exception {
-        CanonicalRoute route = firstRoute();
+        Route route = firstRoute();
         Path manifest = manifest(route.getId(), "unknown", 1, 100000000L);
         expectFailure(manifest);
     }
 
     @Test
     public void rejectsDuplicateCase() throws Exception {
-        CanonicalRoute route = firstRoute();
+        Route route = firstRoute();
         boolean expectedReachable = expectedReachable(route, "early");
         Path manifest = writeManifest(List.of(caseJson(route, "early", 0, expectedReachable),
             caseJson(route, "early", 0, expectedReachable)), 1, false, 100000000L, false);
@@ -43,7 +44,7 @@ public class BenchmarkMainTest {
 
     @Test
     public void rejectsUnsupportedProtocolVersion() throws Exception {
-        CanonicalRoute route = firstRoute();
+        Route route = firstRoute();
         Path manifest = manifest(route.getId(), "early", 1, 100000000L);
         JsonObject json = JsonParser.parseString(Files.readString(manifest)).getAsJsonObject();
         json.addProperty("format_version", 99);
@@ -53,7 +54,7 @@ public class BenchmarkMainTest {
 
     @Test
     public void executesOnlyExplicitCasesAndReportsJvmMetadata() throws Exception {
-        CanonicalRoute route = firstRoute();
+        Route route = firstRoute();
         boolean expectedReachable = expectedReachable(route, "early");
         Path manifest = writeManifest(List.of(caseJson(route, "early", 0, expectedReachable),
             caseJson(route, "early", 1, expectedReachable)), 2, false, 123456789L, true);
@@ -133,7 +134,7 @@ public class BenchmarkMainTest {
     }
 
     private static Path exactManifest(String session, boolean warmup) throws Exception {
-        CanonicalRoute route = firstRoute();
+        Route route = firstRoute();
         Path manifest = writeManifest(List.of(caseJson(route, "early", 0, expectedReachable(route, "early"))),
             1, warmup, 100000000L, true);
         JsonObject json = JsonParser.parseString(Files.readString(manifest)).getAsJsonObject();
@@ -160,24 +161,24 @@ public class BenchmarkMainTest {
         return result.getAsJsonArray("observations").get(0).getAsJsonObject();
     }
 
-    private static CanonicalRoute firstRoute() throws Exception {
-        return CanonicalCorpusLoader.loadRoutes(CORPUS.resolve("corpus/routes-v1.json")).get(0);
+    private static Route firstRoute() throws Exception {
+        return Route.load(CORPUS.resolve("corpus/routes-v1.json")).get(0);
     }
 
-    private static boolean expectedReachable(CanonicalRoute route, String profile) {
+    private static boolean expectedReachable(Route route, String profile) {
         return !route.getNegativeProfiles().contains(profile);
     }
 
     private static Path manifest(String routeId, String profile, int repetitions, long clock)
             throws Exception {
-        CanonicalRoute route = firstRoute();
+        Route route = firstRoute();
         boolean expectedReachable = profile.equals("early") && route.getId().equals(routeId)
             ? expectedReachable(route, profile) : false;
         return writeManifest(List.of(caseJson(routeId, profile, 0, expectedReachable)), repetitions,
             false, clock, false);
     }
 
-    private static JsonObject caseJson(CanonicalRoute route, String profile, int repetition,
+    private static JsonObject caseJson(Route route, String profile, int repetition,
             boolean expectedReachable) {
         return caseJson(route.getId(), profile, repetition, expectedReachable);
     }

@@ -12,6 +12,8 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import org.junit.Test;
+import shortestpath.WorldPointUtil;
+import shortestpath.scenarios.Route;
 
 public class CanonicalRouteCliTest {
     @Test
@@ -86,8 +88,7 @@ public class CanonicalRouteCliTest {
     @Test
     public void namedRouteMatchesNamedCoordinatesAndSupportsRouteNames() throws Exception {
         Path corpus = TestCorpus.dir();
-        CanonicalRoute route = CanonicalCorpusLoader.loadRoutes(
-            corpus.resolve("corpus/routes-v1.json")).stream()
+        Route route = Route.load(corpus.resolve("corpus/routes-v1.json")).stream()
             .filter(candidate -> candidate.getId().equals("transport-heavy-0001"))
             .findFirst().orElseThrow();
         JsonObject named = queryArgs("--corpus", corpus.toString(), "--route", route.getId(),
@@ -147,8 +148,9 @@ public class CanonicalRouteCliTest {
         }
     }
 
-    private static String point(int[] point) {
-        return point[0] + "," + point[1] + "," + point[2];
+    private static String point(int packed) {
+        return WorldPointUtil.unpackWorldX(packed) + "," + WorldPointUtil.unpackWorldY(packed) + ","
+            + WorldPointUtil.unpackWorldPlane(packed);
     }
 
     private static void assertIncreasingStepIndexes(JsonObject result) {

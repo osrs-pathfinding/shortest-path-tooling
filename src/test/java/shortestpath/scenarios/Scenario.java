@@ -1,6 +1,7 @@
 package shortestpath.scenarios;
 
 import java.util.Objects;
+import java.util.Set;
 import java.util.OptionalInt;
 import java.util.function.Consumer;
 import shortestpath.WorldPointUtil;
@@ -37,6 +38,7 @@ public final class Scenario {
     private final Consumer<DashboardPathfinderConfig> settings;
     private final boolean allowTransports;
     private final String description;
+    private final Set<String> tiers;
     private final boolean expectedReachable;
     private final OptionalInt minimumLength;
     private final OptionalInt expectedLength;
@@ -51,6 +53,7 @@ public final class Scenario {
         settings = builder.settings;
         allowTransports = builder.allowTransports;
         description = builder.description;
+        tiers = Set.copyOf(builder.tiers);
         expectedReachable = builder.expectedReachable;
         minimumLength = builder.minimumLength;
         this.expectedLength = expectedLength;
@@ -80,6 +83,8 @@ public final class Scenario {
     public boolean isAllowTransports() { return allowTransports; }
     /** A human-readable route label beyond the name, or {@code null}. */
     public String getDescription() { return description; }
+    /** Tier tags, e.g. a canonical route's {@code smoke}/{@code standard}/{@code full}. */
+    public Set<String> getTiers() { return tiers; }
     public boolean isExpectedReachable() { return expectedReachable; }
     public OptionalInt getMinimumLength() { return minimumLength; }
     public OptionalInt getExpectedLength() { return expectedLength; }
@@ -110,6 +115,7 @@ public final class Scenario {
         builder.settings = settings;
         builder.allowTransports = allowTransports;
         builder.description = description;
+        builder.tiers = tiers;
         builder.expectedReachable = expectedReachable;
         builder.minimumLength = minimumLength;
         return builder;
@@ -125,6 +131,7 @@ public final class Scenario {
         private Consumer<DashboardPathfinderConfig> settings = settings -> { };
         private boolean allowTransports = true;
         private String description;
+        private Set<String> tiers = Set.of();
         private boolean expectedReachable = true;
         private OptionalInt minimumLength = OptionalInt.empty();
 
@@ -183,6 +190,11 @@ public final class Scenario {
         /** A human-readable route label shown next to the name, e.g. a canonical route's name. */
         public Builder description(String value) {
             description = value;
+            return this;
+        }
+
+        public Builder tiers(Set<String> value) {
+            tiers = value;
             return this;
         }
 

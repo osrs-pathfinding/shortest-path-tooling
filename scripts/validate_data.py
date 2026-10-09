@@ -18,7 +18,6 @@ Run standalone::
 """
 
 import os
-import json
 import re
 import subprocess
 import sys
@@ -76,15 +75,6 @@ DESTINATION_FIELDS = frozenset({
     "VarPlayers",
 })
 
-# Profile names a data-only scenario CSV may use — mirrors
-# src/test/java/shortestpath/profiles/Profiles.java (the canonical
-# profiles are case-sensitive, the dashboard presets are not).
-SCENARIO_CANONICAL_PROFILES = frozenset({"early", "mid", "end", "maxed"})
-SCENARIO_PRESETS = frozenset({
-    "NONE", "ALL", "BANK", "BANK_PERM", "INVENTORY",
-    "INVENTORY_NON_CONSUMABLE", "SEASONAL", "UNIT_TEST",
-})
-
 # League region enum names — mirrors the LeagueRegion enum in
 # shortest-path/src/main/java/shortestpath/leagues/LeagueRegion.java.
 # The plugin resolves `Region override` cells via
@@ -96,15 +86,6 @@ LEAGUE_REGIONS = frozenset({
     "KOUREND", "WILDERNESS", "MORYTANIA", "DESERT", "TIRANNWN",
     "MISTHALIN", "NEUTRAL",
 })
-
-# Columns of a data-only scenario CSV — mirrors ScenarioData.REQUIRED and
-# ScenarioData.OPTIONAL (src/test/java/shortestpath/scenarios/).  Account
-# and settings overrides are Java, so the format has no columns for them.
-SCENARIO_DATA_REQUIRED = ("name", "category", "start_x", "start_y",
-                          "start_plane", "x", "y", "plane", "profile")
-SCENARIO_DATA_OPTIONAL = frozenset({"minimum_length", "expect_reachable",
-                                   "source_file", "source_line"})
-
 
 # Git exports these into hook environments (pre-push quarantine, worktree
 # overrides). Inherited by our git subprocesses they redirect even
@@ -135,25 +116,6 @@ def _git_ls_files(*pathspecs):
     if proc.returncode != 0:
         tail = (proc.stderr or "").strip().splitlines()
         sys.exit("git -C shortest-path ls-files failed: "
-                 + (tail[-1] if tail else f"exit {proc.returncode}"))
-    return [line for line in proc.stdout.splitlines() if line.strip()]
-
-
-def _git_ls_files_repo(*pathspecs):
-    """Committed tooling-repo files matching the given pathspecs.
-
-    Same contract as ``_git_ls_files`` but rooted at this repository
-    rather than the plugin submodule — used for the scenario data
-    under ``src/test/resources/scenarios/``.  The leaf's
-    repo-level subprocess seam — monkeypatched in tests.
-    """
-    proc = subprocess.run(
-        ["git", "ls-files", *pathspecs],
-        cwd=REPO, capture_output=True, text=True, env=_git_env(),
-        timeout=GIT_TIMEOUT_SECONDS)
-    if proc.returncode != 0:
-        tail = (proc.stderr or "").strip().splitlines()
-        sys.exit("git ls-files failed: "
                  + (tail[-1] if tail else f"exit {proc.returncode}"))
     return [line for line in proc.stdout.splitlines() if line.strip()]
 
@@ -646,104 +608,6 @@ def check_destinations():
     return findings
 
 
-def _int_or_finding(findings, rel, lineno, col, cell):
-    """Append a finding unless ``cell`` parses as an integer."""
-    try:
-        int(cell)
-    except ValueError:
-        findings.append(
-            f"{rel}:{lineno}: non-integer {col} {cell!r}")
-
-
-def check_scenario_data():
-    """Lint the committed scenario data under ``src/test/resources/scenarios/``.
-
-    Scenario suites with account or settings overrides are Java and the
-    compiler checks them.  What stays data is checked here, so a bad
-    cell is reported before a dashboard run aborts on it:
-
-    * data-only scenario CSVs (``ScenarioData``): exactly the known
-      columns, no embedded commas (the loader splits on bare commas),
-      integer coordinates and lengths, a known profile, true/false
-      reachability;
-    * ``expected-lengths/<suite>.json``: an object of scenario name to
-      integer length.
-
-    Files are enumerated via ``git ls-files`` on the tooling repo —
-    never a filesystem glob — so a gitignored scratch file can never
-    leak into the gate.
-    """
-    findings = []
-    rels = sorted(_git_ls_files_repo("src/test/resources/scenarios"))
-    for rel in (r for r in rels if r.endswith(".csv")):
-        lines = (REPO / rel).read_text().splitlines()
-        if not lines:
-            findings.append(f"{rel}: empty")
-            continue
-        headers = [h.strip() for h in lines[0].split(",")]
-        for cell in headers:
-            if (cell not in SCENARIO_DATA_REQUIRED
-                    and cell not in SCENARIO_DATA_OPTIONAL):
-                findings.append(f"{rel}:1: unknown column {cell!r} "
-                                f"(overrides belong in a Java suite)")
-        missing = [c for c in SCENARIO_DATA_REQUIRED if c not in headers]
-        if missing:
-            findings.append(f"{rel}:1: missing column {missing[0]!r}")
-            continue
-        idx = {h: i for i, h in enumerate(headers)}
-        names = set()
-        for lineno, line in enumerate(lines[1:], 2):
-            if not line.strip() or line.startswith("#"):
-                continue
-            fields = [f.strip() for f in line.split(",")]
-            if len(fields) != len(headers):
-                findings.append(
-                    f"{rel}:{lineno}: {len(fields)} fields for "
-                    f"{len(headers)} columns (embedded comma)")
-                continue
-            name = fields[idx["name"]]
-            if not name or name in names:
-                findings.append(f"{rel}:{lineno}: empty or duplicate "
-                                f"name {name!r}")
-            names.add(name)
-            for col in ("x", "y", "plane"):
-                _int_or_finding(findings, rel, lineno, col, fields[idx[col]])
-            start = [fields[idx[c]] for c in ("start_x", "start_y",
-                                              "start_plane")]
-            if any(start):
-                for col, cell in zip(("start_x", "start_y", "start_plane"),
-                                     start):
-                    _int_or_finding(findings, rel, lineno, col, cell)
-            if "minimum_length" in idx and fields[idx["minimum_length"]]:
-                _int_or_finding(findings, rel, lineno, "minimum_length",
-                                fields[idx["minimum_length"]])
-            profile = fields[idx["profile"]]
-            if (profile not in SCENARIO_CANONICAL_PROFILES
-                    and profile.upper() not in SCENARIO_PRESETS):
-                findings.append(f"{rel}:{lineno}: unknown profile "
-                                f"{profile!r}")
-            if "expect_reachable" in idx:
-                cell = fields[idx["expect_reachable"]]
-                if cell and cell not in ("true", "false"):
-                    findings.append(
-                        f"{rel}:{lineno}: expect_reachable "
-                        f"{cell!r} is not true/false")
-    for rel in (r for r in rels if r.endswith(".json")):
-        try:
-            lengths = json.loads((REPO / rel).read_text())
-        except ValueError as e:
-            findings.append(f"{rel}: not JSON ({e})")
-            continue
-        if not isinstance(lengths, dict):
-            findings.append(f"{rel}: not an object of name -> length")
-            continue
-        for name, length in lengths.items():
-            if not isinstance(length, int) or isinstance(length, bool) \
-                    or length < 0:
-                findings.append(f"{rel}: {name!r} has length {length!r}")
-    return findings
-
-
 # name -> check function returning a list of finding strings.
 CHECKS = {
     "tsv-structure": check_tsv_structure,
@@ -752,7 +616,6 @@ CHECKS = {
     "bbox": check_bbox,
     "regions": check_regions,
     "destinations": check_destinations,
-    "scenario-data": check_scenario_data,
     "region-override": check_region_override,
 }
 
