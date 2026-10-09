@@ -70,10 +70,8 @@ public class PluginSettings implements ShortestPathConfig {
     private int calculationCutoff = 500;
     private int unreachableTargetDistance = 2;
     private boolean collisionAwareBlockedTargets = true;
-    // The -PdashboardBackend flag lands here as the default; a per-row
-    // config_overrides "pathfinderBackend" entry still wins.
-    private PathfinderBackend pathfinderBackend = PathfinderBackend.valueOf(
-        System.getProperty("dashboard.backend", "LEGACY").toUpperCase(java.util.Locale.ROOT));
+    // The pathfinder a run uses is the ScenarioRunner's backend; this is only the plugin setting.
+    private PathfinderBackend pathfinderBackend = PathfinderBackend.LEGACY;
     private int exactHeuristicWeight = 100;
 
     // -------------------------------------------------------------------------

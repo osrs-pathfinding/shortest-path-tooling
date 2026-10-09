@@ -61,6 +61,8 @@ import shortestpath.scenarios.Suites;
  *   <tr><td>{@code dashboard.title}</td><td>{@code Dashboard}</td></tr>
  *   <tr><td>{@code dashboard.tier}</td><td>unset; run only scenarios tagged with this tier
  *       (the canonical suite's {@code smoke}, {@code standard}, {@code full})</td></tr>
+ *   <tr><td>{@code dashboard.backend}</td><td>{@code legacy}; {@code exact} runs the exact
+ *       pathfinder (unprofiled)</td></tr>
  *   <tr><td>{@code dashboard.filter}</td><td>unset; run only the scenarios whose name or
  *       category contains it (ignoring case)</td></tr>
  *   <tr><td>{@code dashboard.subtitle}</td><td>suite or file name</td></tr>
@@ -148,9 +150,10 @@ public class DashboardTest {
         int n = scenarios.size();
         // An explicit dashboard.profile always wins; unset means auto — profile
         // only datasets small enough that the instrumentation stays cheap.
-        boolean profile = profileProp != null
+        // The profiler instruments the legacy search only.
+        boolean profile = runner.getBackend() == ScenarioRunner.Backend.LEGACY && (profileProp != null
             ? Boolean.parseBoolean(profileProp)
-            : n <= PROFILE_AUTO_MAX_SCENARIOS;
+            : n <= PROFILE_AUTO_MAX_SCENARIOS);
         // The per-tile heatmap rides on the profiler's visit counting; it only
         // exists when profiling is on, and it is the dominant profiling
         // allocation, so it gets its own off switch.
@@ -160,8 +163,8 @@ public class DashboardTest {
         int workers = resolveWorkerCount(n);
         // Deliberately not an [i/N] heartbeat line — maintenance.py's progress
         // hook consumes anything matching that shape.
-        System.out.printf("Running %d scenario(s) on %d worker(s) [%s]%n", n, workers,
-            profile ? (heatmap ? "profiled, heatmap" : "profiled") : "unprofiled");
+        System.out.printf("Running %d scenario(s) on %d worker(s) [%s, %s]%n", n, workers,
+            runner.getBackend().id(), profile ? (heatmap ? "profiled, heatmap" : "profiled") : "unprofiled");
 
         // Indexed by scenario position so report.json's run list stays in
         // dataset order regardless of completion order. A null slot means the
@@ -300,6 +303,7 @@ public class DashboardTest {
 
                 List<String> details = new ArrayList<>(List.of(
                     "Dataset: " + datasetLabel(dataset),
+                    "Backend: " + runner.getBackend().id(),
                     "Scenario: " + scenario.getName()));
                 if (scenario.getDescription() != null) {
                     details.add("Route: " + scenario.getDescription());

@@ -6,6 +6,9 @@ def dashboardSuite = providers.gradleProperty('dashboardSuite')
         .orElse('routes')
 def dashboardDataset = providers.gradleProperty('dashboardDataset')
         .orElse('')
+// legacy or exact pathfinder (exact runs unprofiled).
+def dashboardBackend = providers.gradleProperty('dashboardBackend')
+        .orElse('legacy')
 // Run only the scenarios tagged with this tier (the canonical suite's smoke/standard/full).
 def dashboardTier = providers.gradleProperty('dashboardTier')
         .orElse('')
@@ -25,10 +28,6 @@ def dashboardF2p = providers.gradleProperty('dashboardF2p')
         .orElse('false')
 def dashboardThreads = providers.gradleProperty('dashboardThreads')
         .orElse('')
-// Routing engine for the run: LEGACY (default) or EXACT. A per-row
-// config_overrides entry of the same name still wins over this flag.
-def dashboardBackend = providers.gradleProperty('dashboardBackend')
-        .orElse('LEGACY')
 // Derive bundle name and title from the suite (or file) name + profile flag.
 // e.g. suite=clue-locations-full, profile=true
 //   → bundle: clue-locations-full-profiled, title: Clue Locations Full Profiled
@@ -64,6 +63,7 @@ tasks.register('dashboard', Test) {
             'dashboardDataset (a route JSON file to run instead of a suite), ' +
             'dashboardFilter (run only scenarios whose name or category contains it), ' +
             'dashboardTier (run only scenarios with this tier tag, e.g. smoke), ' +
+            'dashboardBackend (legacy or exact; default legacy), ' +
             'dashboardBundle, dashboardTitle, dashboardSubtitle, dashboardProfile ' +
             '(default: auto — on for datasets up to 200 scenarios, off above; ' +
             'pass true/false to force), ' +
@@ -73,9 +73,7 @@ tasks.register('dashboard', Test) {
             'dashboardSeasonal (default: false; tags the bundle so the frontend renders the ' +
             'Demonic Pacts League regions overlay), ' +
             'dashboardF2p (default: false; tags the bundle so the frontend tints members-only chunks), ' +
-            'dashboardThreads (parallel scenario workers, default: availableProcessors()-3), ' +
-            'dashboardBackend (default: LEGACY; EXACT runs the exact engine — ' +
-            'profiling stays legacy-only and exact runs record unprofiled).'
+            'dashboardThreads (parallel scenario workers, default: availableProcessors()-3).'
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     useJUnit()
