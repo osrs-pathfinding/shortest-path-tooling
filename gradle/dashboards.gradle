@@ -172,11 +172,12 @@ tasks.register('captureExpectedLengths', Test) {
 }
 
 
-// Prints every scenario suite name, one per line (maintenance.py verify sweeps them all).
-tasks.register('scenarioSuites', JavaExec) {
+// Prints every suite's scenarios as JSON; maintenance.py and import_issues.py read suites from it.
+tasks.register('scenarioIndex', JavaExec) {
     group = 'help'
-    description = 'Lists the scenario suites the dashboard can run.'
+    description = 'Prints the scenario index: {suite: [{name, category, profile, tiers, description}]}.'
     dependsOn 'testClasses'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'shortestpath.scenarios.Suites'
+    systemProperty 'benchmark.corpusDir', rootProject.file('corpus').absolutePath
 }

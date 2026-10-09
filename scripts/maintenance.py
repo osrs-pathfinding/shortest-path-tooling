@@ -964,17 +964,20 @@ def scan_report(path: Path) -> List[str]:
 def dashboard_datasets() -> List[str]:
     """Every dashboard scenario suite name, sorted.
 
-    Suites are defined in Java (``shortestpath.scenarios.Suites``: the
-    Java suites, the clue data and the canonical corpus tiers);
-    ``./gradlew -q scenarioSuites`` prints them, one per line.  A failed
-    listing returns no suites, which the sweep reports as a broken gate.
+    Suites are defined in Java (``shortestpath.scenarios.Suites``);
+    ``./gradlew -q scenarioIndex`` prints them as JSON.  A failed or
+    unparseable listing returns no suites, which the sweep reports as a
+    broken gate.
     """
-    proc = run(["./gradlew", "-q", "scenarioSuites"], cwd=REPO,
+    proc = run(["./gradlew", "-q", "scenarioIndex"], cwd=REPO,
                timeout=GRADLE_TIMEOUT_SECONDS)
     if proc.returncode != 0:
         return []
-    return sorted(line.strip() for line in (proc.stdout or "").splitlines()
-                  if re.fullmatch(r"[A-Za-z0-9_.-]+", line.strip()))
+    try:
+        index = json.loads((proc.stdout or "").strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return []
+    return sorted(index) if isinstance(index, dict) else []
 
 
 _SCENARIO_PROGRESS = re.compile(r"^\s*\[\s*(\d+)\s*/\s*(\d+)\]")
@@ -1059,7 +1062,7 @@ def do_verify(args: argparse.Namespace) -> int:
         if not datasets:
             # An empty sweep is a broken gate, not a green one.
             failures.append(
-                "no dashboard suites listed by ./gradlew scenarioSuites")
+                "no dashboard suites listed by ./gradlew scenarioIndex")
         for idx, suite in enumerate(datasets, 1):
             argv = ["./gradlew", "dashboard",
                     f"-PdashboardSuite={suite}",

@@ -509,14 +509,11 @@ PRD_BODY = (
 
 
 def make_scenarios_csv(tmp_path, rows):
-    """A fake committed Java suite holding ``rows`` (name, category)."""
-    path = tmp_path / "suites" / "IssueScenarios.java"
-    path.parent.mkdir(exist_ok=True)
-    path.write_text("".join(
-        f'            scenario("{name}", "{category}")\n'
-        f"                .from(2504, 3671, 0).to(2504, 3660, 0)\n"
-        f"                .profile(UNIT_TEST),\n"
-        for name, category in rows))
+    """A saved scenario index holding ``rows`` (name, category) in one suite."""
+    path = tmp_path / "scenario-index.json"
+    path.write_text(json.dumps({"routing-issues": [
+        {"name": name, "category": category, "profile": "UNIT_TEST",
+         "tiers": [], "description": None} for name, category in rows]}))
     return path
 
 
@@ -525,8 +522,11 @@ def scenario_row(name="alpha scenario", category="collision-issue-1"):
 
 
 def run_check(tmp_path):
+    index = tmp_path / "scenario-index.json"
+    if not index.exists():
+        index.write_text("{}")
     return ii.main(["check", "--output-dir", str(tmp_path),
-                    "--scenarios-dir", str(tmp_path / "suites")])
+                    "--scenario-index", str(index)])
 
 
 def triage_block(**overrides):
@@ -611,29 +611,6 @@ def test_check_scenario_rows_category_convention(tmp_path, capsys):
     make_scenarios_csv(tmp_path, [scenario_row(name="walk", category="walk")])
     assert run_check(tmp_path) != 0
     assert "'walk'" in capsys.readouterr().out
-
-
-def test_check_indexes_escaped_names_and_data_csvs(tmp_path, capsys):
-    make_shadow(tmp_path, 1, status="triaged", body_text=PRD_BODY,
-                fm_extra={"scenario_rows": ['say "hi"', "clue row"]})
-    suites = tmp_path / "suites"
-    suites.mkdir()
-    (suites / "A.java").write_text(
-        'scenario("say \\"hi\\"", "routing-issue-1")\n')
-    (suites / "data.csv").write_text(
-        "name,category,x\nclue row,routing-control,1\n")
-    assert run_check(tmp_path) == 0
-    assert "check: clean" in capsys.readouterr().out
-
-
-def test_committed_scenarios_are_indexed():
-    # Every committed Java suite entry is a plain scenario("name", ...)
-    # call the index can read.
-    index = ii.scenario_index(ii.SCENARIO_SOURCE_DIRS)
-    java = sum(path.read_text().count("scenario(\"")
-               for path in ii.SCENARIO_SOURCE_DIRS[0].glob("*Scenarios.java"))
-    assert java > 0
-    assert "Lumbridge → Draynor Village" in index
 
 
 # --- triage verdict gate: coverage + evidence-shape rules ---------------

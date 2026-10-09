@@ -1516,7 +1516,7 @@ def test_probes_failure_continues_and_reports(tmp_path, monkeypatch,
 # ---------- verify subcommand ----------
 
 
-# What ./gradlew -q scenarioSuites prints.
+# The suites ./gradlew -q scenarioIndex lists.
 DASHBOARD_CSVS = [
     "canonical",
     "clue-locations-full",
@@ -1642,8 +1642,8 @@ def make_verify_run(repo, calls, *, datasets=None, compile_rc=0,
 
     def fake_run(cmd, *, cwd=None, timeout=None, binary=False, stream=False, on_line=None):
         calls.append((list(cmd), cwd))
-        if cmd == ["./gradlew", "-q", "scenarioSuites"]:
-            return cp(cmd, "".join(f"{d}\n" for d in datasets))
+        if cmd == ["./gradlew", "-q", "scenarioIndex"]:
+            return cp(cmd, json.dumps({d: [] for d in datasets}) + "\n")
         if cmd[:3] == ["git", "ls-tree", "HEAD"]:
             return cp(cmd, gitlink, rc=ls_tree_rc)
         if cmd[:4] == ["git", "-C", "shortest-path", "show"]:
@@ -1717,14 +1717,29 @@ def test_verify_derives_datasets_from_scenario_suites(tmp_path,
         .split("=", 1)[1] for c in dashboards)
     assert swept == sorted(DASHBOARD_CSVS)
     # The list comes from the Java suite registry, never a directory glob.
-    assert ["./gradlew", "-q", "scenarioSuites"] in [c for c, _ in calls]
+    assert ["./gradlew", "-q", "scenarioIndex"] in [c for c, _ in calls]
 
 
-def test_verify_datasets_ignore_non_suite_lines(tmp_path, monkeypatch):
-    # Stray Gradle output around the suite list is not a suite.
+def test_verify_unparseable_index_fails_closed(tmp_path, monkeypatch,
+                                               capsys):
+    # An index that is not JSON lists no suites, which fails the tier.
+    repo, _, calls = prepare_verify(tmp_path, monkeypatch, datasets=[])
+    real = mm.run
+
+    def broken(cmd, **kwargs):
+        if cmd == ["./gradlew", "-q", "scenarioIndex"]:
+            return cp(cmd, "Note: not json\n")
+        return real(cmd, **kwargs)
+
+    monkeypatch.setattr(mm, "run", broken)
+    rc = mm.main(["verify"])
+    assert rc == 1
+    assert "no dashboard suites listed" in capsys.readouterr().out
+
+
+def test_verify_datasets_single_suite(tmp_path, monkeypatch):
     repo, _, calls = prepare_verify(
-        tmp_path, monkeypatch,
-        datasets=["routes", "Note: Some input files use a deprecated API.", ""])
+        tmp_path, monkeypatch, datasets=["routes"])
     rc = mm.main(["verify"])
     assert rc == 0
     dashboards = [c for c, _ in calls

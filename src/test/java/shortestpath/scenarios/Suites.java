@@ -40,9 +40,28 @@ public final class Suites {
 
     private Suites() { }
 
-    /** Prints every suite name, one per line: {@code ./gradlew -q scenarioSuites}. */
-    public static void main(String[] args) {
-        names().forEach(System.out::println);
+    /**
+     * Prints the scenario index as JSON, {@code {suite: [{name, category, profile, tiers,
+     * description}, ...]}}: {@code ./gradlew -q scenarioIndex}. Scripts read suites from it.
+     */
+    public static void main(String[] args) throws IOException {
+        com.google.gson.JsonObject index = new com.google.gson.JsonObject();
+        for (String suite : names()) {
+            com.google.gson.JsonArray scenarios = new com.google.gson.JsonArray();
+            for (Scenario scenario : load(suite)) {
+                com.google.gson.JsonObject entry = new com.google.gson.JsonObject();
+                entry.addProperty("name", scenario.getName());
+                entry.addProperty("category", scenario.getCategory());
+                entry.addProperty("profile", scenario.getProfile().name());
+                com.google.gson.JsonArray tiers = new com.google.gson.JsonArray();
+                scenario.getTiers().stream().sorted().forEach(tiers::add);
+                entry.add("tiers", tiers);
+                entry.addProperty("description", scenario.getDescription());
+                scenarios.add(entry);
+            }
+            index.add(suite, scenarios);
+        }
+        System.out.println(new com.google.gson.GsonBuilder().disableHtmlEscaping().create().toJson(index));
     }
 
     public static Set<String> names() {
