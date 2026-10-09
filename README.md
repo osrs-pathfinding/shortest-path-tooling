@@ -67,13 +67,13 @@ The default remains the `./shortest-path` Git submodule.
 | `./gradlew route -ProuteArgs="..."` | Query one canonical route and print its selected path |
 
 The route query uses the same canonical account compiler and adapter as
-`benchmarkCanonical`. Pass the corpus checkout with `--corpus`; add
+`benchmarkCanonical`. It reads the in-repo `corpus/` unless `--corpus DIR` is given; add
 `--algorithm exact`, `--json` or `--counters` as needed. Routes can be given by
 corpus ID (`--route ID --profile PROFILE`) or by coordinates:
 
 ```bash
 ./gradlew \
-  -ProuteArgs='--corpus ../shortest-path-corpus maxed 2411 4434 0 2995 3114 0 --json' \
+  -ProuteArgs='maxed 2411 4434 0 2995 3114 0 --json' \
   route
 ```
 
@@ -121,11 +121,10 @@ For the datasets and when to use each, see [docs/dashboard-design.md](docs/dashb
 
 ## Canonical corpus benchmark
 
-The canonical corpus (routes and account profiles) lives in the
-[shortest-path-corpus](https://github.com/osrs-pathfinding/shortest-path-corpus)
-repository. The commands that use it take the checkout as an explicit `--corpus`
-argument. Tests that use it read `-PcorpusDir` (default
-`../shortest-path-corpus`); nothing else needs it.
+The canonical corpus (routes and account profiles) lives in [`corpus/`](corpus/README.md); the
+account profiles are Java in [`accounts/`](accounts/README.md), and `corpus/` holds their generated
+JSON for non-Java consumers. `benchmarkCanonical` takes the corpus as an explicit `--corpus`
+argument. Tests read `-PcorpusDir` (default `corpus/`).
 
 `benchmarkCanonical` is the integration point for the
 [shortest-path-benchmarks](https://github.com/osrs-pathfinding/shortest-path-benchmarks)
@@ -135,7 +134,7 @@ manifest in one JVM, for the legacy or exact backend:
 ```bash
 ./gradlew benchmarkCanonical \
   --args="--manifest /path/to/resolved-experiment.json \
-          --corpus ../shortest-path-corpus \
+          --corpus corpus \
           --output build/benchmarks/java-adapter.json"
 ```
 
@@ -185,7 +184,3 @@ python3 scripts/rebuild_bank_tsv.py
 
 - [`shortest-path`](https://github.com/Skretzo/shortest-path) — the plugin
   itself (carried here as the `shortest-path/` submodule).
-- [`shortest-path-corpus`](https://github.com/osrs-pathfinding/shortest-path-corpus)
-  — implementation-neutral benchmark corpus: canonical routes, account
-  profiles, and reachability expectations shared across pathfinding
-  implementations.

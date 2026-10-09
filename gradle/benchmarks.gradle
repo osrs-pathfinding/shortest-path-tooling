@@ -1,7 +1,8 @@
 // --- Canonical corpus benchmarks ---
 //
-// The canonical corpus lives in its own repository. The commands below take it as an explicit
-// --corpus argument; tests read -PcorpusDir (default: ../shortest-path-corpus).
+// The canonical corpus lives in corpus/. benchmarkCanonical takes it as an explicit --corpus
+// argument; `route` adds --corpus corpus/ when none is given; tests read -PcorpusDir (default: corpus/).
+def defaultCorpusDir = rootProject.file('corpus')
 def testCorpusDir = providers.gradleProperty('corpusDir')
 
 def git = { File directory, List<String> arguments ->
@@ -25,9 +26,8 @@ def commitOf = { File directory -> git(directory, ['rev-parse', 'HEAD']) ?: 'unk
 def dirtyOf = { File directory -> !(git(directory, ['status', '--porcelain']) ?: '').isEmpty() }
 
 tasks.named('test') {
-    if (testCorpusDir.isPresent()) {
-        systemProperty 'benchmark.corpusDir', file(testCorpusDir.get()).absolutePath
-    }
+    systemProperty 'benchmark.corpusDir',
+        (testCorpusDir.isPresent() ? file(testCorpusDir.get()) : defaultCorpusDir).absolutePath
 }
 
 // Runs the case list of a shortest-path-benchmarks manifest in one JVM and writes the
@@ -58,8 +58,14 @@ tasks.register('route', JavaExec) {
     def routeArgs = providers.gradleProperty('routeArgs')
     doFirst {
         if (!routeArgs.isPresent()) {
-            throw new GradleException('route requires -ProuteArgs="--corpus DIR PROFILE START_X START_Y START_PLANE TARGET_X TARGET_Y TARGET_PLANE"')
+            throw new GradleException('route requires -ProuteArgs="[--corpus DIR] PROFILE START_X START_Y START_PLANE TARGET_X TARGET_Y TARGET_PLANE"')
         }
-        args routeArgs.get().trim().split(/\s+/) as List
+        def parsed = routeArgs.get().trim().split(/\s+/) as List
+        if (!parsed.contains('--corpus')) {
+            // The CLI only accepts its optional `route` token first.
+            int at = parsed && parsed[0] == 'route' ? 1 : 0
+            parsed = parsed.take(at) + ['--corpus', defaultCorpusDir.absolutePath] + parsed.drop(at)
+        }
+        args parsed
     }
 }

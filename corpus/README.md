@@ -1,18 +1,21 @@
-# shortest-path-corpus
+# Canonical corpus
 
-Canonical cross-language routing contracts live in `schemas/`. Generated account presets live in
-`profiles/`; the profile generator owns them, and consumers must treat their `schemaVersion` as the
-wire compatibility boundary. `routingVariables` exists for exact engine compatibility and must not
-be exposed as public account-editor fields.
+Implementation-neutral routes and account profiles for OSRS pathfinding. This directory was the
+`shortest-path-corpus` repository; its history was imported here. Non-Java consumers (the
+shortest-path-benchmarks adapters, the Haskell model, GPS tooling, the web frontend) read it as a
+directory, so its layout and file formats are a contract:
 
-This repository is the implementation-neutral benchmark corpus for OSRS
-pathfinding. It owns canonical routes, four account profiles (`early`, `mid`,
-`end`, `maxed`), exclusions, and runtime state. `end` and `maxed` are
-quest-cape accounts.
+| Path | Contents | Source of truth |
+|---|---|---|
+| `manifest.json` | format and file versions | hand-maintained |
+| `corpus/routes-v1.json` | canonical routes | hand-maintained data |
+| `corpus/excluded-routes-v1.json` | routes excluded from the corpus, with reasons | hand-maintained data |
+| `accounts/account-profiles-v1.json` | the `early`, `mid`, `end`, `maxed` profiles | **generated** from `accounts/` Java |
+| `profiles/*.json` | the same profiles as AccountBuild v1 documents for the web | **generated** from `accounts/` Java |
+| `schemas/` | AccountBuild, route API, route policy and place JSON schemas | hand-maintained |
+| `account-spec.md` | what an account profile contains | hand-maintained |
 
-The account JSON is generated from explicit Java profile definitions. Consumers
-load the JSON as a language-neutral fixture; they do not infer account meaning
-from profile names or recreate the generator.
+`end` and `maxed` are quest-cape accounts.
 
 ## Route format
 
@@ -22,58 +25,33 @@ Each route in `corpus/routes-v1.json` has these consumer-facing fields:
 - `name`: human-readable route label;
 - `start`, `target`: authoritative `[x, y, plane]` coordinates;
 - `startName`, `targetName`: human-readable endpoint labels;
-- `startSource`, `targetSource`: opaque provenance strings for auditing, not a
-  parseable API;
+- `startSource`, `targetSource`: opaque provenance strings for auditing, not a parseable API;
 - `allowTransports`: whether the pathfinder may use transports;
 - `tiers`: benchmark suites containing the route (`smoke`, `standard`, `full`);
-- `negativeProfiles`: optional account profiles expected to find the route
-  unreachable.
+- `negativeProfiles`: optional account profiles expected to find the route unreachable. These are
+  hand-maintained expectations, not derived from any implementation.
 
-Coordinate-resolution candidates and other generation diagnostics are not part
-of the corpus contract. Route generation must resolve them before writing the
-authoritative `start` and `target` coordinates.
+## Account profiles
 
-## Profile authoring map
+Never edit the generated JSON. The profiles are defined in Java under
+`accounts/src/main/java/shortestpath/corpus/profiles/`:
 
-Edit the Java source, never `accounts/account-profiles-v1.json`:
+- skills, quests, quest points, total level, diaries, POH, milestones, unlocks and planted trees:
+  `CanonicalProfiles.java`;
+- item quantities in inventory, bank and rune pouch: `CanonicalItems.java`;
+- the raw routing-variable baseline and the mappings from semantic state to varbits/varplayers:
+  `RoutingVariables.java`.
 
-- skills, quests, quest points, total level, diaries, POH, milestones, unlocks,
-  and planted trees: `profile-generator/src/main/java/shortestpath/corpus/profiles/CanonicalProfiles.java`;
-- item quantities in inventory, bank, and rune pouch: `CanonicalItems.java`;
-- the selected raw keyed routing baseline and all reusable RuneLite variable
-  mappings plus conflict-checked derived assignments: `RoutingVariables.java`;
+`routingVariables` exists for exact engine compatibility and must not be exposed as public
+account-editor fields. Consumers must treat `schemaVersion` as the wire compatibility boundary,
+must not infer meaning from profile names, and should treat unknown fields as extension data.
 
-`ProfileSpec` is the small authoring object. `ProfileCompiler` converts its
-explicit state to the v1 JSON shape. `profile.name()` is only the serialized
-profile label. RuneLite API version `1.12.39` is pinned in
-`profile-generator/build.gradle`; updating it is an intentional change because
-RuneLite data can change generated fixtures.
-
-## Account workflow
-
-Run from the repository root:
+From the repository root:
 
 ```sh
-./profile-generator/gradlew -p profile-generator test
-./profile-generator/gradlew -p profile-generator generateAccountProfiles
-./profile-generator/gradlew -p profile-generator verifyAccountProfiles
-node tools/validate.js
+./gradlew :accounts:generateAccountProfiles   # rewrite the generated JSON
+./gradlew :accounts:check                     # tests, byte-for-byte fixture check, data/schema checks
 ```
 
-Generation intentionally updates the committed fixture. Verification compiles
-fresh output in memory, compares it with the committed file, reports the first
-semantic difference, and never writes a candidate file. CI runs tests and
-verification, not generation. `tools/format-json.sh --check` is the optional
-format check used by CI.
-
-## Other corpus validation
-
-`node tools/validate.js` checks the manifest, route IDs and tiers, route
-expectations, and meaningful nested account-profile shapes. The corpus does
-not retain unenforced JSON schemas.
-
-The `negativeProfiles` field on routes contains hand-maintained reachability
-expectations curated by people; they are not derived from any implementation.
-The generated account JSON is a contract: downstream consumers should preserve
-field meanings and treat unknown future fields as extension data rather than
-deriving new semantics from profile labels.
+CI runs `:accounts:check`, never generation. The RuneLite API version is the one tooling builds
+against, so a RuneLite update can change the generated fixtures; `check` reports it.

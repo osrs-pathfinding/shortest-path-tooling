@@ -17,7 +17,9 @@ around it.
 | Path | Contents |
 |------|----------|
 | `shortest-path/` | Git submodule (pinned commit). Plugin sources + data in `src/main/resources/` (`collision-map.zip`, `destinations/`, `transports/`, `leagues/`). |
-| `src/test/java/shortestpath/` | All Java lives under *test* sources: `dashboard/` (site generator), `dump/` (cache dumpers), `pathfinder/` (profiling). |
+| `accounts/` | Gradle subproject: the Java account profiles that generate `corpus/accounts/` and `corpus/profiles/`. |
+| `corpus/` | Canonical routes, generated account fixtures and schemas (see `corpus/README.md`). |
+| `src/test/java/shortestpath/` | All other Java lives under *test* sources: `dashboard/` (site generator), `dump/` (cache dumpers), `pathfinder/` (profiling). |
 | `src/test/resources/` | Dashboard web assets + CSV route datasets under `dashboard/` + region TSVs. |
 | `gradle/` | Task definitions: `dashboards.gradle`, `cache-dumpers.gradle`. |
 | `scripts/` | Python orchestration (see Scripts map below). |
@@ -189,42 +191,19 @@ Checks that cannot fail get written every cycle — audit before shipping:
   `grep -o 'position = [0-9]*' ShortestPathConfig.java | sort | uniq -d`
   → empty. `renumber_config_positions.py` fixes collisions.
 
-## Benchmark corpus (related repo)
+## Benchmark corpus
 
-[`shortest-path-corpus`](https://github.com/osrs-pathfinding/shortest-path-corpus)
-is the implementation-neutral benchmark corpus for OSRS pathfinding — a
-separate repo consumed by this and other pathfinding projects as test
-fixtures. It owns:
+`corpus/` is the implementation-neutral benchmark corpus (formerly the
+`shortest-path-corpus` repo, history imported). Non-Java consumers read it as a
+directory, so keep its layout and formats stable; see `corpus/README.md`.
 
-- `corpus/routes-v1.json` — canonical routes with stable `id`, authoritative
-  `start`/`target` `[x, y, plane]` coordinates, `allowTransports`, benchmark
-  `tiers` (`smoke`, `standard`, `full`), and `negativeProfiles` (profiles
-  expected to find the route unreachable — hand-curated, not derived).
-- `corpus/excluded-routes-v1.json` — excluded routes.
-- `accounts/account-profiles-v1.json` — four account profiles (`early`,
-  `mid`, `end`, `maxed`; the last two are quest-cape accounts) describing
-  skills, quests, diaries, items, unlocks, and routing variables.
-- `manifest.json` — format/file versions.
-
-The account JSON is generated — edit the Java sources under
-`profile-generator/src/main/java/shortestpath/corpus/profiles/`
-(`CanonicalProfiles.java`, `CanonicalItems.java`, `RoutingVariables.java`),
-never the JSON. Treat the generated JSON as an opaque contract: preserve
-field meanings, don't infer semantics from profile names, and treat unknown
-fields as extension data. RuneLite version is pinned in
-`profile-generator/build.gradle` — bumping it can change generated fixtures.
-
-Corpus repo commands (run there, not here):
-
-```bash
-./profile-generator/gradlew -p profile-generator test
-./profile-generator/gradlew -p profile-generator generateAccountProfiles
-./profile-generator/gradlew -p profile-generator verifyAccountProfiles
-node tools/validate.js
-```
-
-Generation intentionally rewrites the committed fixture; CI runs tests and
-verification, not generation.
+- `corpus/corpus/routes-v1.json` — canonical routes (`id`, `start`/`target`,
+  `allowTransports`, `tiers`, hand-curated `negativeProfiles`). Data, edit directly.
+- `corpus/accounts/account-profiles-v1.json`, `corpus/profiles/*.json` —
+  **generated** from the Java profiles in `accounts/` (`CanonicalProfiles.java`,
+  `CanonicalItems.java`, `RoutingVariables.java`). Never hand-edit; run
+  `./gradlew :accounts:generateAccountProfiles`. `./gradlew :accounts:check`
+  (in CI) fails when the committed JSON differs from the Java by a single byte.
 
 ## OSRS wiki lookups
 

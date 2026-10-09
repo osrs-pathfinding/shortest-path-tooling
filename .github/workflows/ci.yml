@@ -30,6 +30,12 @@ jobs:
         run: ./gradlew compileTestJava --stacktrace
         shell: bash
 
+      - name: Check the account profiles and corpus data
+        # Tests the Java profile definitions, checks corpus/ against them byte for byte,
+        # and validates the presets against corpus/schemas.
+        run: ./gradlew :accounts:check --stacktrace
+        shell: bash
+
   validate:
     name: Validate data + Python tests
     runs-on: ubuntu-latest

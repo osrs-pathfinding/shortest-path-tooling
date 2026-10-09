@@ -50,11 +50,17 @@ public final class Main {
     }
 
     private static void verify(Path output, String generated) throws IOException {
-        JsonElement committed = new JsonParser().parse(Files.readString(output, StandardCharsets.UTF_8));
+        String committedText = Files.readString(output, StandardCharsets.UTF_8);
+        JsonElement committed = new JsonParser().parse(committedText);
         JsonElement actual = new JsonParser().parse(generated);
         if (!committed.equals(actual)) {
             throw new IllegalStateException("generated account file differs at " + output + ": "
                 + difference(committed, actual, "$"));
+        }
+        // Consumers diff and hash these files, so formatting is part of the contract too.
+        if (!committedText.equals(generated)) {
+            throw new IllegalStateException("generated account file is formatted differently at " + output
+                + "; run generateAccountProfiles");
         }
     }
 

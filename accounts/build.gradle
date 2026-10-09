@@ -1,0 +1,56 @@
+plugins {
+    id 'java-library'
+}
+
+repositories {
+    maven {
+        url = 'https://repo.runelite.net'
+        content {
+            includeGroupByRegex("net\\.runelite.*")
+        }
+    }
+    mavenCentral()
+}
+
+// The account model compiles against the same RuneLite API as the tooling tests that consume it.
+dependencies {
+    api group: 'net.runelite', name: 'runelite-api', version: 'latest.release'
+    implementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.networknt:json-schema-validator:1.5.9'
+}
+
+test {
+    systemProperty 'corpus.dir', rootProject.file('corpus').absolutePath
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release.set(11)
+}
+
+def corpusDir = rootProject.file('corpus')
+
+// Writes the generated account fixtures that non-Java consumers read from corpus/.
+tasks.register('generateAccountProfiles', JavaExec) {
+    group = 'build'
+    description = 'Regenerates corpus/accounts/account-profiles-v1.json and corpus/profiles/*.json.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'shortestpath.corpus.profiles.Main'
+    args 'generate', new File(corpusDir, 'accounts/account-profiles-v1.json').path,
+        new File(corpusDir, 'profiles').path
+}
+
+// Fails when the committed fixtures differ from what the Java profiles generate.
+tasks.register('verifyAccountProfiles', JavaExec) {
+    group = 'verification'
+    description = 'Checks that the committed account fixtures match the Java profile definitions.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'shortestpath.corpus.profiles.Main'
+    args 'verify', new File(corpusDir, 'accounts/account-profiles-v1.json').path,
+        new File(corpusDir, 'profiles').path
+}
+
+tasks.named('check') {
+    dependsOn 'verifyAccountProfiles'
+}
