@@ -20,6 +20,7 @@ import net.runelite.api.Quest;
 import net.runelite.api.Skill;
 import org.junit.Test;
 import shortestpath.ItemVariations;
+import shortestpath.pathfinder.BankVisitState;
 import shortestpath.poh.PohNexusPortal;
 import shortestpath.poh.PohMountedItem;
 
@@ -118,9 +119,9 @@ public class CanonicalAccountCompilerTest {
         CanonicalAccountCompiler.CompiledAccount cooldown = compiler.compileAtTime(
             "early", profile, true, 99999990L);
 
-        assertTrue(Arrays.stream(ready.getConfig().getUsableTeleports(false))
+        assertTrue(Arrays.stream(ready.getConfig().getUsableTeleports(BankVisitState.CARRIED))
             .anyMatch(transport -> "Fishing Trawler Minigame Teleport".equals(transport.getDisplayInfo())));
-        assertTrue(Arrays.stream(cooldown.getConfig().getUsableTeleports(false))
+        assertTrue(Arrays.stream(cooldown.getConfig().getUsableTeleports(BankVisitState.CARRIED))
             .noneMatch(transport -> "Fishing Trawler Minigame Teleport".equals(transport.getDisplayInfo())));
     }
 

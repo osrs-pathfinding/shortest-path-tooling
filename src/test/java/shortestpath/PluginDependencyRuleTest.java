@@ -7,12 +7,15 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -32,7 +35,11 @@ import static org.junit.Assert.*;
  * {@code path:line} relative to {@code shortest-path/src/main/java/}. The
  * set-equality assertion makes the lint self-maintaining: extraction work
  * <em>removes</em> entries as each site migrates — entries are removed,
- * never added. The resource-anchor sites ({@code TransportLoader},
+ * never added.
+ *
+ * <p>The same freeze applies to leaf-to-leaf coupling: {@link #LEAF_EDGES}
+ * records every package pair linked by a leaf-package import, so a new edge
+ * — mutual or one-way — fails the build until it is justified in the table. The resource-anchor sites ({@code TransportLoader},
  * {@code SplitFlagMap}, {@code LeagueRegionChecker}) disappear when the data
  * loader lands self-anchored. An unlisted reference site fails the build
  * (new coupling); an allowlist key with no matching site fails it too
@@ -74,7 +81,7 @@ public class PluginDependencyRuleTest
 	// New leaf packages must be added here — the lint only covers what it enumerates.
 	private static final List<String> LEAF_PACKAGES = List.of(
 		"transport", "pathfinder", "requirement", "leagues", "overlay",
-		"settings");
+		"settings", "items", "spirittree", "poh", "scheduler");
 
 	private static final String PLUGIN_REFERENCE = "ShortestPathPlugin.";
 
@@ -97,6 +104,154 @@ public class PluginDependencyRuleTest
 			"resource anchor — collision-map resource read; the loader migrates self-anchored");
 		ALLOWLIST.put("shortestpath/leagues/LeagueRegionChecker.java:105",
 			"resource anchor — league-region TSV read; the loader migrates self-anchored");
+	}
+
+	/**
+	 * Matches an import of a leaf-package type:
+	 * {@code import [static] shortestpath.<pkg>.<Type>}. The captured group
+	 * is the first package segment, so subpackage imports
+	 * ({@code shortestpath.requirement.model.X}) resolve to their leaf.
+	 */
+	private static final Pattern LEAF_IMPORT =
+		Pattern.compile("^\\s*import\\s+(?:static\\s+)?shortestpath\\.(\\w+)\\.");
+
+	/**
+	 * Frozen census of leaf-to-leaf package edges. Key = {@code "from -> to"}
+	 * — observed when a source file under leaf package {@code from} imports
+	 * {@code shortestpath.<to>.}; value = justification. Like
+	 * {@link #ALLOWLIST} the table is self-maintaining: new coupling fails
+	 * the build until it is justified here, and an entry whose edge
+	 * disappeared fails until it is removed in the same change.
+	 *
+	 * <p>The {@code items} pairs are the extraction's documented seams:
+	 * {@code items -> requirement}/{@code requirement -> items} share the
+	 * eligibility snapshot and player-state source, and
+	 * {@code items -> pathfinder}/{@code pathfinder -> items} are the
+	 * bank-pickup projection and its {@code getBankPickup} facade — the
+	 * projection is a candidate for moving back onto
+	 * {@code PathfinderConfig} if the mutual edge needs breaking. The
+	 * {@code spirittree <-> requirement} pair is likewise a documented
+	 * seam: the service reads {@code PlayerStateSource} while the
+	 * requirement side consumes its statics
+	 * ({@code patchNameForTile}/{@code modalWidgetOpen}) — candidates for a
+	 * leaf-neutral type if the mutual edge needs breaking.
+	 */
+	private static final Map<String, String> LEAF_EDGES = new TreeMap<>();
+
+	static
+	{
+		// items package — the extraction's consumer/producer seams.
+		LEAF_EDGES.put("items -> pathfinder",
+			"ItemStateService reads PathStep/PathfinderConfig for the bank-pickup projection");
+		LEAF_EDGES.put("items -> requirement",
+			"ItemStateService.collectEligibility shares PlayerStateSource/TransportEligibility/BankPickupResult/Unlock");
+		LEAF_EDGES.put("items -> settings",
+			"ItemChange/ItemStateService read the TeleportationItem setting and Effect facts");
+		LEAF_EDGES.put("pathfinder -> items",
+			"PathfinderConfig holds the ItemStateService reference and the getBankPickup facade");
+		LEAF_EDGES.put("requirement -> items",
+			"ClientPlayerStateSource/RequirementContext read OwnedItems and collectEligibility");
+
+		// spirittree package — the extraction's seams.
+		LEAF_EDGES.put("pathfinder -> spirittree",
+			"PathfinderConfig holds the SpiritTreeService reference");
+		LEAF_EDGES.put("requirement -> spirittree",
+			"Requirements/ClientPlayerStateSource consume SpiritTreeService.patchNameForTile and modalWidgetOpen");
+		LEAF_EDGES.put("spirittree -> requirement",
+			"SpiritTreeService reads PlayerStateSource for the availability refresh");
+		LEAF_EDGES.put("spirittree -> settings",
+			"TreeChange/SpiritTreeService read Effect facts and the teleportation settings");
+
+		// poh package — the extraction's seams. The inbound edges are the
+		// consumers that used to read the shell statics; the outbound edges
+		// are the service's reads of sibling leaf types.
+		LEAF_EDGES.put("overlay -> poh",
+			"PathTileOverlay reads PohService display/exit-info output");
+		LEAF_EDGES.put("pathfinder -> poh",
+			"PathfinderConfig/TransportAvailability delegate POH destination and transport remaps to PohService");
+		LEAF_EDGES.put("poh -> pathfinder",
+			"PohService exit-info walks PathStep positions");
+		LEAF_EDGES.put("poh -> settings",
+			"PohChange/PohService carry Effect facts and share the Settings config-group constant");
+		LEAF_EDGES.put("poh -> transport",
+			"PohService remap signatures read Transport/TransportType");
+		LEAF_EDGES.put("requirement -> poh",
+			"RoutingPolicy/Requirements delegate the POH gates' enablement reads to PohService");
+		LEAF_EDGES.put("settings -> poh",
+			"Settings/EffectiveConfig expose POH-facing effective-config reads");
+		LEAF_EDGES.put("transport -> poh",
+			"TransportTypeConfig reads POH-facing config types");
+
+		// scheduler package — the extraction's seams. The outbound edges are
+		// the engine inputs and the attach seam; the inbound edge is the
+		// debug overlay reading the injectable diagnostics state.
+		LEAF_EDGES.put("overlay -> scheduler",
+			"DebugOverlayPanel injects and reads DebugState directly");
+		LEAF_EDGES.put("scheduler -> items",
+			"PathScheduler.attach takes the ItemStateService for refresh routing");
+		LEAF_EDGES.put("scheduler -> pathfinder",
+			"PathScheduler drives Pathfinder/ActiveSearch/PathfinderConfig/PathStep");
+		// The coordinator extraction adds the declared-fact channels:
+		// producers inject RefreshCoordinator (inbound) and the coordinator
+		// reads the fact types it translates (outbound).
+		LEAF_EDGES.put("items -> scheduler",
+			"ItemStateService declares ItemChange facts to the injected RefreshCoordinator");
+		LEAF_EDGES.put("poh -> scheduler",
+			"PohService declares PohChange facts to the injected RefreshCoordinator");
+		LEAF_EDGES.put("spirittree -> scheduler",
+			"SpiritTreeService declares TreeChange facts to the injected RefreshCoordinator");
+		LEAF_EDGES.put("scheduler -> poh",
+			"RefreshCoordinator reads PohChange/PohService through the poh channel");
+		LEAF_EDGES.put("scheduler -> settings",
+			"RefreshCoordinator reads ConfigChange/ShortestPathConfig through the config channel");
+		LEAF_EDGES.put("scheduler -> spirittree",
+			"RefreshCoordinator reads TreeChange through the spirit-tree channel");
+		// Integration-branch only: the merged tree carries consumption/re-plan
+		// machinery in PathScheduler that the stage stack does not.
+		LEAF_EDGES.put("scheduler -> requirement",
+			"PathScheduler reads TransportEligibility for the merged consumption/re-plan machinery");
+		LEAF_EDGES.put("scheduler -> transport",
+			"PathScheduler reads Transport records for the merged consumption/re-plan machinery");
+
+		// Pre-existing edges frozen at lint introduction.
+		LEAF_EDGES.put("leagues -> requirement",
+			"LeagueModeState builds requirement checks");
+		LEAF_EDGES.put("overlay -> pathfinder",
+			"overlays read PathStep/PathfinderConfig path state");
+		LEAF_EDGES.put("overlay -> requirement",
+			"highlight overlays read requirement evaluation results");
+		LEAF_EDGES.put("overlay -> settings",
+			"overlays read config-facing settings types");
+		LEAF_EDGES.put("overlay -> transport",
+			"overlays read Transport records and destination geometry");
+		LEAF_EDGES.put("pathfinder -> leagues",
+			"league-region restrictions gate the search");
+		LEAF_EDGES.put("pathfinder -> requirement",
+			"PathfinderConfig consumes requirement evaluation");
+		LEAF_EDGES.put("pathfinder -> settings",
+			"PathfinderConfig reads effective-config settings");
+		LEAF_EDGES.put("pathfinder -> transport",
+			"the search consumes Transport/TransportAvailability data");
+		LEAF_EDGES.put("requirement -> leagues",
+			"requirements consult league-region checks");
+		LEAF_EDGES.put("requirement -> pathfinder",
+			"BankPickupRequirements walks PathStep/PathfinderConfig/TransportAvailability");
+		LEAF_EDGES.put("requirement -> settings",
+			"RoutingPolicy/TransportEligibility read settings types");
+		LEAF_EDGES.put("requirement -> transport",
+			"requirements evaluate Transport records");
+		LEAF_EDGES.put("settings -> pathfinder",
+			"Settings/EffectiveConfig expose pathfinder-facing config");
+		LEAF_EDGES.put("settings -> requirement",
+			"Settings/EffectiveConfig expose requirement-facing config");
+		LEAF_EDGES.put("settings -> transport",
+			"Settings/EffectiveConfig expose transport-facing config");
+		LEAF_EDGES.put("transport -> leagues",
+			"Transport records reference league regions");
+		LEAF_EDGES.put("transport -> requirement",
+			"transport parsers build requirement models");
+		LEAF_EDGES.put("transport -> settings",
+			"TransportTypeConfig reads settings types");
 	}
 
 	/**
@@ -140,6 +295,52 @@ public class PluginDependencyRuleTest
 			}
 		}
 		return sites;
+	}
+
+	/**
+	 * Scan the leaf packages under {@code mainRoot} for leaf-to-leaf edges
+	 * and return the sorted set of {@code "from -> to"} keys — one per leaf
+	 * package pair where a source file in {@code from} has an
+	 * {@code import shortestpath.<to>.} line. Same-package imports and
+	 * imports of non-leaf packages are ignored; fully-qualified references
+	 * without an import and javadoc links are not counted — the same
+	 * known-gap policy as {@link #observedSites(Path)}.
+	 */
+	static SortedSet<String> observedEdges(Path mainRoot) throws IOException
+	{
+		SortedSet<String> edges = new TreeSet<>();
+		Path base = mainRoot.resolve("shortestpath");
+		for (String fromPkg : LEAF_PACKAGES)
+		{
+			Path dir = base.resolve(fromPkg);
+			if (!Files.isDirectory(dir))
+			{
+				continue;
+			}
+			List<Path> sources;
+			try (Stream<Path> stream = Files.walk(dir))
+			{
+				sources = stream
+					.filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".java"))
+					.collect(Collectors.toList());
+			}
+			for (Path source : sources)
+			{
+				for (String line : Files.readAllLines(source))
+				{
+					Matcher m = LEAF_IMPORT.matcher(line);
+					if (m.find())
+					{
+						String toPkg = m.group(1);
+						if (!toPkg.equals(fromPkg) && LEAF_PACKAGES.contains(toPkg))
+						{
+							edges.add(fromPkg + " -> " + toPkg);
+						}
+					}
+				}
+			}
+		}
+		return edges;
 	}
 
 	@Test
@@ -221,5 +422,67 @@ public class PluginDependencyRuleTest
 		stale.removeAll(nothing);
 		assertEquals("an empty fixture must mark every allowlist entry stale",
 			new TreeSet<>(ALLOWLIST.keySet()), stale);
+	}
+
+	/**
+	 * The leaf-to-leaf edge set is frozen: a new leaf-package dependency
+	 * fails until the coupling is justified in {@link #LEAF_EDGES}, and a
+	 * removed edge fails until its entry leaves the table in the same
+	 * change. Mutual edges (cycles) are documented where they exist rather
+	 * than forbidden outright — the check exists so coupling cannot grow
+	 * silently.
+	 */
+	@Test
+	public void leafPackageEdgesAreFrozen() throws IOException
+	{
+		SortedSet<String> observed = observedEdges(MAIN_ROOT);
+
+		SortedSet<String> unlisted = new TreeSet<>(observed);
+		unlisted.removeAll(LEAF_EDGES.keySet());
+
+		SortedSet<String> stale = new TreeSet<>(LEAF_EDGES.keySet());
+		stale.removeAll(observed);
+
+		StringBuilder message = new StringBuilder();
+		if (!unlisted.isEmpty())
+		{
+			message.append("new leaf-package edge is not documented — justify ")
+				.append("the coupling in LEAF_EDGES or route through a neutral ")
+				.append("seam instead: ").append(unlisted).append(' ');
+		}
+		if (!stale.isEmpty())
+		{
+			message.append("stale edge entries with no matching import — remove ")
+				.append("the entry in the change that removed the edge: ")
+				.append(stale);
+		}
+		assertTrue(message.toString(), unlisted.isEmpty() && stale.isEmpty());
+	}
+
+	/**
+	 * Red-direction proof for {@link #observedEdges(Path)}: a fixture import
+	 * of a leaf package must surface as an unlisted edge, and a same-package
+	 * import must not produce an edge.
+	 */
+	@Test
+	public void flagsUnlistedEdge() throws IOException
+	{
+		Path fixture = Files.createTempDirectory("dep-rule-edge");
+		Path dir = fixture.resolve("shortestpath").resolve("leagues");
+		Files.createDirectories(dir);
+		Files.write(dir.resolve("EdgeProbeTmp.java"), Arrays.asList(
+			"package shortestpath.leagues;",
+			"import shortestpath.items.ItemStateService;",
+			"import shortestpath.leagues.LeagueModeState;",
+			"class EdgeProbeTmp { }"));
+
+		SortedSet<String> edges = observedEdges(fixture);
+		assertEquals("the probe edge must be the only observed edge: " + edges,
+			Collections.singleton("leagues -> items"), edges);
+
+		SortedSet<String> unlisted = new TreeSet<>(edges);
+		unlisted.removeAll(LEAF_EDGES.keySet());
+		assertEquals("the undocumented probe edge must land in the unlisted set",
+			Collections.singleton("leagues -> items"), unlisted);
 	}
 }

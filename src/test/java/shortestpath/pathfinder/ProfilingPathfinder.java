@@ -49,8 +49,6 @@ public class ProfilingPathfinder {
     private int bestX = Integer.MAX_VALUE;
     private int bestY = Integer.MAX_VALUE;
     private int reachedTarget = WorldPointUtil.UNDEFINED;
-    private int shortestAcceptedNode = NodeGraph.NO_NODE;
-    private int shortestAcceptedTarget = WorldPointUtil.UNDEFINED;
     private PathTerminationReason terminationReason;
     private int wildernessLevel;
 
@@ -115,23 +113,22 @@ public class ProfilingPathfinder {
             int pendingHead = pending.peek();
 
             int node;
-            // On a cost tie the pending heap wins: a queued transport that is strictly
-            // cheaper than the walking route must claim its destination before an
-            // equal-cost boundary node can expand and emit a competing walking edge.
             if (pendingHead != NodeGraph.NO_NODE
-                && (boundaryHead == NodeGraph.NO_NODE || graph.compareCost(pendingHead) <= graph.cost(boundaryHead))) {
+                && (boundaryHead == NodeGraph.NO_NODE || graph.compareCost(pendingHead) < graph.cost(boundaryHead))) {
                 node = pending.poll();
 
-                // Nothing in pending claimed its destination at enqueue. The first,
-                // cheapest, dequeue wins the tile; later queued duplicates are dropped.
-                int packed = graph.packedPosition(node);
-                boolean bank = graph.bankVisited(node);
-                if (visited.get(packed, bank)) {
-                    profile.delayedVisitSkipped++;
-                    profile.queueSelectionNanos += System.nanoTime() - phaseStart;
-                    continue;
+                // For delayed-visit nodes, check if the destination was already
+                // reached by a cheaper path while this node was queued.
+                if (graph.isDelayedVisit(node)) {
+                    int packed = graph.packedPosition(node);
+                    BankVisitState bank = graph.bankVisited(node);
+                    if (visited.get(packed, bank)) {
+                        profile.delayedVisitSkipped++;
+                        profile.queueSelectionNanos += System.nanoTime() - phaseStart;
+                        continue;
+                    }
+                    visited.set(packed, bank);
                 }
-                visited.set(packed, bank);
             } else {
                 node = boundary.pollFirst();
             }
@@ -159,10 +156,6 @@ public class ProfilingPathfinder {
                 if (goals.contains(nodePacked)) {
                     bestLastNode = node;
                     reachedTarget = nodePacked;
-                    if (shortestAcceptedNode != NodeGraph.NO_NODE) {
-                        bestLastNode = shortestAcceptedNode;
-                        reachedTarget = shortestAcceptedTarget;
-                    }
                     terminationReason = PathTerminationReason.TARGET_REACHED;
                     profile.targetCheckNanos += System.nanoTime() - phaseStart;
                     break;
@@ -171,7 +164,6 @@ public class ProfilingPathfinder {
                 if (updateBestPathWhenUnreachable(node, nodePacked)) {
                     cutoffTimeMillis = System.currentTimeMillis() + cutoffDurationMillis;
                 }
-                updateCustomPathWhenUnreachable(node, nodePacked);
 
                 profile.targetCheckNanos += System.nanoTime() - phaseStart;
             }
@@ -215,7 +207,6 @@ public class ProfilingPathfinder {
         // Materialise the path/closest tile from the graph before releasing it.
         int closestReached = bestLastNode != NodeGraph.NO_NODE ? graph.getClosestTilePosition(bestLastNode) : start;
         List<PathStep> path = bestLastNode != NodeGraph.NO_NODE ? graph.getPathSteps(bestLastNode) : List.of();
-        int pathCost = bestLastNode != NodeGraph.NO_NODE ? graph.cost(bestLastNode) : PathfinderResult.NO_PATH_COST;
 
         long elapsedNanos = System.nanoTime() - startNanos;
 
@@ -224,7 +215,7 @@ public class ProfilingPathfinder {
         pending.clear();
         graph.release();
 
-        result = new PathfinderResult(start, target, reached, path, closestReached, pathCost,
+        result = new PathfinderResult(start, target, reached, path, closestReached,
             nodesChecked, transportsChecked, elapsedNanos, terminationReason);
     }
 
@@ -261,10 +252,9 @@ public class ProfilingPathfinder {
             }
 
             final boolean neighborIsTransport = graph.isTransport(neighbor);
-            // Transports queue on the cost-ordered pending heap, so they are checked and
-            // marked visited when dequeued; walking and abstract neighbours claim their
-            // tile at enqueue.
-            if (!neighborIsTransport) {
+            // For delayed-visit nodes (shared destinations), don't mark as visited on enqueue.
+            // They will be checked and marked when dequeued from pending.
+            if (!(neighborIsTransport && graph.isDelayedVisit(neighbor))) {
                 visited.set(neighbor, graph);
             } else {
                 profile.delayedVisitEnqueued++;
@@ -306,9 +296,9 @@ public class ProfilingPathfinder {
         // Mirrors CollisionMap.getTileNeighbors: the banked state is only entered through an
         // explicit, costed transition — a bank-accessible tile emits a bank-visit edge carrying
         // the configured penalty once, on the decision to bank.
-        boolean pathBankVisited = graph.bankVisited(node);
-        if (!pathBankVisited && config.isBankPathEnabled() && config.bankAccessible(packedPosition)
-            && !visited.get(packedPosition, true)) {
+        BankVisitState pathBankVisited = graph.bankVisited(node);
+        if (pathBankVisited != BankVisitState.BANKED && config.isBankPathEnabled() && config.bankAccessible(packedPosition)
+            && !visited.get(packedPosition, BankVisitState.BANKED)) {
             neighbors.add(graph.createBankVisit(packedPosition, node, config.getBankVisitCost()));
             profile.bankTransitions++;
         }
@@ -429,7 +419,7 @@ public class ProfilingPathfinder {
     private PrimitiveIntList getAbstractNodeNeighbors(int node) {
         neighbors.clear();
         int sourceTile = graph.getClosestTilePosition(node);
-        boolean bankVisited = graph.bankVisited(node);
+        BankVisitState bankVisited = graph.bankVisited(node);
         int maxWildernessLevel = graph.abstractKind(node).maxWildernessLevel();
         for (Transport transport : config.getUsableTeleports(bankVisited)) {
             profile.transportEvaluations++;
@@ -476,20 +466,6 @@ public class ProfilingPathfinder {
             }
         }
         return update;
-    }
-
-    private void updateCustomPathWhenUnreachable(int node, int packedPosition) {
-        if (targets.size() <= 1 || shortestAcceptedNode != NodeGraph.NO_NODE) {
-            return;
-        }
-        for (int target : targets) {
-            if (WorldPointUtil.distanceBetween(target, packedPosition, WorldPointUtil.MANHATTAN_DISTANCE_METRIC)
-                <= config.getUnreachableTargetDistance()) {
-                shortestAcceptedNode = node;
-                shortestAcceptedTarget = target;
-                return;
-            }
-        }
     }
 
     private void updateWildernessLevel(int packedPosition) {
