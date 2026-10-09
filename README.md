@@ -147,9 +147,8 @@ VM identity, dependency Git identities, the synthetic benchmark clock, and v2
 observations. Expected reachability comes from each route's curated
 `negativeProfiles`; there is no expected cost.
 
-Accounts are compiled from the corpus profiles into a plugin configuration
-(`CanonicalAccountCompiler`). The rune pouch is flattened into carried
-inventory, and selected POH mounted items and nexus portals are passed through.
+Each case is the `canonical` suite scenario `<route id>/<profile>`, run through the same
+`ScenarioRunner` as the route CLI and the dashboard; see [docs/scenarios.md](docs/scenarios.md).
 
 ## Keeping up with the plugin
 
