@@ -1,8 +1,11 @@
 // --- Dashboards ---
 
 def dashboardOutputRoot = layout.buildDirectory.dir('reports/pathfinder-dashboard')
+// A committed suite (shortestpath.scenarios.Suites), or a data-only scenario CSV file to run instead.
+def dashboardSuite = providers.gradleProperty('dashboardSuite')
+        .orElse('routes')
 def dashboardDataset = providers.gradleProperty('dashboardDataset')
-        .orElse('/dashboard/routes.csv')
+        .orElse('')
 def dashboardSubtitle = providers.gradleProperty('dashboardSubtitle')
         .orElse('')
 // Empty when not set: the test then auto-decides profiling by dataset size.
@@ -20,11 +23,12 @@ def dashboardThreads = providers.gradleProperty('dashboardThreads')
 // config_overrides entry of the same name still wins over this flag.
 def dashboardBackend = providers.gradleProperty('dashboardBackend')
         .orElse('LEGACY')
-// Derive bundle name and title from the dataset filename + profile flag.
-// e.g. dataset=/dashboard/clue_locations_full.csv, profile=true
+// Derive bundle name and title from the suite (or file) name + profile flag.
+// e.g. suite=clue_locations_full, profile=true
 //   → bundle: clue-locations-full-profiled, title: Clue Locations Full Profiled
 // Override with -PdashboardBundle=... or -PdashboardTitle=...
-def filename = dashboardDataset.get().tokenize('/').last()
+def source = dashboardDataset.get().isEmpty() ? dashboardSuite.get() : dashboardDataset.get()
+def filename = source.tokenize('/').last()
 def stem = filename.contains('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename
 def slug = stem.replace('_', '-').toLowerCase()
 def profiled = dashboardProfile.get() == 'true'
@@ -49,7 +53,8 @@ tasks.register('dashboard', Test) {
     doNotTrackState('Dashboard always re-runs to pick up the latest dataset and config.')
     group = 'verification'
     description = 'Builds the pathfinder dashboard from DashboardTest scenarios. ' +
-            'Options (all via -P): dashboardDataset (default: /dashboard/routes.csv), ' +
+            'Options (all via -P): dashboardSuite (default: routes; see shortestpath.scenarios.Suites), ' +
+            'dashboardDataset (a data-only scenario CSV file to run instead of a suite), ' +
             'dashboardBundle, dashboardTitle, dashboardSubtitle, dashboardProfile ' +
             '(default: auto — on for datasets up to 200 scenarios, off above; ' +
             'pass true/false to force), ' +
@@ -75,8 +80,11 @@ tasks.register('dashboard', Test) {
     testLogging.showStandardStreams = true
     systemProperty 'dashboard.outputRoot', dashboardOutputRoot.get().asFile.absolutePath
     systemProperty 'dashboard.bundleName', dashboardBundle.get()
-    systemProperty 'dashboard.dataset', dashboardDataset.get()
+    systemProperty 'dashboard.suite', dashboardSuite.get()
     systemProperty 'dashboard.backend', dashboardBackend.get()
+    if (!dashboardDataset.get().isEmpty()) {
+        systemProperty 'dashboard.dataset', file(dashboardDataset.get()).absolutePath
+    }
     if (!dashboardProfile.get().isEmpty()) {
         systemProperty 'dashboard.profile', dashboardProfile.get()
     }
@@ -98,8 +106,9 @@ tasks.register('dashboard', Test) {
 tasks.register('captureExpectedLengths', Test) {
     doNotTrackState('Capture always re-runs to write updated expected lengths.')
     group = 'verification'
-    description = 'Runs one dataset and writes actual path lengths into expected_length in the source CSV. ' +
-            'Options: dashboardDataset (default: /dashboard/routes.csv), ' +
+    description = 'Runs one suite and writes actual path lengths into ' +
+            'src/test/resources/scenarios/expected-lengths/<suite>.json. ' +
+            'Options: dashboardSuite (default: routes), ' +
             'dashboardProfile (default: auto — off above 200 scenarios; pass true/false to force), ' +
             'dashboardHeatmap (default: true), ' +
             'dashboardThreads (parallel scenario workers, default: availableProcessors()-3).'
@@ -116,8 +125,11 @@ tasks.register('captureExpectedLengths', Test) {
     testLogging.showStandardStreams = true
     systemProperty 'dashboard.outputRoot', dashboardOutputRoot.get().asFile.absolutePath
     systemProperty 'dashboard.bundleName', dashboardBundle.get()
-    systemProperty 'dashboard.dataset', dashboardDataset.get()
+    systemProperty 'dashboard.suite', dashboardSuite.get()
     systemProperty 'dashboard.backend', dashboardBackend.get()
+    if (!dashboardDataset.get().isEmpty()) {
+        systemProperty 'dashboard.dataset', file(dashboardDataset.get()).absolutePath
+    }
     if (!dashboardProfile.get().isEmpty()) {
         systemProperty 'dashboard.profile', dashboardProfile.get()
     }

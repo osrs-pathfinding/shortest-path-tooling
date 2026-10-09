@@ -97,21 +97,22 @@ When someone reports a routing bug upstream, the loop is:
    `ISSUE-<N>.md` shadow file (upstream text quarantined in UNTRUSTED
    sections; maintainer notes kept in separate sections that re-sync
    preserves).
-2. **Normalize** — turn the report into a scenario row in
-   `scenarios.csv`: start, target, game state (varbits/varplayers/quests/
-   equipment), and what "correct" means (`expected_length`,
-   `expect_reachable`, …).
-3. **Reproduce** — run the dashboard on that row against the current
+2. **Normalize** — turn the report into a Java scenario in
+   `RoutingIssueScenarios` (category `<domain>-issue-<N>`): start, target,
+   profile, account overrides (varbits/varplayers/quests/items), and what
+   "correct" means (captured expected length, `.minimumLength`,
+   `.expectUnreachable()`), and list its name in the shadow's
+   `scenario_rows`.
+3. **Reproduce** — run the dashboard on that suite against the current
    data. `reached:false` or a length mismatch = bug reproduced.
 4. **Fix** — repair the data (usually submodule TSVs, on a fork branch).
 5. **Verify** — `import_issues.py verify` re-reads the post-fix
    `report.json`; only with passing evidence does the issue reach
-   `status: verified`. Then the fixed row gets promoted into the
-   committed datasets (`src/test/resources/dashboard/*-issues.csv`)
-   so it becomes a permanent regression test.
+   `status: verified`. The scenario is already committed, so it is a
+   permanent regression test.
 
-That last step is the point: **every fixed bug becomes a dataset row**,
-and every dataset row is swept by `verify`, so regressions surface the
+That is the point: **every fixed bug becomes a committed scenario**,
+and every scenario suite is swept by `verify`, so regressions surface the
 moment data drifts again.
 
 ## A typical maintenance cycle

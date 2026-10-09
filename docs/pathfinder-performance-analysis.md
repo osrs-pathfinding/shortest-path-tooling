@@ -241,7 +241,7 @@ git -C ../shortest-path checkout master
 for csv in routes unit-tests quetzal_whistle_routes \
            collision-map-issues seasonal_briefcase_routes clue_locations_full; do
   ../shortest-path/gradlew --quiet dashboard \
-    -PdashboardDataset=/dashboard/$csv.csv \
+    -PdashboardSuite=$csv \
     -PdashboardProfile=false
   # bundle name uses hyphens not underscores
   bundle=$(echo $csv | tr _ -)
@@ -512,15 +512,15 @@ mkdir -p /tmp/dashboard-runs/region-portals
 for ds in routes unit-tests quetzal-whistle-routes collision-map-issues \
           seasonal-briefcase-routes clue-locations-full; do
   case "$ds" in
-    routes) csv=routes.csv;;
-    unit-tests) csv=unit-tests.csv;;
-    quetzal-whistle-routes) csv=quetzal_whistle_routes.csv;;
-    collision-map-issues) csv=collision-map-issues.csv;;
-    seasonal-briefcase-routes) csv=seasonal_briefcase_routes.csv;;
-    clue-locations-full) csv=clue_locations_full.csv;;
+    routes) csv=routes;;
+    unit-tests) csv=unit-tests;;
+    quetzal-whistle-routes) csv=quetzal_whistle_routes;;
+    collision-map-issues) csv=collision-map-issues;;
+    seasonal-briefcase-routes) csv=seasonal_briefcase_routes;;
+    clue-locations-full) csv=clue_locations_full;;
   esac
   ../shortest-path/gradlew --quiet dashboard \
-    -PdashboardDataset=/dashboard/$csv -PdashboardProfile=false
+    -PdashboardSuite=$csv -PdashboardProfile=false
   mkdir -p /tmp/dashboard-runs/region-portals/$ds
   cp build/reports/pathfinder-dashboard/bundles/$ds/report.json \
      /tmp/dashboard-runs/region-portals/$ds/

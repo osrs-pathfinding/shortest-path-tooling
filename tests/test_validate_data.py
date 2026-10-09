@@ -402,12 +402,11 @@ def test_exceptions_file_malformed_row(tmp_path, monkeypatch):
             vd.CHECKS["destinations"]()
 
 
-# ---------- scenario-csv check ----------
+# ---------- scenario-data check ----------
 
 
-ROUTES_HEADER = ("name,category,start_x,start_y,start_plane,x,y,plane,"
-                 "preset,inventory,equipment,bank,varbits,skill_levels,"
-                 "config_overrides,expected_length,minimum_length")
+DATA_HEADER = ("name,category,start_x,start_y,start_plane,x,y,plane,"
+               "profile,expect_reachable,source_file,source_line")
 
 
 def _write_csv(root, rel, header, rows):
@@ -423,253 +422,76 @@ def _patch_repo_leaf(vd, monkeypatch, repo, *, ls_files=()):
                         lambda *ps: list(ls_files))
 
 
-def test_scenario_csv_clean_fixture_passes(tmp_path, monkeypatch):
+def test_scenario_data_clean_fixture_passes(tmp_path, monkeypatch):
     vd = load_vd()
     repo = tmp_path / "repo"
     rel = _write_csv(
-        repo, "src/test/resources/dashboard/routes.csv",
-        ROUTES_HEADER,
-        ["Gnome stronghold,quest,2459,3438,0,2460,3437,0,ALL"
-         ",,,,,,,42,42",
-         "Lumbridge,quest,3222,3218,0,3222,3218,0,bank"
-         ",,,,,,useFairyRings=true,10,10"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[rel])
-    assert vd.CHECKS["scenario-csv"]() == []
+        repo, "src/test/resources/scenarios/clues.csv", DATA_HEADER,
+        ["Clue A,anagram,2964,3378,0,3567,4381,0,ALL,,from discord,",
+         "Clue B,anagram,,,,3567,4381,0,unit_test,false,x.java,12",
+         "Clue C,anagram,2964,3378,0,3567,4381,0,maxed,true,,"])
+    lengths = repo / "src/test/resources/scenarios/expected-lengths/clues.json"
+    lengths.parent.mkdir(parents=True)
+    lengths.write_text('{"Clue A": 23}\n')
+    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[
+        rel, "src/test/resources/scenarios/expected-lengths/clues.json"])
+    assert vd.CHECKS["scenario-data"]() == []
 
 
-def test_scenario_csv_flags(tmp_path, monkeypatch):
+def test_scenario_data_flags(tmp_path, monkeypatch):
     vd = load_vd()
     repo = tmp_path / "repo"
-    header = ROUTES_HEADER + ",expect_reachable"
     rel = _write_csv(
-        repo, "src/test/resources/dashboard/routes.csv",
-        header,
-        [# embedded comma: 19 fields vs 18 headers
-         "Bad,Name,3222,3218,0,3222,3218,0,ALL,,,,,,,,10,10,true",
-         # non-integer x
-         "R3,cat,3222,3218,0,abc,3218,0,ALL,,,,,,,10,10,true",
-         # unknown preset
-         "R4,cat,3222,3218,0,3222,3218,0,NOPE,,,,,,,10,10,true",
-         # unknown config_overrides key
-         "R5,cat,3222,3218,0,3222,3218,0,ALL,,,,,,noSuchKey=true,"
-         ",10,true",
-         # non-integer expected_length
-         "R6,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,abc,10,true",
-         # expect_reachable not true/false
-         "R7,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,maybe"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[rel])
-    findings = vd.CHECKS["scenario-csv"]()
-    assert any(f.startswith(f"{rel}:2") and "fields" in f
+        repo, "src/test/resources/scenarios/clues.csv",
+        DATA_HEADER + ",varbits",
+        ["A,c,1,2,0,3,4,0,ALL,,,,",
+         "A,c,1,2,0,3,4,0,ALL,,,,",
+         "B,c,1,2,0,x,4,0,NOPE,maybe,,,",
+         "C, with comma,c,1,2,0,3,4,0,ALL,,,,"])
+    lengths = repo / "src/test/resources/scenarios/expected-lengths/clues.json"
+    lengths.parent.mkdir(parents=True)
+    lengths.write_text('{"A": "long", "B": 3}\n')
+    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[
+        rel, "src/test/resources/scenarios/expected-lengths/clues.json"])
+    findings = vd.CHECKS["scenario-data"]()
+    assert any(":1: unknown column 'varbits'" in f for f in findings)
+    assert any(f.startswith(f"{rel}:3") and "duplicate" in f
                for f in findings)
-    assert any(f.startswith(f"{rel}:3") and "x" in f
-               and "abc" in f for f in findings)
-    assert any(f.startswith(f"{rel}:4") and "NOPE" in f
+    assert any(f.startswith(f"{rel}:4") and "'x'" in f for f in findings)
+    assert any(f.startswith(f"{rel}:4") and "NOPE" in f for f in findings)
+    assert any(f.startswith(f"{rel}:4") and "maybe" in f for f in findings)
+    assert any(f.startswith(f"{rel}:5") and "embedded comma" in f
                for f in findings)
-    assert any(f.startswith(f"{rel}:5") and "noSuchKey" in f
-               for f in findings)
-    assert any(f.startswith(f"{rel}:6") and "expected_length" in f
-               and "abc" in f for f in findings)
-    assert any(f.startswith(f"{rel}:7") and "expect_reachable" in f
-               and "maybe" in f for f in findings)
+    assert any("clues.json" in f and "'long'" in f for f in findings)
 
 
-def test_scenario_csv_missing_required_column(tmp_path, monkeypatch):
+def test_scenario_data_profiles_mirror_java():
+    # SCENARIO_CANONICAL_PROFILES / SCENARIO_PRESETS mirror Profiles.java.
     vd = load_vd()
-    repo = tmp_path / "repo"
-    rel = _write_csv(
-        repo, "src/test/resources/dashboard/routes.csv",
-        "name,category,x,y",   # routes header missing plane
-        ["R,cat,1,2"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[rel])
-    findings = vd.CHECKS["scenario-csv"]()
-    assert any("plane" in f for f in findings)
+    profiles = (ROOT / "src" / "test" / "java" / "shortestpath"
+                / "profiles" / "Profiles.java").read_text()
+    assert set(re.findall(r'preset\("([A-Z_]+)"', profiles)) \
+        == vd.SCENARIO_PRESETS
+    assert set(re.findall(r'canonical\("([a-z]+)"\)', profiles)) \
+        == vd.SCENARIO_CANONICAL_PROFILES
 
 
-def test_scenario_csv_clue_format(tmp_path, monkeypatch):
+def test_scenario_data_columns_mirror_java():
     vd = load_vd()
-    repo = tmp_path / "repo"
-    # clue grammar: requires clue_type+x+y+plane; routes-only rules
-    # (preset/config_overrides/expected_length) must not fire even
-    # when a like-named column carries values they would reject.
-    rel = _write_csv(
-        repo, "src/test/resources/dashboard/clues.csv",
-        "clue_type,x,y,plane,preset,source_file",
-        ["EASY,1234,5678,0,NOPE,clues.txt",
-         "HARD,notanint,5678,0,ALL,clues.txt"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[rel])
-    findings = vd.CHECKS["scenario-csv"]()
-    assert any(f.startswith(f"{rel}:3") and "x" in f
-               for f in findings)
-    # NOPE preset is tolerated under the clue grammar — the loader
-    # hardcodes ALL for clue rows and never reads preset.
-    assert not any("NOPE" in f for f in findings)
+    data = (ROOT / "src" / "test" / "java" / "shortestpath"
+            / "scenarios" / "ScenarioData.java").read_text()
+    required = re.search(r"REQUIRED = List.of\(([^;]*)\);", data).group(1)
+    optional = re.search(r"OPTIONAL = Set.of\(([^;]*)\);", data).group(1)
+    assert tuple(re.findall(r'"([a-z_]+)"', required)) \
+        == vd.SCENARIO_DATA_REQUIRED
+    assert set(re.findall(r'"([a-z_]+)"', optional)) \
+        == vd.SCENARIO_DATA_OPTIONAL
 
 
-def test_scenario_csv_unknown_columns_tolerated(tmp_path, monkeypatch):
+def test_scenario_data_committed_clean():
+    # The real committed scenario data is the healthy-data case.
     vd = load_vd()
-    repo = tmp_path / "repo"
-    # source_file/source_line are registered extras carried by
-    # clue_locations_full.csv today; they must not be findings.
-    rel = _write_csv(
-        repo, "src/test/resources/dashboard/routes.csv",
-        ROUTES_HEADER + ",source_file,source_line",
-        ["R,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,"
-         "routes.md,12"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[rel])
-    assert vd.CHECKS["scenario-csv"]() == []
-
-
-def test_scenario_csv_unknown_header_cell(tmp_path, monkeypatch):
-    vd = load_vd()
-    repo = tmp_path / "repo"
-    # A typo'd column is silently dropped by the Java loader — the
-    # same bug class the TSV header whitelist exists to catch.
-    rel = _write_csv(
-        repo, "src/test/resources/dashboard/routes.csv",
-        ROUTES_HEADER + ",expeced_length",
-        ["R,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,10"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[rel])
-    findings = vd.CHECKS["scenario-csv"]()
-    assert any("expeced_length" in f for f in findings)
-
-
-def test_scenario_csv_map_column_grammar(tmp_path, monkeypatch):
-    # Map/item cells that violate the loader grammar abort the whole
-    # dataset run (IllegalArgumentException under ignoreFailures), so
-    # the lint must flag them before the dashboard ever runs.
-    vd = load_vd()
-    repo = tmp_path / "repo"
-    rel = _write_csv(
-        repo, "src/test/resources/dashboard/routes.csv",
-        ROUTES_HEADER,
-        [# varbits token without '=': parseIntMap would index past end
-         "R1,cat,3222,3218,0,3222,3218,0,ALL,,,,1234,,,10,10",
-         # skill_levels lowercase key: Skill.valueOf would throw
-         "R2,cat,3222,3218,0,3222,3218,0,ALL,,,,,agility=70,,10,10",
-         # inventory non-numeric id
-         "R3,cat,3222,3218,0,3222,3218,0,ALL,abc,,,,,,10,10",
-         # well-formed cells stay clean
-         "R4,cat,3222,3218,0,3222,3218,0,ALL,995:5;4151,,"
-         ",1234=1;2345=0,AGILITY=70,,10,10"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[rel])
-    findings = vd.CHECKS["scenario-csv"]()
-    assert any(f.startswith(f"{rel}:2") and "varbits" in f
-               for f in findings)
-    assert any(f.startswith(f"{rel}:3") and "skill_levels" in f
-               for f in findings)
-    assert any(f.startswith(f"{rel}:4") and "inventory" in f
-               for f in findings)
-    assert not any(f.startswith(f"{rel}:5") for f in findings)
-
-
-def test_scenario_csv_expect_reachable_column_known(tmp_path,
-                                                  monkeypatch):
-    vd = load_vd()
-    repo = tmp_path / "repo"
-    rel = _write_csv(
-        repo, "src/test/resources/dashboard/routes.csv",
-        ROUTES_HEADER + ",expect_reachable",
-        ["R1,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,true",
-         "R2,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,false"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[rel])
-    assert vd.CHECKS["scenario-csv"]() == []
-
-
-def test_scenario_csv_enumerates_committed_only(tmp_path,
-                                                monkeypatch):
-    vd = load_vd()
-    repo = tmp_path / "repo"
-    # A malformed CSV sits on disk but is uncommitted — the seam
-    # does not list it, so it can never enter the check.
-    bad_rel = _write_csv(
-        repo, "src/test/resources/dashboard/debug.csv",
-        ROUTES_HEADER,
-        ["R,cat,3222,3218,0,abc,3218,0,ALL,,,,,,,10,10"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[])
-    assert vd.CHECKS["scenario-csv"]() == []
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[bad_rel])
-    findings = vd.CHECKS["scenario-csv"]()
-    assert any("abc" in f for f in findings)
-
-
-def test_scenario_csv_registered_and_dispatches(tmp_path,
-                                                monkeypatch, capsys):
-    vd = load_vd()
-    repo = tmp_path / "repo"
-    rel = _write_csv(
-        repo, "src/test/resources/dashboard/routes.csv",
-        ROUTES_HEADER,
-        ["R,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[rel])
-    assert "scenario-csv" in vd.CHECKS
-    rc = vd.main(["scenario-csv"])
-    out = capsys.readouterr().out
-    assert rc == 0
-    assert "Summary:" in out
-
-
-def test_scenario_csv_committed_datasets_clean():
-    # The real committed dashboard CSVs are the healthy-data case.
-    vd = load_vd()
-    assert vd.CHECKS["scenario-csv"]() == []
-
-
-def test_scenario_csv_quests_column_known(tmp_path, monkeypatch):
-    # `quests` is a whitelisted column whose `Name=STATE` cells pass the
-    # grammar — including apostrophe names and `;`-joined multi-quest cells.
-    vd = load_vd()
-    repo = tmp_path / "repo"
-    rel = _write_csv(
-        repo, "src/test/resources/dashboard/routes.csv",
-        ROUTES_HEADER + ",quests",
-        ["R1,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,"
-         "The Grand Tree=NOT_STARTED",
-         "R2,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,"
-         "Twilight's Promise=IN_PROGRESS",
-         "R3,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,"
-         "The Grand Tree=NOT_STARTED;Monkey Madness II=FINISHED"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[rel])
-    assert vd.CHECKS["scenario-csv"]() == []
-
-
-def test_scenario_csv_quests_grammar_rejects(tmp_path, monkeypatch):
-    # Malformed quests cells abort the loader with
-    # IllegalArgumentException, so the lint must flag them first:
-    # bare name (no =STATE), unknown state, and int-map shapes that
-    # belong in varbits.
-    vd = load_vd()
-    repo = tmp_path / "repo"
-    rel = _write_csv(
-        repo, "src/test/resources/dashboard/routes.csv",
-        ROUTES_HEADER + ",quests",
-        ["R1,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,The Grand Tree",
-         "R2,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,"
-         "The Grand Tree=DONE",
-         "R3,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,65=10"])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[rel])
-    findings = vd.CHECKS["scenario-csv"]()
-    assert any(f.startswith(f"{rel}:2") and "quests" in f
-               and "The Grand Tree" in f for f in findings)
-    assert any(f.startswith(f"{rel}:3") and "quests" in f
-               and "DONE" in f for f in findings)
-    assert any(f.startswith(f"{rel}:4") and "quests" in f
-               and "65=10" in f for f in findings)
-
-
-# ---------- config-keys parity ----------
-
-
-def test_scenario_config_keys_mirror_java_dispatch():
-    # SCENARIO_CONFIG_KEYS claims to mirror every case label of the
-    # applyConfigOverrides switch in DashboardScenarioRunner.java —
-    # enforce it so a new dispatch key can never land without its
-    # whitelist entry (or vice versa).  The file's only switch is that
-    # dispatch, so every `case "..."` label is a config_overrides key.
-    vd = load_vd()
-    runner = (ROOT / "src" / "test" / "java" / "shortestpath"
-              / "dashboard" / "DashboardScenarioRunner.java")
-    labels = set(re.findall(r'case "([^"]+)"', runner.read_text()))
-    assert labels == vd.SCENARIO_CONFIG_KEYS
+    assert vd.CHECKS["scenario-data"]() == []
 
 
 # ---------- region-override check ----------
@@ -917,141 +739,3 @@ def test_walkability_committed_transports_clean():
 def test_bbox_committed_transports_clean():
     vd = load_vd()
     assert vd.CHECKS["bbox"]() == []
-
-
-# ---------- scenario-var-gating advisory check ----------
-
-
-def _var_gating_fixture(tmp_path, monkeypatch, *, transport_rows,
-                        scenario_rows, header=ROUTES_HEADER):
-    """Wire both git seams: a fake transports corpus under a scratch
-    plugin root and scenario CSVs under a scratch repo root.  Returns
-    (vd, scenario_rel)."""
-    vd = load_vd()
-    plugin = tmp_path / "sp"
-    repo = tmp_path / "repo"
-    trel = _write_tsv(
-        plugin, "src/main/resources/transports/transports.tsv",
-        # Deliberately non-transports.tsv column order — the check must
-        # index Varbits/VarPlayers from each file's own header.
-        ["Origin", "Destination", "Varbits", "VarPlayers"],
-        transport_rows)
-    srel = _write_csv(
-        repo, "src/test/resources/dashboard/routes.csv",
-        header, scenario_rows)
-    _patch_leaf(vd, monkeypatch, plugin, ls_files=[trel])
-    _patch_repo_leaf(vd, monkeypatch, repo, ls_files=[srel])
-    return vd, srel
-
-
-def test_var_gating_flags_dead_varbit_stub(tmp_path, monkeypatch):
-    # A varbits stub whose id appears in a transports Varbits
-    # requirement cell is a transport-gating stub — dead without
-    # bypassVarbitChecks=false.
-    vd, srel = _var_gating_fixture(
-        tmp_path, monkeypatch,
-        transport_rows=["1 2 0\t3 4 0\t4498=1\t"],
-        scenario_rows=[
-            "R1,cat,3222,3218,0,3222,3218,0,ALL,,,,4498=0,,,10,10"])
-    findings = vd.CHECKS["scenario-var-gating"]()
-    assert len(findings) == 1
-    assert findings[0].startswith(f"{srel}:2")
-    assert "varbits" in findings[0] and "4498" in findings[0]
-    assert "bypassVarbitChecks" in findings[0]
-    # The dual-use caveat tells the author the stub may still feed
-    # direct reads / destination requirements.
-    assert "direct client reads" in findings[0]
-
-
-def test_var_gating_silent_for_direct_read_stub(tmp_path, monkeypatch):
-    # A stubbed id absent from the transports corpus is a direct-read
-    # stub — correctly silent.  A destinations/ file carrying the same
-    # id must not enter the corpus either: bank-destination requirements
-    # are always enforced, so stubs feeding them are never dead.
-    vd, srel = _var_gating_fixture(
-        tmp_path, monkeypatch,
-        transport_rows=["1 2 0\t3 4 0\t4498=1\t"],
-        scenario_rows=[
-            "R1,cat,3222,3218,0,3222,3218,0,ALL,,,,2326=100,,,10,10"])
-    plugin = tmp_path / "sp"
-    drel = _write_tsv(
-        plugin, "src/main/resources/destinations/game_features/bank.tsv",
-        ["Destination", "Info", "Varbits"],
-        ["1000 1000 0\tBank\t2326=100"])
-    # Even if the seam hands back a destinations path, it cannot enter
-    # the corpus.
-    monkeypatch.setattr(
-        vd, "_git_ls_files",
-        lambda *ps: ["src/main/resources/transports/transports.tsv",
-                     drel])
-    assert vd.CHECKS["scenario-var-gating"]() == []
-
-
-def test_var_gating_silent_when_bypass_disabled(tmp_path, monkeypatch):
-    # bypassVarbitChecks=false makes the stub live, not dead.
-    vd, srel = _var_gating_fixture(
-        tmp_path, monkeypatch,
-        transport_rows=["1 2 0\t3 4 0\t4498=1\t"],
-        scenario_rows=[
-            "R1,cat,3222,3218,0,3222,3218,0,ALL,,,,4498=0,,"
-            "bypassVarbitChecks=false,10,10"])
-    assert vd.CHECKS["scenario-var-gating"]() == []
-
-
-def test_var_gating_varplayer_side_and_registry(tmp_path, monkeypatch,
-                                                capsys):
-    # Same rule on the varplayers side: 139 sits in a VarPlayers
-    # requirement cell (139>49), so an unpaired 139=50 stub is dead.
-    header = ROUTES_HEADER + ",varplayers"
-    vd, srel = _var_gating_fixture(
-        tmp_path, monkeypatch,
-        transport_rows=["1 2 0\t3 4 0\t\t139>49"],
-        header=header,
-        scenario_rows=[
-            "R1,cat,3222,3218,0,3222,3218,0,ALL,,,,,,,10,10,139=50",
-            # The paired row is live — bypassVarPlayerChecks=false.
-            "R2,cat,3222,3218,0,3222,3218,0,ALL,,,,,"
-            "bypassVarPlayerChecks=false,10,10,139=50"])
-    findings = vd.CHECKS["scenario-var-gating"]()
-    assert len(findings) == 1
-    assert findings[0].startswith(f"{srel}:2")
-    assert "varplayers" in findings[0] and "139" in findings[0]
-    assert "bypassVarPlayerChecks" in findings[0]
-    # Registered as an advisory check: it reports under its own section
-    # and never moves the exit code.
-    assert "scenario-var-gating" in vd.CHECKS
-    assert "scenario-var-gating" in vd.ADVISORY_CHECKS
-    assert (vd.SECTION_TITLES["scenario-var-gating"]
-            == "Scenario var gating bypass")
-    rc = vd.main(["scenario-var-gating"])
-    assert rc == 0
-    assert "Scenario var gating bypass" in capsys.readouterr().out
-
-
-def test_var_gating_committed_corpus_flags_dual_use():
-    # On the real committed data the check must flag the known
-    # dual-use stubs: varbit 4498 (Lumbridge diary elite — a direct
-    # read AND a diary-cape transport requirement) stubbed 4498=0 in
-    # unit-tests.csv.  The varplayers=139=50 rows in routing-issues.csv
-    # used to be flagged here too (varp 139 is LEGENDSQUEST progress —
-    # in the corpus via 139>49 gates), but they now carry
-    # bypassVarPlayerChecks=false, so the corpus must report nothing
-    # for them.
-    vd = load_vd()
-    findings = vd.CHECKS["scenario-var-gating"]()
-    assert findings
-    assert any(
-        f.startswith("src/test/resources/dashboard/unit-tests.csv")
-        and "4498" in f for f in findings)
-    assert not any(
-        f.startswith("src/test/resources/dashboard/routing-issues.csv")
-        and "139" in f for f in findings)
-    # Every finding names at least one stubbed id and carries the
-    # dual-use caveat.
-    assert all("stub ids" in f and "direct client reads" in f
-               for f in findings)
-    # Correctly-paired rows stay silent: the 7796/3637 stubs ride with
-    # bypassVarbitChecks=false, and the league varbits (10663+) are not
-    # in the transport corpus at all.
-    assert not any("7796" in f or "3637" in f or "1066" in f
-                   for f in findings)

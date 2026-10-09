@@ -56,9 +56,9 @@ The default remains the `./shortest-path` Git submodule.
 
 | Task | Description |
 |------|-------------|
-| `./gradlew dashboard` | Build the pathfinder dashboard from the default routes dataset |
-| `./gradlew dashboard -PdashboardDataset=/dashboard/clue_locations_full.csv` | Build dashboard from a specific dataset |
-| `./gradlew captureExpectedLengths` | Write actual path lengths back into the source CSV as `expected_length` |
+| `./gradlew dashboard` | Build the pathfinder dashboard from the default `routes` suite |
+| `./gradlew dashboard -PdashboardSuite=clue_locations_full` | Build dashboard from a specific scenario suite |
+| `./gradlew captureExpectedLengths -PdashboardSuite=routes` | Write actual path lengths into the suite's `src/test/resources/scenarios/expected-lengths/<suite>.json` |
 | `./gradlew bankTileDump -PbankTileCacheDir=<dir> -PbankTileXteaPath=<keys.json>` | Dump bank-object placements from an OSRS cache to TSV |
 | `./gradlew sailingAmenityVarbitDump -PsailingAmenityCacheDir=<dir> -PsailingAmenityXteaPath=<keys.json>` | Dump Sailing island amenity varbits from an OSRS cache |
 | `./gradlew routingCuts -PkahipNodeSeparator=<path>` | Generate the exact pathfinder's `routing-cuts.bin` with KaHIP (see below) |
@@ -111,9 +111,10 @@ All options are passed via `-P`:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `dashboardDataset` | `/dashboard/routes.csv` | Path to the CSV dataset (resolved from test resources) |
-| `dashboardBundle` | derived from filename | Bundle name in the output site |
-| `dashboardTitle` | derived from filename | Title shown in the UI |
+| `dashboardSuite` | `routes` | Scenario suite to run (see `shortestpath.scenarios.Suites`) |
+| `dashboardDataset` | *(empty)* | A data-only scenario CSV file to run instead of a suite |
+| `dashboardBundle` | derived from the suite name | Bundle name in the output site |
+| `dashboardTitle` | derived from the suite name | Title shown in the UI |
 | `dashboardSubtitle` | *(empty)* | Subtitle shown in the UI |
 | `dashboardProfile` | `true` | Whether to enable the profiler |
 

@@ -308,11 +308,11 @@ def test_shadow_normalized_scenario_table(tmp_path, monkeypatch):
     run_sync(tmp_path, monkeypatch)
     _fm, body = frontmatter_and_body(tmp_path / "ISSUE-549.md")
     section = body.split("## Normalized Scenario", 1)[1].split("## ", 1)[0]
-    for field in ("name", "category", "start", "target", "preset",
-                  "config_overrides", "expected"):
+    for field in ("name", "category", "start", "target", "profile",
+                  "overrides", "expected"):
         assert f"| {field} |" in section
-    assert "CSV row ref:" in section
-    assert "scenarios.csv" in section
+    assert "scenario_rows" in section
+    assert "src/test/java/shortestpath/scenarios/" in section
 
 
 def test_list_outputs_status_lines(tmp_path, monkeypatch, capsys):
@@ -498,13 +498,8 @@ def test_status_user_fallback_when_getuser_raises(tmp_path, monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# check subcommand — shadow lint + scenario CSV lint
+# check subcommand — shadow lint + scenario cross-reference
 # --------------------------------------------------------------------------
-
-SCENARIO_HEADER = (
-    "name,category,start_x,start_y,start_plane,x,y,plane,preset,"
-    "inventory,equipment,bank,varbits,skill_levels,config_overrides,"
-    "expected_length,minimum_length")
 
 PRD_BODY = (
     "\n## Triage Notes\n\nnote\n"
@@ -513,20 +508,25 @@ PRD_BODY = (
     "\n## Canonical References\n- some file\n")
 
 
-def make_scenarios_csv(tmp_path, rows, header=SCENARIO_HEADER):
-    path = tmp_path / "scenarios.csv"
-    path.write_text(header + "\n" + "\n".join(rows) + "\n")
+def make_scenarios_csv(tmp_path, rows):
+    """A fake committed Java suite holding ``rows`` (name, category)."""
+    path = tmp_path / "suites" / "IssueScenarios.java"
+    path.parent.mkdir(exist_ok=True)
+    path.write_text("".join(
+        f'            scenario("{name}", "{category}")\n'
+        f"                .from(2504, 3671, 0).to(2504, 3660, 0)\n"
+        f"                .profile(UNIT_TEST),\n"
+        for name, category in rows))
     return path
 
 
-def scenario_row(name="alpha scenario", category="collision-issue-1",
-                 preset="UNIT_TEST", start="2504,3671,0",
-                 target="2504,3660,0"):
-    return f"{name},{category},{start},{target},{preset},,,,,,,,"
+def scenario_row(name="alpha scenario", category="collision-issue-1"):
+    return (name, category)
 
 
 def run_check(tmp_path):
-    return ii.main(["check", "--output-dir", str(tmp_path)])
+    return ii.main(["check", "--output-dir", str(tmp_path),
+                    "--scenarios-dir", str(tmp_path / "suites")])
 
 
 def triage_block(**overrides):
@@ -591,109 +591,49 @@ def test_check_flags_verified_without_verification(tmp_path, capsys):
     assert "verification" in out
 
 
-def test_check_scenario_comma_in_name(tmp_path, capsys):
-    # The naive split(",") parser reads an embedded comma as a field-count
-    # mismatch — name/category must stay comma-free.
-    make_shadow(tmp_path, 1, status="triaged", body_text=PRD_BODY)
-    make_scenarios_csv(tmp_path, [
-        scenario_row(name="Ape Atoll, dungeon gate")])
-    assert run_check(tmp_path) != 0
-    assert "scenarios.csv" in capsys.readouterr().out
-
-
-def test_check_scenario_bad_preset(tmp_path):
-    make_scenarios_csv(tmp_path, [
-        scenario_row(category="collision-control", preset="BOGUS")])
-    assert run_check(tmp_path) != 0
-
-
-def test_check_scenario_unit_test_preset_accepted(tmp_path, capsys):
-    # UNIT_TEST is the registry name the committed datasets and the
-    # seed row use — it must lint clean.
-    make_scenarios_csv(tmp_path, [
-        scenario_row(category="collision-control", preset="UNIT_TEST")])
-    rc = run_check(tmp_path)
-    assert rc == 0
-    assert "check: clean" in capsys.readouterr().out
-
-
-def test_check_scenario_nonint_coord(tmp_path, capsys):
-    make_scenarios_csv(tmp_path, [
-        scenario_row(category="collision-control",
-                     start="abc,3671,0")])
-    assert run_check(tmp_path) != 0
-    assert "start_x" in capsys.readouterr().out
-
-
 def test_check_scenario_rows_crossref(tmp_path, capsys):
-    # Direction 1: a shadow file's scenario_rows entry missing from the CSV.
+    # A shadow file's scenario_rows entry must name a committed scenario.
     make_shadow(tmp_path, 1, status="triaged", body_text=PRD_BODY,
                 fm_extra={"scenario_rows": ["ghost row"]})
-    # Direction 2: an `*-issue-<N>` category with no sibling ISSUE-<N>.md.
     make_scenarios_csv(tmp_path, [
         scenario_row(name="alpha", category="collision-issue-42")])
     rc = run_check(tmp_path)
     assert rc != 0
     out = capsys.readouterr().out
     assert "ghost row" in out
-    assert "42" in out
+    assert "not a committed scenario" in out
 
 
-def test_check_scenario_leading_comment_line(tmp_path, capsys):
-    # The dashboard loader reads the literal first line as the header —
-    # a leading comment must not lint clean while the loader misparses.
-    csv = tmp_path / "scenarios.csv"
-    csv.write_text("# comment first\n" + SCENARIO_HEADER + "\n"
-                   + scenario_row() + "\n")
+def test_check_scenario_rows_category_convention(tmp_path, capsys):
+    # A referenced scenario's category names its issue or marks a control.
+    make_shadow(tmp_path, 1, status="triaged", body_text=PRD_BODY,
+                fm_extra={"scenario_rows": ["walk"]})
+    make_scenarios_csv(tmp_path, [scenario_row(name="walk", category="walk")])
     assert run_check(tmp_path) != 0
-    assert "line 1" in capsys.readouterr().out
+    assert "'walk'" in capsys.readouterr().out
 
 
-def test_check_scenario_header_columns(tmp_path, capsys):
-    make_scenarios_csv(tmp_path, [scenario_row(
-        category="collision-control")],
-        header=SCENARIO_HEADER + ",bogus_col")
-    assert run_check(tmp_path) != 0
-    assert "bogus_col" in capsys.readouterr().out
+def test_check_indexes_escaped_names_and_data_csvs(tmp_path, capsys):
+    make_shadow(tmp_path, 1, status="triaged", body_text=PRD_BODY,
+                fm_extra={"scenario_rows": ['say "hi"', "clue row"]})
+    suites = tmp_path / "suites"
+    suites.mkdir()
+    (suites / "A.java").write_text(
+        'scenario("say \\"hi\\"", "routing-issue-1")\n')
+    (suites / "data.csv").write_text(
+        "name,category,x\nclue row,routing-control,1\n")
+    assert run_check(tmp_path) == 0
+    assert "check: clean" in capsys.readouterr().out
 
 
-def test_lint_accepts_expect_reachable(tmp_path, capsys):
-    # `expect_reachable` is the committed-datasets column for intentional
-    # unreachable assertions — the lint whitelist must accept it.
-    make_shadow(tmp_path, 1, status="triaged", body_text=PRD_BODY)
-    make_scenarios_csv(tmp_path, [scenario_row() + ",false"],
-                       header=SCENARIO_HEADER + ",expect_reachable")
-    rc = run_check(tmp_path)
-    assert rc == 0
-    assert "expect_reachable" not in capsys.readouterr().out
-
-
-def test_lint_accepts_quests(tmp_path, capsys):
-    # `quests` carries `Quest Name=STATE` tokens (NOT_STARTED/IN_PROGRESS/
-    # FINISHED) — the staging lint must whitelist the column and accept
-    # the grammar so quest-gated scenarios can be staged.
-    make_shadow(tmp_path, 1, status="triaged", body_text=PRD_BODY)
-    make_scenarios_csv(
-        tmp_path,
-        [scenario_row() + ",false,The Grand Tree=NOT_STARTED"],
-        header=SCENARIO_HEADER + ",expect_reachable,quests")
-    rc = run_check(tmp_path)
-    assert rc == 0
-    assert "quests" not in capsys.readouterr().out
-
-
-def test_lint_rejects_malformed_quests(tmp_path, capsys):
-    # A bare quest name carries no =STATE — it would silently mean
-    # FINISHED, which is already the implicit default — so the cell must
-    # fail the grammar rather than lint clean while changing nothing.
-    make_shadow(tmp_path, 1, status="triaged", body_text=PRD_BODY)
-    make_scenarios_csv(
-        tmp_path,
-        [scenario_row() + ",false,The Grand Tree"],
-        header=SCENARIO_HEADER + ",expect_reachable,quests")
-    rc = run_check(tmp_path)
-    assert rc != 0
-    assert "does not match its grammar" in capsys.readouterr().out
+def test_committed_scenarios_are_indexed():
+    # Every committed Java suite entry is a plain scenario("name", ...)
+    # call the index can read.
+    index = ii.scenario_index(ii.SCENARIO_SOURCE_DIRS)
+    java = sum(path.read_text().count("scenario(\"")
+               for path in ii.SCENARIO_SOURCE_DIRS[0].glob("*Scenarios.java"))
+    assert java > 0
+    assert "Lumbridge → Draynor Village" in index
 
 
 # --- triage verdict gate: coverage + evidence-shape rules ---------------
@@ -1882,7 +1822,7 @@ def fixed_shadow(tmp_path, number=504,
             "triage": triage_block(verdict="fixed", unblock_conditions=[]),
             "verification": {
                 "command": ("./gradlew dashboard "
-                            "-PdashboardDataset=scenarios.csv"),
+                            "-PdashboardSuite=routing-issues"),
                 "dataset_rows": rows,
                 "report": "build/reports/bundles/sweep/report.json",
                 "fix_commit": "31bc5e9",
@@ -1910,8 +1850,8 @@ def replay_entry(issue=504, comment=None):
         "kind": "replay",
         "comment": comment or (
             "Fixed by Skretzo/shortest-path#539 — verified via "
-            "scenario 'alpha scenario', now covered in "
-            "routing-issues.csv"),
+            "scenario 'alpha scenario', now covered by "
+            "the committed dashboard suites"),
         "fix_pr": "https://github.com/Skretzo/shortest-path/pull/539",
         "fix_commit": "31bc5e9",
         "evidence_rows": ["alpha scenario"],
@@ -1961,8 +1901,8 @@ def test_plan_close_emits_replay_entry(tmp_path):
     assert entry["evidence_rows"] == ["alpha scenario"]
     assert entry["comment"] == (
         "Fixed by Skretzo/shortest-path#539 — verified via "
-        "scenario 'alpha scenario', now covered in "
-        "routing-issues.csv")
+        "scenario 'alpha scenario', now covered by "
+        "the committed dashboard suites")
 
 
 def test_plan_close_dry_run_writes_nothing(tmp_path, capsys):
@@ -2435,8 +2375,8 @@ def test_plan_close_multirow_comment(tmp_path):
     assert entry["evidence_rows"] == ["alpha scenario", "beta scenario"]
     assert entry["comment"] == (
         "Fixed by Skretzo/shortest-path#539 — verified via 2 dashboard "
-        "scenarios incl. 'alpha scenario', now covered in "
-        "routing-issues.csv")
+        "scenarios incl. 'alpha scenario', now covered by "
+        "the committed dashboard suites")
 
 
 def test_plan_close_command_and_report_recorded(tmp_path):

@@ -147,9 +147,10 @@ nonzero when any tier fails:
 1. `compileTestJava` — the same compile gate CI runs.
 2. `./gradlew -p shortest-path test` — the submodule's test suite
    (`TransportDataLintTest` et al.).
-3. `dashboard` over every committed CSV under
-   `src/test/resources/dashboard/` — enumerated via `git ls-files`, so
-   the gitignored `debug.csv` scratch file can never enter the sweep.
+3. `dashboard` over every committed scenario suite — named by the
+   committed `src/test/resources/scenarios/expected-lengths/<suite>.json`
+   files, enumerated via `git ls-files`, so gitignored scratch state can
+   never enter the sweep.
    Pass/fail derives solely from each bundle's `report.json` run records
    (`reached` falsy or `assertionPassed` false) — the task sets
    `ignoreFailures = true`, so Gradle's exit code carries no signal and a

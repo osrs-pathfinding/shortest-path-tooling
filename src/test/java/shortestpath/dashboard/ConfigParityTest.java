@@ -3,7 +3,6 @@ package shortestpath.dashboard;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,7 +20,7 @@ import shortestpath.TestShortestPathConfig;
  * Config-surface parity lint between {@link ShortestPathConfig} and the dashboard
  * twin {@link DashboardPathfinderConfig}.
  *
- * <p>Four properties are asserted for every runtime-retained {@code @ConfigItem}
+ * <p>Three properties are asserted for every runtime-retained {@code @ConfigItem}
  * on the interface:
  * <ol>
  *   <li><b>Presence</b> — {@code DashboardPathfinderConfig} declares a method with
@@ -29,10 +28,7 @@ import shortestpath.TestShortestPathConfig;
  *       the twin exists so scenario config semantics never silently depend on
  *       upstream defaults).</li>
  *   <li><b>Setter</b> — the twin declares a {@code setXxx} setter following its
- *       {@code set} + capitalized-name convention so presets can mutate it.</li>
- *   <li><b>Dispatch</b> — {@code DashboardScenarioRunner.applyConfigOverrides}
- *       accepts the item's {@code keyName}, so {@code config_overrides} rows can
- *       stub it.</li>
+ *       {@code set} + capitalized-name convention so profiles and scenarios can set it.</li>
  *   <li><b>Default parity</b> — the value returned by a fresh twin equals the
  *       value returned by a fresh {@link TestShortestPathConfig}, unless the
  *       method is named in {@link #ALLOWLIST} with a justification.</li>
@@ -44,14 +40,13 @@ import shortestpath.TestShortestPathConfig;
  * members/setters are never enumerated or asserted.
  *
  * <p>The test is deterministic and read-only: it enumerates reflection metadata
- * and invokes dispatch on fresh twin instances only — no shared state, safe
+ * and reads fresh twin instances only — no shared state, safe
  * under Gradle parallel test execution.
  */
 public class ConfigParityTest {
 
     /**
-     * Methods deliberately NOT twinned: exempt from presence, setter, and
-     * dispatch checks (they still run through default parity — a method absent
+     * Methods deliberately NOT twinned: exempt from presence and setter checks (they still run through default parity — a method absent
      * from the twin invokes the same interface default on both sides, so the
      * comparison stays meaningful). Map value = one-line justification.
      */
@@ -147,22 +142,6 @@ public class ConfigParityTest {
         return "set" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1);
     }
 
-    private static String stubValue(Class<?> type) {
-        if (type == boolean.class || type == Boolean.class) {
-            return "true";
-        }
-        if (type == int.class || type == Integer.class) {
-            return "1";
-        }
-        if (type == String.class) {
-            return "x";
-        }
-        if (type.isEnum()) {
-            return ((Enum<?>) type.getEnumConstants()[0]).name();
-        }
-        return null;
-    }
-
     @Test
     public void everyConfigItemHasATwinOverride() {
         List<String> missing = new ArrayList<>();
@@ -217,39 +196,6 @@ public class ConfigParityTest {
             }
         }
         assertTrue("@ConfigItem methods missing a twin setXxx setter: " + missing,
-            missing.isEmpty());
-    }
-
-    @Test
-    public void everyConfigItemIsDispatchable() throws Exception {
-        Method apply = DashboardScenarioRunner.class.getDeclaredMethod(
-            "applyConfigOverrides", Map.class, DashboardPathfinderConfig.class);
-        apply.setAccessible(true);
-        List<String> missing = new ArrayList<>();
-        for (Method m : configItems()) {
-            if (NO_TWIN_ALLOWLIST.containsKey(m.getName())) {
-                continue;
-            }
-            String stub = stubValue(m.getReturnType());
-            if (stub == null) {
-                missing.add(keyName(m) + " (no stub rule for "
-                    + m.getReturnType().getSimpleName() + ")");
-                continue;
-            }
-            Map<String, String> overrides = Collections.singletonMap(keyName(m), stub);
-            try {
-                apply.invoke(null, overrides, new DashboardPathfinderConfig());
-            } catch (InvocationTargetException e) {
-                Throwable cause = e.getCause();
-                if (cause instanceof IllegalArgumentException
-                    || cause instanceof IllegalStateException) {
-                    missing.add(keyName(m) + " (" + cause.getMessage() + ")");
-                } else {
-                    throw e;
-                }
-            }
-        }
-        assertTrue("@ConfigItem keyNames rejected by applyConfigOverrides: " + missing,
             missing.isEmpty());
     }
 

@@ -19,7 +19,7 @@ cache/
 keys.json
 
 # Debug test data
-src/test/resources/dashboard/debug.csv
+src/test/resources/scenarios/debug.csv
 
 # === OpenGSD (gsd-core) — keep ALL GSD-produced files out of git ===
 .cursor/

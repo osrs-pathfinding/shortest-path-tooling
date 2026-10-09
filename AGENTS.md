@@ -19,8 +19,8 @@ around it.
 | `shortest-path/` | Git submodule (pinned commit). Plugin sources + data in `src/main/resources/` (`collision-map.zip`, `destinations/`, `transports/`, `leagues/`). |
 | `accounts/` | Gradle subproject: the Java account profiles that generate `corpus/accounts/` and `corpus/profiles/`. |
 | `corpus/` | Canonical routes, generated account fixtures and schemas (see `corpus/README.md`). |
-| `src/test/java/shortestpath/` | All other Java lives under *test* sources: `dashboard/` (site generator), `dump/` (cache dumpers), `pathfinder/` (profiling). |
-| `src/test/resources/` | Dashboard web assets + CSV route datasets under `dashboard/` + region TSVs. |
+| `src/test/java/shortestpath/` | All other Java lives under *test* sources: `profiles/` (every named profile, account compiler), `scenarios/` (scenario suites), `dashboard/` (site generator), `benchmark/canonical/` (canonical benchmark + `route` CLI), `dump/` (cache dumpers), `pathfinder/` (profiling). |
+| `src/test/resources/` | Dashboard web assets, scenario data + expected lengths under `scenarios/`, region TSVs. |
 | `gradle/` | Task definitions: `dashboards.gradle`, `cache-dumpers.gradle`. |
 | `scripts/` | Python orchestration (see Scripts map below). |
 | `tests/` | pytest suite for the Python scripts (`fixtures/` for test data). |
@@ -50,16 +50,16 @@ python3 scripts/maintenance.py verify    # full gate: compile → submodule test
 python3 scripts/maintenance.py validate  # data validation: hard gate + advisory tiers
 ```
 
-Dashboard options are `-P` properties: `dashboardDataset` (default
-`/dashboard/routes.csv`), `dashboardBundle`, `dashboardTitle`,
+Dashboard options are `-P` properties: `dashboardSuite` (default
+`routes`; see `shortestpath.scenarios.Suites`), `dashboardDataset` (a
+data-only scenario CSV file to run instead), `dashboardBundle`, `dashboardTitle`,
 `dashboardSubtitle`, `dashboardProfile` (default: **auto** — profiling runs
 only for datasets of ≤ 200 scenarios; pass `true`/`false` to force),
 `dashboardHeatmap` (default true; only applies when profiling is on),
 `dashboardSeasonal`, `dashboardF2p`, `dashboardThreads` (parallel scenario
 workers; default `availableProcessors()-3`), `dashboardBackend` (routing
-engine: `LEGACY` default or `EXACT`; a per-row `pathfinderBackend` config
-override still wins, and exact searches record unprofiled). Other tasks: `captureExpectedLengths` (writes actual lengths
-back into the CSV) and the cache dumpers/probes in `gradle/cache-dumpers.gradle`
+engine: `LEGACY` default or `EXACT`; exact searches record unprofiled). Other tasks: `captureExpectedLengths` (writes actual lengths
+into `src/test/resources/scenarios/expected-lengths/<suite>.json`) and the cache dumpers/probes in `gradle/cache-dumpers.gradle`
 (`bankTileDump`, `sailingAmenityVarbitDump`, `leagueRegionDump`,
 `f2pRegionDump`, `leagueIdProbe`, `transportAnchorDrift`, the `briefcase*`
 scans, …). Dumpers take `-P<name>CacheDir=` and `-P<name>XteaPath=` props.
@@ -68,7 +68,7 @@ Profiling is expensive — check the `[profiled|unprofiled]` tag on the
 "Running N scenario(s)" banner to confirm what a run is doing:
 
 - **Large datasets auto-run unprofiled** (>200 scenarios, e.g.
-  `clue_locations_full.csv` — ~1 min vs tens of minutes). Pass
+  `clue_locations_full` — ~1 min vs tens of minutes). Pass
   `-PdashboardProfile=true` only when you specifically need profiled data
   for a big dataset.
 - **Small datasets stay profiled by default** (debugging keeps its
