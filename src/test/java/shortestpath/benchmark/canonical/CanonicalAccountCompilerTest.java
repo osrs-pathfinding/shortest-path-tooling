@@ -20,8 +20,8 @@ import net.runelite.api.Quest;
 import net.runelite.api.Skill;
 import org.junit.Test;
 import shortestpath.ItemVariations;
-import shortestpath.transport.PohNexusPortal;
-import shortestpath.transport.PohMountedItem;
+import shortestpath.poh.PohNexusPortal;
+import shortestpath.poh.PohMountedItem;
 
 public class CanonicalAccountCompilerTest {
     private static Path corpus() {
