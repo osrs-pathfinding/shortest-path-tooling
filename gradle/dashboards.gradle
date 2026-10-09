@@ -32,10 +32,10 @@ def dashboardThreads = providers.gradleProperty('dashboardThreads')
 // e.g. suite=clue-locations-full, profile=true
 //   → bundle: clue-locations-full-profiled, title: Clue Locations Full Profiled
 // Override with -PdashboardBundle=... or -PdashboardTitle=...
-def source = (dashboardDataset.get().isEmpty() ? dashboardSuite.get() : dashboardDataset.get()) +
-        (dashboardTier.get().isEmpty() ? '' : '_' + dashboardTier.get())
+def source = dashboardDataset.get().isEmpty() ? dashboardSuite.get() : dashboardDataset.get()
 def filename = source.tokenize('/').last()
-def stem = filename.contains('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename
+def stem = (filename.contains('.') ? filename.substring(0, filename.lastIndexOf('.')) : filename) +
+        (dashboardTier.get().isEmpty() ? '' : '_' + dashboardTier.get())
 def slug = stem.replace('_', '-').toLowerCase()
 def profiled = dashboardProfile.get() == 'true'
 def backendSlug = dashboardBackend.get().equalsIgnoreCase('LEGACY')
