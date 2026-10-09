@@ -81,7 +81,7 @@ public class PluginDependencyRuleTest
 	// New leaf packages must be added here — the lint only covers what it enumerates.
 	private static final List<String> LEAF_PACKAGES = List.of(
 		"transport", "pathfinder", "requirement", "leagues", "overlay",
-		"settings", "items", "spirittree");
+		"settings", "items", "spirittree", "poh");
 
 	private static final String PLUGIN_REFERENCE = "ShortestPathPlugin.";
 
@@ -161,6 +161,26 @@ public class PluginDependencyRuleTest
 			"SpiritTreeService reads PlayerStateSource for the availability refresh");
 		LEAF_EDGES.put("spirittree -> settings",
 			"TreeChange/SpiritTreeService read Effect facts and the teleportation settings");
+
+		// poh package — the extraction's seams. The inbound edges are the
+		// consumers that used to read the shell statics; the outbound edges
+		// are the service's reads of sibling leaf types.
+		LEAF_EDGES.put("overlay -> poh",
+			"PathTileOverlay reads PohService display/exit-info output");
+		LEAF_EDGES.put("pathfinder -> poh",
+			"PathfinderConfig/TransportAvailability delegate POH destination and transport remaps to PohService");
+		LEAF_EDGES.put("poh -> pathfinder",
+			"PohService exit-info walks PathStep positions");
+		LEAF_EDGES.put("poh -> settings",
+			"PohChange/PohService carry Effect facts and share the Settings config-group constant");
+		LEAF_EDGES.put("poh -> transport",
+			"PohService remap signatures read Transport/TransportType");
+		LEAF_EDGES.put("requirement -> poh",
+			"RoutingPolicy/Requirements delegate the POH gates' enablement reads to PohService");
+		LEAF_EDGES.put("settings -> poh",
+			"Settings/EffectiveConfig expose POH-facing effective-config reads");
+		LEAF_EDGES.put("transport -> poh",
+			"TransportTypeConfig reads POH-facing config types");
 
 		// Pre-existing edges frozen at lint introduction.
 		LEAF_EDGES.put("leagues -> requirement",
