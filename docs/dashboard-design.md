@@ -99,10 +99,20 @@ always Java; a suite whose rows all use a named profile unchanged may be data.
 | `seasonal_briefcase_routes` | Java (`SeasonalBriefcaseScenarios`) | Demonic Pacts League routes, including the briefcase |
 | `quetzal_whistle_routes` | Java (`QuetzalWhistleScenarios`) | Quetzal whistle and primo-quetzal routes |
 | `clue_locations_full` | data (`scenarios/clue_locations_full.csv`) | Full clue-step reachability corpus |
+| `canonical-smoke`, `canonical-standard`, `canonical` | the canonical corpus (`corpus/corpus/routes-v1.json`) | Each tier's routes × `early`/`mid`/`end`/`maxed`, named `<route id>/<profile>` like the benchmark cases; a profile in the route's `negativeProfiles` must not reach it |
 
-`Suites` registers them. Each suite has `src/test/resources/scenarios/expected-lengths/<suite>.json`,
-scenario name → exact path length, which `captureExpectedLengths` rewrites; `ScenariosTest` checks
-that the files and suites match.
+`Suites` registers them; `./gradlew -q scenarioSuites` lists them. A suite may have
+`src/test/resources/scenarios/expected-lengths/<suite>.json`, scenario name → exact path length,
+which `captureExpectedLengths` rewrites.
+
+Every suite runs the same ways: on the dashboard (`-PdashboardSuite=`, narrowed with
+`-PdashboardFilter=`), and one scenario at a time with the route CLI:
+
+```bash
+./gradlew route -ProuteSuite=routing-issues -ProuteScenario="#140) usable"   # name or unique part of it
+./gradlew route -ProuteSuite=canonical -ProuteScenario=gps-natural-0012/maxed -ProuteArgs="--algorithm exact --json"
+./gradlew route -ProuteSuite=canonical-smoke -ProuteArgs=--list
+```
 
 ### Java scenarios
 
@@ -217,6 +227,7 @@ Runs `DashboardTest` against one suite and writes a bundle into the output site.
 |---|---|---|
 | `dashboardSuite` | `routes` | The suite to run (see `Suites`) |
 | `dashboardDataset` | *(empty)* | A data-only scenario CSV file to run instead of a suite |
+| `dashboardFilter` | *(empty)* | Run only the scenarios whose name or category contains it (ignoring case), e.g. `issue-140` |
 | `dashboardBundle` | auto-derived from the suite name + profile flag | Bundle directory name |
 | `dashboardTitle` | auto-derived from the suite name | Title shown in the UI |
 | `dashboardSubtitle` | *(empty)* | Subtitle shown in the UI |

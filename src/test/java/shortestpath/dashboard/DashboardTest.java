@@ -68,6 +68,8 @@ import shortestpath.scenarios.Suites;
  *       ({@link shortestpath.scenarios.ScenarioData}) to run instead of a suite</td></tr>
  *   <tr><td>{@code dashboard.bundleName}</td><td>{@code routes}</td></tr>
  *   <tr><td>{@code dashboard.title}</td><td>{@code Dashboard}</td></tr>
+ *   <tr><td>{@code dashboard.filter}</td><td>unset; run only the scenarios whose name or
+ *       category contains it (ignoring case)</td></tr>
  *   <tr><td>{@code dashboard.subtitle}</td><td>suite or file name</td></tr>
  *   <tr><td>{@code dashboard.profile}</td><td>auto — on for datasets up to
  *       {@value #PROFILE_AUTO_MAX_SCENARIOS} scenarios, off above; an explicit
@@ -88,6 +90,7 @@ public class DashboardTest {
 
     private static final String SUITE_PROPERTY = "dashboard.suite";
     private static final String DATASET_PROPERTY = "dashboard.dataset";
+    private static final String FILTER_PROPERTY = "dashboard.filter";
     private static final String BUNDLE_NAME_PROPERTY = DashboardBundlePublisher.BUNDLE_NAME_PROPERTY;
     private static final String DEFAULT_SUITE = "routes";
     private static final int MAX_SCENARIOS = Integer.getInteger("reachability.maxTargets", 10000);
@@ -156,6 +159,10 @@ public class DashboardTest {
         Path siteRoot = bundlePublisher.getOutputRoot();
 
         List<Scenario> allScenarios = suite != null ? Suites.load(suite) : Suites.loadFile(Paths.get(file));
+        String filter = System.getProperty(FILTER_PROPERTY, "");
+        if (!filter.isEmpty()) {
+            allScenarios = Suites.filter(allScenarios, filter);
+        }
         List<Scenario> scenarios = allScenarios.subList(0, Math.min(MAX_SCENARIOS, allScenarios.size()));
 
         int n = scenarios.size();
@@ -365,11 +372,14 @@ public class DashboardTest {
                     }
                 }
 
-                List<String> details = List.of(
+                List<String> details = new ArrayList<>(List.of(
                     "Dataset: " + datasetLabel(dataset),
-                    "Scenario: " + scenario.getName(),
-                    "Preset: " + scenario.getProfile().name(),
-                    "Expected reachable: " + expectedReachable);
+                    "Scenario: " + scenario.getName()));
+                if (scenario.getDescription() != null) {
+                    details.add("Route: " + scenario.getDescription());
+                }
+                details.add("Preset: " + scenario.getProfile().name());
+                details.add("Expected reachable: " + expectedReachable);
 
                 PathfinderDashboardModels.RunRecord run = reportWriter.createRunRecord(
                     scenario.getName(),

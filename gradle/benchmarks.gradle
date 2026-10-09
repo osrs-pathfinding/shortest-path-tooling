@@ -51,16 +51,27 @@ tasks.register('benchmarkCanonical', JavaExec) {
 // Runs one canonical route for one account profile and prints the selected path.
 tasks.register('route', JavaExec) {
     group = 'verification'
-    description = 'Runs one canonical route query and prints its selected path.'
+    description = 'Runs one route query and prints its selected path: a canonical route, coordinates, ' +
+            'or a suite scenario (-ProuteSuite=SUITE -ProuteScenario="NAME", or -ProuteSuite=SUITE ' +
+            '-ProuteArgs=--list).'
     dependsOn 'testClasses'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'shortestpath.benchmark.canonical.CanonicalRouteCli'
     def routeArgs = providers.gradleProperty('routeArgs')
+    // Passed as single arguments, so scenario names may contain spaces.
+    def routeSuite = providers.gradleProperty('routeSuite')
+    def routeScenario = providers.gradleProperty('routeScenario')
     doFirst {
-        if (!routeArgs.isPresent()) {
-            throw new GradleException('route requires -ProuteArgs="[--corpus DIR] PROFILE START_X START_Y START_PLANE TARGET_X TARGET_Y TARGET_PLANE"')
+        if (!routeArgs.isPresent() && !routeSuite.isPresent()) {
+            throw new GradleException('route requires -ProuteArgs="[--corpus DIR] PROFILE START_X START_Y START_PLANE TARGET_X TARGET_Y TARGET_PLANE" or -ProuteSuite=SUITE -ProuteScenario="NAME"')
         }
-        def parsed = routeArgs.get().trim().split(/\s+/) as List
+        def parsed = routeArgs.isPresent() ? (routeArgs.get().trim().split(/\s+/) as List) : []
+        if (routeSuite.isPresent()) {
+            parsed += ['--suite', routeSuite.get()]
+        }
+        if (routeScenario.isPresent()) {
+            parsed += ['--scenario', routeScenario.get()]
+        }
         if (!parsed.contains('--corpus')) {
             // The CLI only accepts its optional `route` token first.
             int at = parsed && parsed[0] == 'route' ? 1 : 0

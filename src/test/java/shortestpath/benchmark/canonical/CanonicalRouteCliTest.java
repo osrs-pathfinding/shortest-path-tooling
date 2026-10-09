@@ -45,6 +45,38 @@ public class CanonicalRouteCliTest {
     }
 
     @Test
+    public void suiteScenarioMatchesTheCanonicalRouteQuery() throws Exception {
+        JsonObject positional = query("transport-heavy-0001", "maxed");
+        JsonObject scenario = queryArgs("--suite", "canonical", "--scenario", "transport-heavy-0001/maxed", "--json");
+        assertEquals("canonical", scenario.get("suite").getAsString());
+        assertEquals("transport-heavy-0001/maxed", scenario.get("scenario").getAsString());
+        assertEquals("maxed", scenario.get("profile").getAsString());
+        assertEquals(positional.get("cost"), scenario.get("cost"));
+        assertEquals(positional.get("path"), scenario.get("path"));
+    }
+
+    @Test
+    public void runsAJavaSuiteScenarioByUniqueSubstring() throws Exception {
+        JsonObject usable = queryArgs("--suite", "routing-issues", "--scenario", "#140) usable", "--json");
+        assertEquals("Mage arena tele (#140) usable after guardian talk", usable.get("scenario").getAsString());
+        assertEquals("UNIT_TEST", usable.get("profile").getAsString());
+        assertTrue(usable.getAsJsonArray("transports").toString().contains("Mage Training Arena"));
+        try {
+            queryArgs("--suite", "routing-issues", "--scenario", "#140", "--json");
+            fail("an ambiguous scenario query must list its matches");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("locked before guardian talk"));
+        }
+    }
+
+    @Test
+    public void acceptsPresetProfiles() throws Exception {
+        JsonObject result = queryArgs("UNIT_TEST", "3222", "3218", "0", "3105", "3251", "0", "--json");
+        assertEquals("UNIT_TEST", result.get("profile").getAsString());
+        assertTrue(result.get("reachable").getAsBoolean());
+    }
+
+    @Test
     public void repeatedQueryIsStable() throws Exception {
         JsonObject first = query("transport-heavy-0022", "maxed");
         JsonObject second = query("transport-heavy-0022", "maxed");

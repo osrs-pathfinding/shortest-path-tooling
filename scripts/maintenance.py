@@ -962,22 +962,19 @@ def scan_report(path: Path) -> List[str]:
 
 
 def dashboard_datasets() -> List[str]:
-    """Committed dashboard scenario suite names, sorted.
+    """Every dashboard scenario suite name, sorted.
 
-    Suites are Java (``shortestpath.scenarios.Suites``); each has exactly
-    one ``src/test/resources/scenarios/expected-lengths/<suite>.json``,
-    which ``ScenariosTest`` enforces, so the files name the suites.  The
-    sweep enumerates ``git ls-files`` — never the filesystem — so
-    gitignored scratch state can never leak into the gate, and newly
-    committed suites are picked up automatically.
+    Suites are defined in Java (``shortestpath.scenarios.Suites``: the
+    Java suites, the clue data and the canonical corpus tiers);
+    ``./gradlew -q scenarioSuites`` prints them, one per line.  A failed
+    listing returns no suites, which the sweep reports as a broken gate.
     """
-    proc = run(["git", "ls-files",
-                "src/test/resources/scenarios/expected-lengths/"],
-               cwd=REPO, timeout=GIT_TIMEOUT_SECONDS)
-    return sorted(
-        Path(line).stem
-        for line in (proc.stdout or "").splitlines()
-        if line.strip().endswith(".json"))
+    proc = run(["./gradlew", "-q", "scenarioSuites"], cwd=REPO,
+               timeout=GRADLE_TIMEOUT_SECONDS)
+    if proc.returncode != 0:
+        return []
+    return sorted(line.strip() for line in (proc.stdout or "").splitlines()
+                  if re.fullmatch(r"[A-Za-z0-9_.-]+", line.strip()))
 
 
 _SCENARIO_PROGRESS = re.compile(r"^\s*\[\s*(\d+)\s*/\s*(\d+)\]")
@@ -1062,8 +1059,7 @@ def do_verify(args: argparse.Namespace) -> int:
         if not datasets:
             # An empty sweep is a broken gate, not a green one.
             failures.append(
-                "no committed dashboard suites found via "
-                "git ls-files")
+                "no dashboard suites listed by ./gradlew scenarioSuites")
         for idx, suite in enumerate(datasets, 1):
             argv = ["./gradlew", "dashboard",
                     f"-PdashboardSuite={suite}",

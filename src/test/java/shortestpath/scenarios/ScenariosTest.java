@@ -29,13 +29,36 @@ public class ScenariosTest {
     private static final Path RESOURCES = Path.of("src/test/resources");
 
     @Test
-    public void everySuiteHasExactlyOneExpectedLengthsFile() throws IOException {
+    public void everyExpectedLengthsFileNamesASuite() throws IOException {
         Set<String> files;
         try (Stream<Path> listing = Files.list(RESOURCES.resolve("scenarios/expected-lengths"))) {
             files = listing.map(path -> path.getFileName().toString().replaceFirst("\\.json$", ""))
                 .collect(Collectors.toSet());
         }
-        assertEquals(Suites.names(), files);
+        assertTrue("lengths for unknown suites: " + files, Suites.names().containsAll(files));
+    }
+
+    @Test
+    public void canonicalSuitesAreEveryTierRouteWithEveryProfile() throws IOException {
+        List<shortestpath.benchmark.canonical.CanonicalRoute> routes =
+            shortestpath.benchmark.canonical.CanonicalCorpusLoader.loadRoutes(
+                CanonicalScenarios.corpusDir().resolve("corpus/routes-v1.json"));
+        for (String[] suite : new String[][] {{"canonical-smoke", "smoke"}, {"canonical-standard", "standard"},
+                {"canonical", "full"}}) {
+            long tierRoutes = routes.stream().filter(route -> route.getTiers().contains(suite[1])).count();
+            assertEquals(suite[0], tierRoutes * 4, Suites.load(suite[0]).size());
+        }
+        Map<String, Scenario> canonical = Suites.load("canonical").stream()
+            .collect(Collectors.toMap(Scenario::getName, scenario -> scenario));
+        for (var route : routes) {
+            for (String profile : List.of("early", "mid", "end", "maxed")) {
+                Scenario scenario = canonical.get(route.getId() + "/" + profile);
+                assertEquals(route.getName(), scenario.getDescription());
+                assertEquals(profile, scenario.getProfile().name());
+                assertEquals(route.isAllowTransports(), scenario.isAllowTransports());
+                assertEquals(!route.getNegativeProfiles().contains(profile), scenario.isExpectedReachable());
+            }
+        }
     }
 
     @Test
@@ -52,7 +75,7 @@ public class ScenariosTest {
     @Test
     public void javaSuitesCompile() throws IOException {
         for (String suite : Suites.names()) {
-            if (suite.equals("clue_locations_full")) {
+            if (suite.equals("clue_locations_full") || suite.startsWith("canonical")) {
                 continue;
             }
             for (Scenario scenario : Suites.load(suite)) {

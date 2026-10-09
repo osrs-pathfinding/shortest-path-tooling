@@ -22,10 +22,11 @@ public final class ExpectedLengths {
 
     private ExpectedLengths() { }
 
+    /** The suite's lengths; empty when it has no file. */
     public static Map<String, Integer> load(String suite) throws IOException {
         try (InputStream in = ExpectedLengths.class.getResourceAsStream(RESOURCE_DIR + suite + ".json")) {
             if (in == null) {
-                throw new IOException("suite " + suite + " has no " + RESOURCE_DIR + suite + ".json");
+                return Map.of();
             }
             return parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
         }

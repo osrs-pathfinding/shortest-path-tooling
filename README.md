@@ -66,8 +66,10 @@ The default remains the `./shortest-path` Git submodule.
 | `./gradlew benchmarkCanonical --args="..."` | Run a resolved benchmark manifest (used by shortest-path-benchmarks) |
 | `./gradlew route -ProuteArgs="..."` | Query one canonical route and print its selected path |
 
-The route query uses the same canonical account compiler and adapter as
-`benchmarkCanonical`. It reads the in-repo `corpus/` unless `--corpus DIR` is given; add
+The route query uses the same profiles and adapter as `benchmarkCanonical`. PROFILE is any
+profile (`early`/`mid`/`end`/`maxed` or a dashboard preset such as `UNIT_TEST`), and
+`-ProuteSuite=SUITE -ProuteScenario="NAME"` runs one scenario of any suite
+(`-ProuteArgs=--list` lists them). It reads the in-repo `corpus/` unless `--corpus DIR` is given; add
 `--algorithm exact`, `--json` or `--counters` as needed. Routes can be given by
 corpus ID (`--route ID --profile PROFILE`) or by coordinates:
 
@@ -111,7 +113,8 @@ All options are passed via `-P`:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `dashboardSuite` | `routes` | Scenario suite to run (see `shortestpath.scenarios.Suites`) |
+| `dashboardSuite` | `routes` | Scenario suite to run (`./gradlew -q scenarioSuites` lists them, including the `canonical*` corpus tiers) |
+| `dashboardFilter` | *(empty)* | Run only scenarios whose name or category contains it |
 | `dashboardDataset` | *(empty)* | A data-only scenario CSV file to run instead of a suite |
 | `dashboardBundle` | derived from the suite name | Bundle name in the output site |
 | `dashboardTitle` | derived from the suite name | Title shown in the UI |

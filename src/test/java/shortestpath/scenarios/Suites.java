@@ -14,9 +14,11 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * Every committed scenario suite, by name. Suites with account or settings overrides are Java;
- * {@code clue_locations_full} is data ({@link ScenarioData}). Each suite's expected lengths are
- * in {@code /scenarios/expected-lengths/<suite>.json}.
+ * Every scenario suite, by name. Suites with account or settings overrides are Java;
+ * {@code clue_locations_full} is data ({@link ScenarioData}); {@code canonical},
+ * {@code canonical-standard} and {@code canonical-smoke} are the canonical corpus tiers
+ * ({@link CanonicalScenarios}). A suite's optional exact lengths are in
+ * {@code /scenarios/expected-lengths/<suite>.json}.
  */
 public final class Suites {
     private static final Map<String, Consumer<Suite>> SUITES = new LinkedHashMap<>();
@@ -30,9 +32,17 @@ public final class Suites {
         SUITES.put("seasonal_briefcase_routes", SeasonalBriefcaseScenarios::define);
         SUITES.put("quetzal_whistle_routes", QuetzalWhistleScenarios::define);
         SUITES.put("clue_locations_full", suite -> data(suite, "/scenarios/clue_locations_full.csv"));
+        SUITES.put("canonical-smoke", suite -> CanonicalScenarios.define(suite, "smoke"));
+        SUITES.put("canonical-standard", suite -> CanonicalScenarios.define(suite, "standard"));
+        SUITES.put("canonical", suite -> CanonicalScenarios.define(suite, "full"));
     }
 
     private Suites() { }
+
+    /** Prints every suite name, one per line: {@code ./gradlew -q scenarioSuites}. */
+    public static void main(String[] args) {
+        names().forEach(System.out::println);
+    }
 
     public static Set<String> names() {
         return Collections.unmodifiableSet(SUITES.keySet());
@@ -47,6 +57,43 @@ public final class Suites {
         Suite scenarios = new Suite();
         definition.accept(scenarios);
         return withLengths(build(suite, scenarios.scenarios()), ExpectedLengths.load(suite));
+    }
+
+    /**
+     * The scenario of {@code suite} called {@code query}, or else the only one whose name contains
+     * it (ignoring case).
+     */
+    public static Scenario find(String suite, String query) throws IOException {
+        List<Scenario> scenarios = load(suite);
+        for (Scenario scenario : scenarios) {
+            if (scenario.getName().equals(query)) {
+                return scenario;
+            }
+        }
+        List<Scenario> matches = filter(scenarios, query);
+        if (matches.size() == 1) {
+            return matches.get(0);
+        }
+        if (matches.isEmpty()) {
+            throw new IllegalArgumentException("no scenario in " + suite + " matches '" + query + "'");
+        }
+        StringBuilder message = new StringBuilder(matches.size() + " scenarios in " + suite
+            + " match '" + query + "':");
+        matches.stream().limit(20).forEach(match -> message.append("\n  ").append(match.getName()));
+        throw new IllegalArgumentException(message.toString());
+    }
+
+    /** The scenarios whose name or category contains {@code query}, ignoring case. */
+    public static List<Scenario> filter(List<Scenario> scenarios, String query) {
+        String needle = query.toLowerCase(java.util.Locale.ROOT);
+        List<Scenario> result = new ArrayList<>();
+        for (Scenario scenario : scenarios) {
+            if (scenario.getName().toLowerCase(java.util.Locale.ROOT).contains(needle)
+                    || scenario.getCategory().toLowerCase(java.util.Locale.ROOT).contains(needle)) {
+                result.add(scenario);
+            }
+        }
+        return result;
     }
 
     /** A data-only scenario file outside the committed suites; it has no expected lengths. */

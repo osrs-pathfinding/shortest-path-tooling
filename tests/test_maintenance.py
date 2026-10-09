@@ -1516,15 +1516,16 @@ def test_probes_failure_continues_and_reports(tmp_path, monkeypatch,
 # ---------- verify subcommand ----------
 
 
-# One expected-lengths file per committed suite names the suites.
+# What ./gradlew -q scenarioSuites prints.
 DASHBOARD_CSVS = [
-    "clue_locations_full.json",
-    "collision-map-issues.json",
-    "f2p_routes.json",
-    "quetzal_whistle_routes.json",
-    "routes.json",
-    "seasonal_briefcase_routes.json",
-    "unit-tests.json",
+    "canonical",
+    "clue_locations_full",
+    "collision-map-issues",
+    "f2p_routes",
+    "quetzal_whistle_routes",
+    "routes",
+    "seasonal_briefcase_routes",
+    "unit-tests",
 ]
 
 
@@ -1641,10 +1642,8 @@ def make_verify_run(repo, calls, *, datasets=None, compile_rc=0,
 
     def fake_run(cmd, *, cwd=None, timeout=None, binary=False, stream=False, on_line=None):
         calls.append((list(cmd), cwd))
-        if cmd[:2] == ["git", "ls-files"]:
-            return cp(cmd, "".join(
-                f"src/test/resources/scenarios/expected-lengths/{d}\n"
-                for d in datasets))
+        if cmd == ["./gradlew", "-q", "scenarioSuites"]:
+            return cp(cmd, "".join(f"{d}\n" for d in datasets))
         if cmd[:3] == ["git", "ls-tree", "HEAD"]:
             return cp(cmd, gitlink, rc=ls_tree_rc)
         if cmd[:4] == ["git", "-C", "shortest-path", "show"]:
@@ -1654,7 +1653,7 @@ def make_verify_run(repo, calls, *, datasets=None, compile_rc=0,
         if cmd[:2] == ["./gradlew", "dashboard"]:
             suite = next(a.split("=", 1)[1] for a in cmd
                          if a.startswith("-PdashboardSuite="))
-            csv = suite + ".json"
+            csv = suite
             slug = suite.lower().replace("_", "-")
             runs = (runs_for(csv) if runs_for
                     else [make_run_record(csv)])
@@ -1703,31 +1702,29 @@ def verify_kind(cmd):
     return "git"
 
 
-def test_verify_derives_datasets_from_git_ls_files(tmp_path,
+def test_verify_derives_datasets_from_scenario_suites(tmp_path,
                                                    monkeypatch):
     repo, _, calls = prepare_verify(tmp_path, monkeypatch)
     rc = mm.main(["verify"])
     assert rc == 0
     dashboards = [c for c, _ in calls
                   if c[:2] == ["./gradlew", "dashboard"]]
-    assert len(dashboards) == 7
+    assert len(dashboards) == len(DASHBOARD_CSVS)
     for cmd in dashboards:
         assert "-PdashboardProfile=false" in cmd
     swept = sorted(
         next(a for a in c if a.startswith("-PdashboardSuite="))
         .split("=", 1)[1] for c in dashboards)
-    assert swept == sorted(
-        Path(name).stem for name in DASHBOARD_CSVS)
-    # Gitignored scratch state can never enter the sweep — the list
-    # comes from git ls-files, not a directory glob.
-    assert not any("debug" in a for c in dashboards for a in c)
+    assert swept == sorted(DASHBOARD_CSVS)
+    # The list comes from the Java suite registry, never a directory glob.
+    assert ["./gradlew", "-q", "scenarioSuites"] in [c for c, _ in calls]
 
 
-def test_verify_datasets_ignore_non_json(tmp_path, monkeypatch):
-    # A committed README/.gitignore under expected-lengths/ is not a suite.
+def test_verify_datasets_ignore_non_suite_lines(tmp_path, monkeypatch):
+    # Stray Gradle output around the suite list is not a suite.
     repo, _, calls = prepare_verify(
         tmp_path, monkeypatch,
-        datasets=["routes.json", "README.md", ".gitignore"])
+        datasets=["routes", "Note: Some input files use a deprecated API.", ""])
     rc = mm.main(["verify"])
     assert rc == 0
     dashboards = [c for c, _ in calls
@@ -1746,15 +1743,15 @@ def test_verify_overlay_flags(tmp_path, monkeypatch):
             continue
         name = next(a for a in cmd
                     if a.startswith("-PdashboardSuite=")).split(
-                        "=", 1)[1] + ".json"
+                        "=", 1)[1]
         by_dataset[name] = cmd
     assert "-PdashboardSeasonal=true" in \
-        by_dataset["seasonal_briefcase_routes.json"]
-    assert "-PdashboardF2p=true" in by_dataset["f2p_routes.json"]
+        by_dataset["seasonal_briefcase_routes"]
+    assert "-PdashboardF2p=true" in by_dataset["f2p_routes"]
     assert not any("dashboardSeasonal" in a
-                   for a in by_dataset["routes.json"])
+                   for a in by_dataset["routes"])
     assert not any("dashboardF2p" in a
-                   for a in by_dataset["routes.json"])
+                   for a in by_dataset["routes"])
 
 
 def test_verify_compile_failure_marks_tier_but_continues(
@@ -1787,7 +1784,7 @@ def test_verify_dashboard_tier_reads_bundles(tmp_path, monkeypatch,
     # build/reports/pathfinder-dashboard/bundles/{slug}/report.json —
     # a clean report at the real location must pass the tier.
     repo, _, calls = prepare_verify(
-        tmp_path, monkeypatch, datasets=["routes.json"])
+        tmp_path, monkeypatch, datasets=["routes"])
     rc = mm.main(["verify"])
     assert rc == 0
     assert "PASS dashboard" in capsys.readouterr().out
@@ -1802,7 +1799,7 @@ def test_verify_dashboard_tier_still_fails_closed(tmp_path, monkeypatch,
         return [make_run_record("no path", reached=False)]
 
     repo, _, calls = prepare_verify(
-        tmp_path, monkeypatch, datasets=["routes.json"],
+        tmp_path, monkeypatch, datasets=["routes"],
         runs_for=runs_for)
     rc = mm.main(["verify"])
     assert rc == 1
@@ -1811,8 +1808,8 @@ def test_verify_dashboard_tier_still_fails_closed(tmp_path, monkeypatch,
     assert "no path: unreachable" in out
 
     repo, _, calls = prepare_verify(
-        tmp_path / "missing", monkeypatch, datasets=["routes.json"],
-        missing_reports=["routes.json"])
+        tmp_path / "missing", monkeypatch, datasets=["routes"],
+        missing_reports=["routes"])
     rc = mm.main(["verify"])
     assert rc == 1
     assert "missing or unreadable report" in capsys.readouterr().out
@@ -1823,7 +1820,7 @@ def test_verify_scan_path_contains_bundles(tmp_path, monkeypatch):
     # bundles/ segment the publisher always writes — a future layout
     # edit cannot silently re-break the tier.
     repo, _, calls = prepare_verify(
-        tmp_path, monkeypatch, datasets=["routes.json"])
+        tmp_path, monkeypatch, datasets=["routes"])
     seen = []
     real = mm.scan_report
 
@@ -1924,7 +1921,7 @@ def test_verify_skip_flags(tmp_path, monkeypatch):
 def test_verify_returns_nonzero_on_any_tier_failure(
         tmp_path, monkeypatch, capsys):
     def runs_for(csv):
-        if csv == "routes.json":
+        if csv == "routes":
             return [make_run_record("broken route", reached=False)]
         return [make_run_record(csv)]
 

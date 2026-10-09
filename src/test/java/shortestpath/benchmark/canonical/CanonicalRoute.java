@@ -14,6 +14,7 @@ public final class CanonicalRoute {
     private final int[] start;
     private final int[] target;
     private final boolean allowTransports;
+    private final List<String> tiers;
     private final List<String> negativeProfiles;
 
     private CanonicalRoute(JsonObject json) {
@@ -22,6 +23,7 @@ public final class CanonicalRoute {
         start = point(json, "start");
         target = point(json, "target");
         allowTransports = requiredBoolean(json, "allowTransports");
+        tiers = json.has("tiers") ? strings(json, "tiers") : Collections.emptyList();
         negativeProfiles = json.has("negativeProfiles")
             ? strings(json, "negativeProfiles") : Collections.emptyList();
     }
@@ -38,6 +40,8 @@ public final class CanonicalRoute {
     public int getTargetPacked() { return WorldPointUtil.packWorldPoint(target[0], target[1], target[2]); }
     public boolean isAllowTransports() { return allowTransports; }
     public List<String> getNegativeProfiles() { return negativeProfiles; }
+    /** Benchmark tiers containing the route: {@code smoke}, {@code standard}, {@code full}. */
+    public List<String> getTiers() { return tiers; }
 
     private static int[] point(JsonObject json, String field) {
         JsonArray array = required(json, field).getAsJsonArray();

@@ -6,6 +6,9 @@ def dashboardSuite = providers.gradleProperty('dashboardSuite')
         .orElse('routes')
 def dashboardDataset = providers.gradleProperty('dashboardDataset')
         .orElse('')
+// Run only the scenarios whose name or category contains this text (ignoring case).
+def dashboardFilter = providers.gradleProperty('dashboardFilter')
+        .orElse('')
 def dashboardSubtitle = providers.gradleProperty('dashboardSubtitle')
         .orElse('')
 // Empty when not set: the test then auto-decides profiling by dataset size.
@@ -55,6 +58,7 @@ tasks.register('dashboard', Test) {
     description = 'Builds the pathfinder dashboard from DashboardTest scenarios. ' +
             'Options (all via -P): dashboardSuite (default: routes; see shortestpath.scenarios.Suites), ' +
             'dashboardDataset (a data-only scenario CSV file to run instead of a suite), ' +
+            'dashboardFilter (run only scenarios whose name or category contains it), ' +
             'dashboardBundle, dashboardTitle, dashboardSubtitle, dashboardProfile ' +
             '(default: auto — on for datasets up to 200 scenarios, off above; ' +
             'pass true/false to force), ' +
@@ -85,6 +89,10 @@ tasks.register('dashboard', Test) {
     if (!dashboardDataset.get().isEmpty()) {
         systemProperty 'dashboard.dataset', file(dashboardDataset.get()).absolutePath
     }
+    if (!dashboardFilter.get().isEmpty()) {
+        systemProperty 'dashboard.filter', dashboardFilter.get()
+    }
+    systemProperty 'benchmark.corpusDir', rootProject.file('corpus').absolutePath
     if (!dashboardProfile.get().isEmpty()) {
         systemProperty 'dashboard.profile', dashboardProfile.get()
     }
@@ -109,6 +117,7 @@ tasks.register('captureExpectedLengths', Test) {
     description = 'Runs one suite and writes actual path lengths into ' +
             'src/test/resources/scenarios/expected-lengths/<suite>.json. ' +
             'Options: dashboardSuite (default: routes), ' +
+            'dashboardFilter (capture only scenarios whose name or category contains it), ' +
             'dashboardProfile (default: auto — off above 200 scenarios; pass true/false to force), ' +
             'dashboardHeatmap (default: true), ' +
             'dashboardThreads (parallel scenario workers, default: availableProcessors()-3).'
@@ -130,6 +139,10 @@ tasks.register('captureExpectedLengths', Test) {
     if (!dashboardDataset.get().isEmpty()) {
         systemProperty 'dashboard.dataset', file(dashboardDataset.get()).absolutePath
     }
+    if (!dashboardFilter.get().isEmpty()) {
+        systemProperty 'dashboard.filter', dashboardFilter.get()
+    }
+    systemProperty 'benchmark.corpusDir', rootProject.file('corpus').absolutePath
     if (!dashboardProfile.get().isEmpty()) {
         systemProperty 'dashboard.profile', dashboardProfile.get()
     }
@@ -147,3 +160,12 @@ tasks.register('captureExpectedLengths', Test) {
     }
 }
 
+
+// Prints every scenario suite name, one per line (maintenance.py verify sweeps them all).
+tasks.register('scenarioSuites', JavaExec) {
+    group = 'help'
+    description = 'Lists the scenario suites the dashboard can run.'
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'shortestpath.scenarios.Suites'
+}

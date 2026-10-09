@@ -35,6 +35,8 @@ public final class Scenario {
     private final Profile profile;
     private final Consumer<Account.Builder> account;
     private final Consumer<DashboardPathfinderConfig> settings;
+    private final boolean allowTransports;
+    private final String description;
     private final boolean expectedReachable;
     private final OptionalInt minimumLength;
     private final OptionalInt expectedLength;
@@ -47,6 +49,8 @@ public final class Scenario {
         profile = Objects.requireNonNull(builder.profile, () -> "scenario " + name + " has no profile");
         account = builder.account;
         settings = builder.settings;
+        allowTransports = builder.allowTransports;
+        description = builder.description;
         expectedReachable = builder.expectedReachable;
         minimumLength = builder.minimumLength;
         this.expectedLength = expectedLength;
@@ -65,13 +69,16 @@ public final class Scenario {
     public int getStartPoint() { return start; }
     public int getEndPoint() { return target; }
     public Profile getProfile() { return profile; }
+    public boolean isAllowTransports() { return allowTransports; }
+    /** A human-readable route label beyond the name, or {@code null}. */
+    public String getDescription() { return description; }
     public boolean isExpectedReachable() { return expectedReachable; }
     public OptionalInt getMinimumLength() { return minimumLength; }
     public OptionalInt getExpectedLength() { return expectedLength; }
 
     /** The profile's account and settings with this scenario's overrides applied. */
     public Setup setup() {
-        Setup setup = profile.setup(new ProfileContext(start, true));
+        Setup setup = profile.setup(new ProfileContext(start, allowTransports));
         account.accept(setup.account);
         settings.accept(setup.settings);
         return setup;
@@ -93,6 +100,8 @@ public final class Scenario {
         builder.profile = profile;
         builder.account = account;
         builder.settings = settings;
+        builder.allowTransports = allowTransports;
+        builder.description = description;
         builder.expectedReachable = expectedReachable;
         builder.minimumLength = minimumLength;
         return builder;
@@ -106,6 +115,8 @@ public final class Scenario {
         private Profile profile;
         private Consumer<Account.Builder> account = account -> { };
         private Consumer<DashboardPathfinderConfig> settings = settings -> { };
+        private boolean allowTransports = true;
+        private String description;
         private boolean expectedReachable = true;
         private OptionalInt minimumLength = OptionalInt.empty();
 
@@ -138,6 +149,21 @@ public final class Scenario {
         /** Overrides the profile's plugin settings; applied after the profile and after earlier calls. */
         public Builder settings(Consumer<DashboardPathfinderConfig> override) {
             settings = settings.andThen(override);
+            return this;
+        }
+
+        /**
+         * Whether the profile may enable transports at all (default true). Only the canonical
+         * profiles read it; a canonical route with {@code allowTransports: false} walks.
+         */
+        public Builder allowTransports(boolean value) {
+            allowTransports = value;
+            return this;
+        }
+
+        /** A human-readable route label shown next to the name, e.g. a canonical route's name. */
+        public Builder description(String value) {
+            description = value;
             return this;
         }
 

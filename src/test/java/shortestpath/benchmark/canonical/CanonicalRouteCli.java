@@ -16,12 +16,16 @@ import shortestpath.pathfinder.PathfinderConfig;
 import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.TransportAvailability;
 import shortestpath.pathfinder.exact.RoutingStatic;
-import shortestpath.corpus.profiles.CanonicalAccounts;
 import shortestpath.profiles.CompiledAccount;
+import shortestpath.profiles.Profile;
+import shortestpath.profiles.ProfileContext;
+import shortestpath.profiles.Profiles;
+import shortestpath.scenarios.Scenario;
+import shortestpath.scenarios.Suites;
 import shortestpath.pathfinder.exact.ExactForwardSearch;
 import shortestpath.transport.Transport;
 
-/** Command-line frontend for querying one canonical Java route. */
+/** Command-line frontend for querying one route: a canonical route, coordinates, or any suite scenario. */
 public final class CanonicalRouteCli {
     private CanonicalRouteCli() { }
 
@@ -36,6 +40,14 @@ public final class CanonicalRouteCli {
 
     static void run(String[] rawArgs) throws Exception {
         Arguments arguments = Arguments.parse(rawArgs);
+        if (arguments.corpus != null) {
+            // The canonical suites read the corpus the query names.
+            System.setProperty("benchmark.corpusDir", arguments.corpus.toString());
+        }
+        if (arguments.suite != null) {
+            runSuite(arguments);
+            return;
+        }
         List<CanonicalRoute> routes = CanonicalCorpusLoader.loadRoutes(
             arguments.corpus.resolve("corpus/routes-v1.json"));
         RoutingStatic routingStatic = arguments.algorithm.equals("exact")
@@ -66,6 +78,40 @@ public final class CanonicalRouteCli {
             routingStatic);
     }
 
+    /** {@code --suite S --list} lists its scenarios; {@code --suite S --scenario Q} runs one. */
+    private static void runSuite(Arguments arguments) throws Exception {
+        if (arguments.list) {
+            List<Scenario> scenarios = Suites.load(arguments.suite);
+            if (arguments.json) {
+                JsonArray rows = new JsonArray();
+                for (Scenario scenario : scenarios) {
+                    JsonObject row = new JsonObject();
+                    row.addProperty("name", scenario.getName());
+                    row.addProperty("category", scenario.getCategory());
+                    row.addProperty("profile", scenario.getProfile().name());
+                    row.addProperty("description", scenario.getDescription());
+                    rows.add(row);
+                }
+                System.out.println(new GsonBuilder().serializeNulls().create().toJson(rows));
+            } else {
+                for (Scenario scenario : scenarios) {
+                    System.out.println(scenario.getName() + "\t" + scenario.getCategory());
+                }
+            }
+            return;
+        }
+        Scenario scenario = Suites.find(arguments.suite, arguments.scenario);
+        RoutingStatic routingStatic = arguments.algorithm.equals("exact")
+            ? CanonicalRouteAdapter.buildRoutingStatic() : null;
+        int start = scenario.getStartPoint() != WorldPointUtil.UNDEFINED
+            ? scenario.getStartPoint() : DEFAULT_START;
+        query(start, scenario.getEndPoint(), null, arguments.suite, scenario, scenario.getProfile().name(),
+            scenario.compile(), arguments, routingStatic);
+    }
+
+    /** Where a scenario without a start begins, as on the dashboard: the Grand Exchange. */
+    private static final int DEFAULT_START = WorldPointUtil.packWorldPoint(3185, 3436, 0);
+
     private static CanonicalRoute findRoute(List<CanonicalRoute> routes, String selector) {
         return routes.stream()
             .filter(route -> route.getId().equals(selector) || route.getName().equals(selector))
@@ -75,8 +121,21 @@ public final class CanonicalRouteCli {
 
     private static void query(int start, int target, CanonicalRoute route, String profileName,
             boolean allowTransports, Arguments arguments, RoutingStatic routingStatic) throws Exception {
-        CompiledAccount account = CanonicalAccountCompiler.compile(profileName, allowTransports,
-            CanonicalAccounts.benchmarkNowMinutes());
+        Profile profile;
+        try {
+            profile = Profiles.get(profileName);
+        } catch (IllegalArgumentException unknown) {
+            List<String> names = new ArrayList<>(Profiles.canonicalNames());
+            names.addAll(Profiles.presetNames());
+            throw new IllegalArgumentException("unknown profile \"" + profileName + "\"; expected "
+                + String.join(", ", names));
+        }
+        CompiledAccount account = profile.setup(new ProfileContext(start, allowTransports)).compile();
+        query(start, target, route, null, null, profileName, account, arguments, routingStatic);
+    }
+
+    private static void query(int start, int target, CanonicalRoute route, String suite, Scenario scenario,
+            String profileName, CompiledAccount account, Arguments arguments, RoutingStatic routingStatic) {
         ExactPathfinder exact = arguments.algorithm.equals("exact")
             ? CanonicalRouteAdapter.runExact(start, target, account, routingStatic, null) : null;
         PathfinderResult result = exact == null
@@ -85,18 +144,27 @@ public final class CanonicalRouteCli {
             ? transports(result.getPathSteps(), account.getConfig()) : List.of();
         if (arguments.json) {
             System.out.println(new GsonBuilder().serializeNulls().create().toJson(
-                jsonResult(start, target, route, profileName, arguments.algorithm, result, transports)));
+                jsonResult(start, target, route, suite, scenario, profileName, arguments.algorithm, result,
+                    transports)));
         } else {
-            printHuman(start, target, route, profileName, arguments.algorithm, result, transports,
-                arguments.counters, exact);
+            printHuman(start, target, route, suite, scenario, profileName, arguments.algorithm, result,
+                transports, arguments.counters, exact);
         }
     }
 
-    private static void printHuman(int start, int target, CanonicalRoute route, String profile,
-            String algorithm, PathfinderResult result, List<MatchedTransport> transports,
+    private static void printHuman(int start, int target, CanonicalRoute route, String suite, Scenario scenario,
+            String profile, String algorithm, PathfinderResult result, List<MatchedTransport> transports,
             boolean counters, ExactPathfinder exact) {
         System.out.println("algorithm: " + algorithm);
         System.out.println("profile: " + profile);
+        if (scenario != null) {
+            System.out.println("suite: " + suite);
+            System.out.println("scenario: " + scenario.getName());
+            if (scenario.getDescription() != null) {
+                System.out.println("name: " + scenario.getDescription());
+            }
+            System.out.println("expected: " + (scenario.isExpectedReachable() ? "reachable" : "unreachable"));
+        }
         if (route != null) {
             System.out.println("route: " + route.getId());
             System.out.println("name: " + route.getName());
@@ -162,10 +230,18 @@ public final class CanonicalRouteCli {
         }
     }
 
-    private static JsonObject jsonResult(int start, int target, CanonicalRoute route, String profile,
-            String algorithm, PathfinderResult result, List<MatchedTransport> transports) {
+    private static JsonObject jsonResult(int start, int target, CanonicalRoute route, String suite,
+            Scenario scenario, String profile, String algorithm, PathfinderResult result,
+            List<MatchedTransport> transports) {
         JsonObject output = new JsonObject();
         output.addProperty("ok", true);
+        if (scenario != null) {
+            output.addProperty("suite", suite);
+            output.addProperty("scenario", scenario.getName());
+            output.addProperty("scenarioDescription", scenario.getDescription());
+            output.addProperty("allowTransports", scenario.isAllowTransports());
+            output.addProperty("expectedReachable", scenario.isExpectedReachable());
+        }
         if (route != null) {
             output.addProperty("routeId", route.getId());
             output.addProperty("routeName", route.getName());
@@ -340,6 +416,9 @@ public final class CanonicalRouteCli {
         final boolean json;
         final Path corpus;
         final String algorithm;
+        String suite;
+        String scenario;
+        boolean list;
 
         private Arguments(List<String> routeIds, List<String> profiles, String routeSelector,
                 String profile, int start, int target,
@@ -366,6 +445,9 @@ public final class CanonicalRouteCli {
             boolean json = false;
             String algorithm = "legacy";
             Path corpus = null;
+            String suite = null;
+            String scenario = null;
+            boolean list = false;
             for (int i = 0; i < rawArgs.length; i++) {
                 String argument = rawArgs[i];
                 if (i == 0 && argument.equals("route")) continue;
@@ -376,6 +458,14 @@ public final class CanonicalRouteCli {
                 } else if (argument.equals("--corpus")) {
                     if (++i >= rawArgs.length) throw usage();
                     corpus = Path.of(rawArgs[i]);
+                } else if (argument.equals("--suite")) {
+                    if (++i >= rawArgs.length) throw usage();
+                    suite = rawArgs[i];
+                } else if (argument.equals("--scenario")) {
+                    if (++i >= rawArgs.length) throw usage();
+                    scenario = rawArgs[i];
+                } else if (argument.equals("--list")) {
+                    list = true;
                 } else if (argument.equals("--algorithm")) {
                     if (++i >= rawArgs.length) throw usage();
                     algorithm = rawArgs[i];
@@ -395,11 +485,24 @@ public final class CanonicalRouteCli {
                     positional.add(argument);
                 }
             }
-            if (corpus == null) {
-                throw new IllegalArgumentException("--corpus DIR is required; " + usage().getMessage());
-            }
             if (!algorithm.equals("legacy") && !algorithm.equals("exact")) {
                 throw new IllegalArgumentException("algorithm must be legacy or exact");
+            }
+            if (suite != null || scenario != null || list) {
+                boolean other = !positional.isEmpty() || profile != null || routeSelector != null
+                    || startText != null || targetText != null;
+                if (suite == null || other || (scenario == null) == !list || (scenario != null && list)) {
+                    throw usage();
+                }
+                Arguments arguments = new Arguments(null, null, null, null, 0, 0, counters, json, corpus,
+                    algorithm);
+                arguments.suite = suite;
+                arguments.scenario = scenario;
+                arguments.list = list;
+                return arguments;
+            }
+            if (corpus == null) {
+                throw new IllegalArgumentException("--corpus DIR is required; " + usage().getMessage());
             }
             boolean named = profile != null || routeSelector != null || startText != null || targetText != null;
             if (named) {
@@ -460,7 +563,9 @@ public final class CanonicalRouteCli {
             return new IllegalArgumentException("usage: route --corpus DIR (--route ROUTE --profile PROFILE "
                 + "| --start X,Y,PLANE --end X,Y,PLANE --profile PROFILE "
                 + "| PROFILE START_X START_Y START_PLANE TARGET_X TARGET_Y TARGET_PLANE "
-                + "| ROUTE PROFILE [ROUTE PROFILE ...]) [--algorithm legacy|exact] [--json] [--counters]");
+                + "| ROUTE PROFILE [ROUTE PROFILE ...]"
+                + "| --suite SUITE (--scenario NAME | --list)) [--algorithm legacy|exact] [--json] [--counters]"
+                + "; PROFILE is any profile (early, mid, end, maxed, ALL, UNIT_TEST, SEASONAL, ...)");
         }
     }
 }

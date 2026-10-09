@@ -51,8 +51,11 @@ python3 scripts/maintenance.py validate  # data validation: hard gate + advisory
 ```
 
 Dashboard options are `-P` properties: `dashboardSuite` (default
-`routes`; see `shortestpath.scenarios.Suites`), `dashboardDataset` (a
-data-only scenario CSV file to run instead), `dashboardBundle`, `dashboardTitle`,
+`routes`; `./gradlew -q scenarioSuites` lists every suite, including the
+canonical corpus tiers `canonical-smoke`/`canonical-standard`/`canonical`),
+`dashboardFilter` (only scenarios whose name or category contains it),
+`dashboardDataset` (a data-only scenario CSV file to run instead),
+`dashboardBundle`, `dashboardTitle`,
 `dashboardSubtitle`, `dashboardProfile` (default: **auto** — profiling runs
 only for datasets of ≤ 200 scenarios; pass `true`/`false` to force),
 `dashboardHeatmap` (default true; only applies when profiling is on),
@@ -204,6 +207,16 @@ directory, so keep its layout and formats stable; see `corpus/README.md`.
   `CanonicalItems.java`, `RoutingVariables.java`). Never hand-edit; run
   `./gradlew :accounts:generateAccountProfiles`. `./gradlew :accounts:check`
   (in CI) fails when the committed JSON differs from the Java by a single byte.
+
+Query one route (the `route` CLI; its argument forms and JSON fields are
+agent-facing, keep them stable):
+
+```bash
+./gradlew route -ProuteArgs="maxed 2411 4434 0 2995 3114 0 --json"   # any profile, incl. presets
+./gradlew route -ProuteArgs="gps-natural-0012 maxed --algorithm exact"
+./gradlew route -ProuteSuite=routing-issues -ProuteScenario="#140) usable"  # any suite scenario
+./gradlew route -ProuteSuite=canonical-smoke -ProuteArgs=--list
+```
 
 ## OSRS wiki lookups
 
