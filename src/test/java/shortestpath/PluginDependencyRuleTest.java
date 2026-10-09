@@ -191,6 +191,21 @@ public class PluginDependencyRuleTest
 			"PathScheduler.attach takes the ItemStateService for refresh routing");
 		LEAF_EDGES.put("scheduler -> pathfinder",
 			"PathScheduler drives Pathfinder/ActiveSearch/PathfinderConfig/PathStep");
+		// The coordinator extraction adds the declared-fact channels:
+		// producers inject RefreshCoordinator (inbound) and the coordinator
+		// reads the fact types it translates (outbound).
+		LEAF_EDGES.put("items -> scheduler",
+			"ItemStateService declares ItemChange facts to the injected RefreshCoordinator");
+		LEAF_EDGES.put("poh -> scheduler",
+			"PohService declares PohChange facts to the injected RefreshCoordinator");
+		LEAF_EDGES.put("spirittree -> scheduler",
+			"SpiritTreeService declares TreeChange facts to the injected RefreshCoordinator");
+		LEAF_EDGES.put("scheduler -> poh",
+			"RefreshCoordinator reads PohChange/PohService through the poh channel");
+		LEAF_EDGES.put("scheduler -> settings",
+			"RefreshCoordinator reads ConfigChange/ShortestPathConfig through the config channel");
+		LEAF_EDGES.put("scheduler -> spirittree",
+			"RefreshCoordinator reads TreeChange through the spirit-tree channel");
 
 		// Pre-existing edges frozen at lint introduction.
 		LEAF_EDGES.put("leagues -> requirement",
