@@ -107,7 +107,7 @@ Runs `DashboardTest` against one suite and writes a bundle into the output site.
 | `dashboardDataset` | *(empty)* | A route JSON file to run instead of a suite (routes without `profiles` run with `ALL`) |
 | `dashboardFilter` | *(empty)* | Run only the scenarios whose name or category contains it (ignoring case), e.g. `issue-140` |
 | `dashboardTier` | *(empty)* | Run only scenarios tagged with this tier, e.g. `canonical` with `smoke` |
-| `dashboardBackend` | `legacy` | `exact` runs the exact pathfinder (unprofiled); the bundle gets an `-exact` suffix |
+| `dashboardBackend` | `legacy` | `exact` runs the exact pathfinder (unprofiled); the bundle gets an `-exact` suffix and the title an `Exact` suffix |
 | `dashboardBundle` | auto-derived from the suite name + profile flag | Bundle directory name |
 | `dashboardTitle` | auto-derived from the suite name | Title shown in the UI |
 | `dashboardSubtitle` | *(empty)* | Subtitle shown in the UI |

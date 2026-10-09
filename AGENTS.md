@@ -52,16 +52,16 @@ python3 scripts/maintenance.py validate  # data validation: hard gate + advisory
 
 Dashboard options are `-P` properties: `dashboardSuite` (default
 `routes`; `./gradlew -q scenarioIndex` lists every suite; `-PdashboardTier=smoke`
-selects a canonical tier; `-PdashboardBackend=exact`),
+selects a canonical tier),
 `dashboardFilter` (only scenarios whose name or category contains it),
-`dashboardDataset` (a data-only scenario CSV file to run instead),
+`dashboardDataset` (a route JSON file to run instead),
 `dashboardBundle`, `dashboardTitle`,
 `dashboardSubtitle`, `dashboardProfile` (default: **auto** — profiling runs
 only for datasets of ≤ 200 scenarios; pass `true`/`false` to force),
 `dashboardHeatmap` (default true; only applies when profiling is on),
 `dashboardSeasonal`, `dashboardF2p`, `dashboardThreads` (parallel scenario
-workers; default `availableProcessors()-3`), `dashboardBackend` (routing
-engine: `LEGACY` default or `EXACT`; exact searches record unprofiled). Other tasks: `captureExpectedLengths` (writes actual lengths
+workers; default `availableProcessors()-3`), `dashboardBackend` (`legacy`
+default or `exact`; exact runs are unprofiled). Other tasks: `captureExpectedLengths` (writes actual lengths
 into `src/test/resources/scenarios/expected-lengths/<suite>.json`) and the cache dumpers/probes in `gradle/cache-dumpers.gradle`
 (`bankTileDump`, `sailingAmenityVarbitDump`, `leagueRegionDump`,
 `f2pRegionDump`, `leagueIdProbe`, `transportAnchorDrift`, the `briefcase*`
