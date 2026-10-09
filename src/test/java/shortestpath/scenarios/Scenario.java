@@ -68,6 +68,14 @@ public final class Scenario {
     /** The packed start tile, or {@code WorldPointUtil.UNDEFINED} for the dashboard's default start. */
     public int getStartPoint() { return start; }
     public int getEndPoint() { return target; }
+
+    /** Where a scenario without a start begins: the Grand Exchange. */
+    public static final int DEFAULT_START = WorldPointUtil.packWorldPoint(3185, 3436, 0);
+
+    /** The tile the route starts from: the start, or {@link #DEFAULT_START} when there is none. */
+    public int getRouteStart() {
+        return start != WorldPointUtil.UNDEFINED ? start : DEFAULT_START;
+    }
     public Profile getProfile() { return profile; }
     public boolean isAllowTransports() { return allowTransports; }
     /** A human-readable route label beyond the name, or {@code null}. */
@@ -127,6 +135,17 @@ public final class Scenario {
 
         public Builder from(int x, int y, int plane) {
             start = WorldPointUtil.packWorldPoint(x, y, plane);
+            return this;
+        }
+
+        /** The start as a packed tile ({@code WorldPointUtil.UNDEFINED} for the default start). */
+        public Builder fromTile(int packed) {
+            start = packed;
+            return this;
+        }
+
+        public Builder toTile(int packed) {
+            target = packed;
             return this;
         }
 

@@ -20,7 +20,9 @@ import shortestpath.profiles.CompiledAccount;
 import shortestpath.profiles.Profile;
 import shortestpath.profiles.ProfileContext;
 import shortestpath.profiles.Profiles;
+import shortestpath.scenarios.Observation;
 import shortestpath.scenarios.Scenario;
+import shortestpath.scenarios.ScenarioRunner;
 import shortestpath.scenarios.Suites;
 import shortestpath.pathfinder.exact.ExactForwardSearch;
 import shortestpath.transport.Transport;
@@ -50,8 +52,7 @@ public final class CanonicalRouteCli {
         }
         List<CanonicalRoute> routes = CanonicalCorpusLoader.loadRoutes(
             arguments.corpus.resolve("corpus/routes-v1.json"));
-        RoutingStatic routingStatic = arguments.algorithm.equals("exact")
-            ? CanonicalRouteAdapter.buildRoutingStatic() : null;
+        ScenarioRunner runner = new ScenarioRunner(ScenarioRunner.Backend.parse(arguments.algorithm));
 
         if (arguments.routeIds != null) {
             for (int i = 0; i < arguments.routeIds.size(); i++) {
@@ -61,8 +62,7 @@ public final class CanonicalRouteCli {
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("unknown route: " + routeId));
                 query(route.getStartPacked(), route.getTargetPacked(), route,
-                    arguments.profiles.get(i), route.isAllowTransports(), arguments,
-                    routingStatic);
+                    arguments.profiles.get(i), route.isAllowTransports(), arguments, runner);
             }
             return;
         }
@@ -70,12 +70,11 @@ public final class CanonicalRouteCli {
         if (arguments.routeSelector != null) {
             CanonicalRoute route = findRoute(routes, arguments.routeSelector);
             query(route.getStartPacked(), route.getTargetPacked(), route,
-                arguments.profile, true, arguments, routingStatic);
+                arguments.profile, true, arguments, runner);
             return;
         }
 
-        query(arguments.start, arguments.target, null, arguments.profile, true, arguments,
-            routingStatic);
+        query(arguments.start, arguments.target, null, arguments.profile, true, arguments, runner);
     }
 
     /** {@code --suite S --list} lists its scenarios; {@code --suite S --scenario Q} runs one. */
@@ -101,16 +100,9 @@ public final class CanonicalRouteCli {
             return;
         }
         Scenario scenario = Suites.find(arguments.suite, arguments.scenario);
-        RoutingStatic routingStatic = arguments.algorithm.equals("exact")
-            ? CanonicalRouteAdapter.buildRoutingStatic() : null;
-        int start = scenario.getStartPoint() != WorldPointUtil.UNDEFINED
-            ? scenario.getStartPoint() : DEFAULT_START;
-        query(start, scenario.getEndPoint(), null, arguments.suite, scenario, scenario.getProfile().name(),
-            scenario.compile(), arguments, routingStatic);
+        query(scenario, null, arguments.suite, scenario.getProfile().name(), arguments,
+            new ScenarioRunner(ScenarioRunner.Backend.parse(arguments.algorithm)));
     }
-
-    /** Where a scenario without a start begins, as on the dashboard: the Grand Exchange. */
-    private static final int DEFAULT_START = WorldPointUtil.packWorldPoint(3185, 3436, 0);
 
     private static CanonicalRoute findRoute(List<CanonicalRoute> routes, String selector) {
         return routes.stream()
@@ -119,8 +111,9 @@ public final class CanonicalRouteCli {
             .orElseThrow(() -> new IllegalArgumentException("Unknown corpus route: " + selector));
     }
 
+    /** A one-off query: {@code profileName}'s account and settings, no overrides. */
     private static void query(int start, int target, CanonicalRoute route, String profileName,
-            boolean allowTransports, Arguments arguments, RoutingStatic routingStatic) throws Exception {
+            boolean allowTransports, Arguments arguments, ScenarioRunner runner) throws Exception {
         Profile profile;
         try {
             profile = Profiles.get(profileName);
@@ -130,16 +123,23 @@ public final class CanonicalRouteCli {
             throw new IllegalArgumentException("unknown profile \"" + profileName + "\"; expected "
                 + String.join(", ", names));
         }
-        CompiledAccount account = profile.setup(new ProfileContext(start, allowTransports)).compile();
-        query(start, target, route, null, null, profileName, account, arguments, routingStatic);
+        Scenario query = Scenario.scenario(route != null ? route.getId() : "query", "query")
+            .fromTile(start).toTile(target).profile(profile).allowTransports(allowTransports).build();
+        query(query, route, null, profileName, arguments, runner);
     }
 
-    private static void query(int start, int target, CanonicalRoute route, String suite, Scenario scenario,
-            String profileName, CompiledAccount account, Arguments arguments, RoutingStatic routingStatic) {
-        ExactPathfinder exact = arguments.algorithm.equals("exact")
-            ? CanonicalRouteAdapter.runExact(start, target, account, routingStatic, null) : null;
-        PathfinderResult result = exact == null
-            ? CanonicalRouteAdapter.runLegacy(start, target, account) : exact.getResult();
+    /** Runs {@code scenario}; {@code suite} names its suite, or is {@code null} for a one-off query. */
+    private static void query(Scenario scenario, CanonicalRoute route, String suite, String profileName,
+            Arguments arguments, ScenarioRunner runner) {
+        Observation observation = runner.run(scenario);
+        CompiledAccount account = observation.getAccount();
+        ExactPathfinder exact = observation.getExact();
+        PathfinderResult result = observation.getResult();
+        int start = scenario.getRouteStart();
+        int target = scenario.getEndPoint();
+        if (suite == null) {
+            scenario = null;
+        }
         List<MatchedTransport> transports = result.isReached()
             ? transports(result.getPathSteps(), account.getConfig()) : List.of();
         if (arguments.json) {

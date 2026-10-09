@@ -2,14 +2,11 @@ package shortestpath.dashboard;
 
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalInt;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -21,19 +18,13 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import org.junit.Test;
 import org.slf4j.LoggerFactory;
-import shortestpath.WorldPointUtil;
-import shortestpath.pathfinder.ExactPathfinder;
-import shortestpath.pathfinder.ExactRoutingStaticProvider;
-import shortestpath.pathfinder.PathfinderBackend;
 import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.PathfinderProfile;
-import shortestpath.pathfinder.PathStep;
-import shortestpath.pathfinder.ProfilingPathfinder;
-import shortestpath.pathfinder.Pathfinder;
-import shortestpath.pathfinder.TestPathfinderConfig;
 import shortestpath.profiles.CompiledAccount;
 import shortestpath.profiles.Profiles;
 import shortestpath.scenarios.ExpectedLengths;
+import shortestpath.scenarios.Observation;
+import shortestpath.scenarios.ScenarioRunner;
 import shortestpath.scenarios.Scenario;
 import shortestpath.scenarios.Suites;
 
@@ -103,28 +94,10 @@ public class DashboardTest {
     private static final int PROFILE_AUTO_MAX_SCENARIOS = 200;
 
     private final ProfilerReportWriter profilerReportWriter = new ProfilerReportWriter();
+    private final ScenarioRunner runner = new ScenarioRunner(
+        ScenarioRunner.Backend.parse(System.getProperty("dashboard.backend", "legacy")));
     private final PathfinderDashboardReportWriter reportWriter = new PathfinderDashboardReportWriter();
     private final DashboardBundlePublisher bundlePublisher = new DashboardBundlePublisher();
-    /**
-     * The exact backend's shared routing graph, built on first use by whichever
-     * worker hits an EXACT scenario. {@link ExactRoutingStaticProvider#get} is
-     * synchronized, so concurrent workers share one build.
-     */
-    private volatile ExactRoutingStaticProvider exactRoutingStatic;
-
-    private ExactRoutingStaticProvider exactRoutingStatic(TestPathfinderConfig config) {
-        ExactRoutingStaticProvider provider = exactRoutingStatic;
-        if (provider == null) {
-            synchronized (this) {
-                provider = exactRoutingStatic;
-                if (provider == null) {
-                    provider = new ExactRoutingStaticProvider(config::getMap);
-                    exactRoutingStatic = provider;
-                }
-            }
-        }
-        return provider;
-    }
 
     /**
      * Serializes the heartbeat increment together with its printf. The
@@ -291,36 +264,14 @@ public class DashboardTest {
             Scenario scenario = scenarios.get(i);
             try {
                 CompiledAccount applied = scenario.compile();
-
-                // Default to the Grand Exchange bank when no explicit start is set (e.g. clue-step CSV rows)
-                int start = scenario.getStartPoint() != WorldPointUtil.UNDEFINED
-                    ? scenario.getStartPoint()
-                    : WorldPointUtil.packWorldPoint(3185, 3436, 0);
-                int end = scenario.getEndPoint();
                 String category = scenario.getCategory() != null && !scenario.getCategory().isEmpty()
                     ? scenario.getCategory()
                     : "dashboard";
 
-                PathfinderResult result;
-                PathfinderProfile profileData = null;
-                if (applied.getSettings().pathfinderBackend() == PathfinderBackend.EXACT) {
-                    // ProfilingPathfinder instruments the legacy engine only;
-                    // exact searches always record unprofiled.
-                    ExactPathfinder exact = new ExactPathfinder(applied.getConfig(),
-                        exactRoutingStatic(applied.getConfig()), start, Set.of(end), null);
-                    exact.run();
-                    result = exact.getResult();
-                } else if (profile) {
-                    ProfilingPathfinder profiler = new ProfilingPathfinder(
-                        applied.getConfig(), start, Set.of(end), heatmap);
-                    profiler.run();
-                    result = profiler.getResult();
-                    profileData = profiler.getProfile();
-                } else {
-                    Pathfinder pathfinder = new Pathfinder(applied.getConfig(), start, Set.of(end));
-                    pathfinder.run();
-                    result = pathfinder.getResult();
-                }
+                Observation observation = runner.run(scenario, applied, !profile ? ScenarioRunner.Profiling.OFF
+                    : heatmap ? ScenarioRunner.Profiling.HEATMAP : ScenarioRunner.Profiling.ON);
+                PathfinderResult result = observation.getResult();
+                PathfinderProfile profileData = observation.getProfile();
 
                 if (result == null) {
                     synchronized (HEARTBEAT_LOCK) {
@@ -330,47 +281,15 @@ public class DashboardTest {
                     continue;
                 }
 
-                List<PathStep> path = result.getPathSteps();
-                int pathLength = path.size();
-                boolean reached = result.isReached();
+                int pathLength = observation.getPathLength();
+                boolean reached = observation.isReached();
                 if (reached) {
                     capturedLengths.put(scenario.getName(), pathLength);
                 }
-
-                // Evaluate assertions — the reachability expectation takes
-                // precedence over length assertions: an expect_reachable=true row
-                // that fails to reach fails here, and an expect_reachable=false row
-                // passes only when no path is found.
-                Boolean assertionPassed = null;
-                String assertionMessage = null;
+                Observation.Assertion assertion = observation.check();
+                Boolean assertionPassed = assertion.passed;
+                String assertionMessage = assertion.message;
                 boolean expectedReachable = scenario.isExpectedReachable();
-                OptionalInt expectedLength = scenario.getExpectedLength();
-                OptionalInt minimumLength = scenario.getMinimumLength();
-                if (reached != expectedReachable) {
-                    assertionPassed = false;
-                    assertionMessage = expectedReachable
-                        ? "Expected reachable but no path found"
-                        : "Expected unreachable but path found (" + pathLength + " steps)";
-                } else if (!expectedReachable) {
-                    assertionPassed = true;
-                    assertionMessage = "Expected unreachable";
-                } else if (expectedLength.isPresent()) {
-                    int expected = expectedLength.getAsInt();
-                    if (pathLength == expected) {
-                        assertionPassed = true;
-                    } else {
-                        assertionPassed = false;
-                        assertionMessage = "Expected path length " + expected + " but got " + pathLength;
-                    }
-                } else if (minimumLength.isPresent()) {
-                    int minimum = minimumLength.getAsInt();
-                    if (pathLength >= minimum) {
-                        assertionPassed = true;
-                    } else {
-                        assertionPassed = false;
-                        assertionMessage = "Expected minimum path length " + minimum + " but got " + pathLength;
-                    }
-                }
 
                 List<String> details = new ArrayList<>(List.of(
                     "Dataset: " + datasetLabel(dataset),
@@ -445,6 +364,7 @@ public class DashboardTest {
         Path path = Paths.get(dataset);
         return path.getFileName() != null ? path.getFileName().toString() : dataset;
     }
+
 
     private static String formatBankEventsSummary(PathfinderDashboardModels.RunRecord run) {
         if (run.bankEvents == null || run.bankEvents.isEmpty()) {

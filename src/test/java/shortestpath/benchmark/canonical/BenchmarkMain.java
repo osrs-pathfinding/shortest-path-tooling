@@ -22,12 +22,12 @@ import java.util.Map;
 import java.util.Set;
 import shortestpath.pathfinder.ExactPathfinder;
 import shortestpath.pathfinder.PathfinderResult;
-import shortestpath.pathfinder.PathfinderConfig;
 import shortestpath.pathfinder.exact.ExactForwardSearch;
-import shortestpath.pathfinder.exact.ExactRoutingSession;
-import shortestpath.pathfinder.exact.RoutingStatic;
 import shortestpath.profiles.CompiledAccount;
-import shortestpath.pathfinder.exact.SiteGraph;
+import shortestpath.profiles.Profiles;
+import shortestpath.scenarios.Observation;
+import shortestpath.scenarios.Scenario;
+import shortestpath.scenarios.ScenarioRunner;
 
 /** Stable, manifest-driven Java adapter entry point. */
 public final class BenchmarkMain {
@@ -58,9 +58,10 @@ public final class BenchmarkMain {
             throw new IllegalArgumentException("BENCHMARK_RUN_ID is required");
         }
 
-        long routingStaticStarted = System.nanoTime();
-        RoutingStatic routingStatic = plan.algorithm.equals("exact") ? CanonicalRouteAdapter.buildRoutingStatic() : null;
-        long routingStaticBuildNanos = routingStatic == null ? 0 : System.nanoTime() - routingStaticStarted;
+        ScenarioRunner runner = new ScenarioRunner(ScenarioRunner.Backend.parse(plan.algorithm),
+            ScenarioRunner.ExactSession.parse(plan.exactSession));
+        runner.prepare();
+        long routingStaticBuildNanos = runner.getRoutingStaticBuildNanos();
         Map<String, CompiledAccount> accounts = new HashMap<>();
         Map<String, String> accountFailures = new HashMap<>();
         for (String profileName : plan.profiles) {
@@ -75,12 +76,10 @@ public final class BenchmarkMain {
             }
         }
 
-        Map<String, ExactRoutingSession> sessions = new HashMap<>();
-
         if (plan.warmup) {
             progressPhase("warming up");
             for (Case current : plan.logicalCases) {
-                execute(current, plan, accounts, accountFailures, routingStatic, sessions, false, runId);
+                execute(current, plan, accounts, accountFailures, runner, false, runId);
             }
         }
 
@@ -88,8 +87,7 @@ public final class BenchmarkMain {
         progressPhase("running");
         for (Case current : plan.cases) {
             progressStart(current);
-            JsonObject observation = execute(current, plan, accounts, accountFailures, routingStatic, sessions,
-                true, runId);
+            JsonObject observation = execute(current, plan, accounts, accountFailures, runner, true, runId);
             observations.add(observation);
             progressComplete(observation);
         }
@@ -285,8 +283,7 @@ public final class BenchmarkMain {
 
     private static JsonObject execute(Case current, Plan plan,
             Map<String, CompiledAccount> accounts,
-            Map<String, String> accountFailures, RoutingStatic routingStatic,
-            Map<String, ExactRoutingSession> sessions, boolean measured, String runId) {
+            Map<String, String> accountFailures, ScenarioRunner runner, boolean measured, String runId) {
         CompiledAccount account = accounts.get(
             accountKey(current.profile, current.route.isAllowTransports()));
         String accountFailure = accountFailures.get(accountKey(current.profile, current.route.isAllowTransports()));
@@ -297,29 +294,15 @@ public final class BenchmarkMain {
             throw new IllegalStateException("no compiled account for " + current.profile);
         }
         try {
-            ExactRoutingSession session = plan.algorithm.equals("exact")
-                ? prepareSession(plan.exactSession, sessions, accountKey(current.profile, current.route.isAllowTransports()),
-                    account.getConfig(), routingStatic, current.route.getTargetPacked())
-                : null;
-            long start = System.nanoTime();
-            ExactPathfinder exact = plan.algorithm.equals("exact")
-                ? CanonicalRouteAdapter.runExact(current.route.getStartPacked(), current.route.getTargetPacked(),
-                    account, routingStatic, session)
-                : null;
-            PathfinderResult result = exact == null
-                ? CanonicalRouteAdapter.runLegacy(current.route.getStartPacked(), current.route.getTargetPacked(), account)
-                : exact.getResult();
-            long total = System.nanoTime() - start;
+            Observation observation = runner.run(current.scenario(), account, ScenarioRunner.Profiling.OFF);
             if (!measured) {
                 return null;
             }
-            boolean reachable = result.isReached();
-            Integer returnedCost = result.getPathCost() == PathfinderResult.NO_PATH_COST
-                ? null : result.getPathCost();
-            Integer pathCost = reachable ? returnedCost : null;
-            if (reachable && pathCost == null) {
-                throw new IllegalStateException("reached result has no path cost");
-            }
+            PathfinderResult result = observation.getResult();
+            ExactPathfinder exact = observation.getExact();
+            boolean reachable = observation.isReached();
+            Integer pathCost = observation.getCost();
+            long total = observation.getTotalNanos();
             JsonObject row = baseObservation(current, runId, plan.project, plan.algorithm);
             row.addProperty("reachable", reachable);
             addNullable(row, "path_cost", pathCost);
@@ -340,7 +323,7 @@ public final class BenchmarkMain {
                     row.addProperty("seed_table_ns", exact.getHeuristicPrepareNanos());
                     row.addProperty("heuristic_prepare_ns",
                         exact.getReverseSearchNanos() + exact.getHeuristicPrepareNanos());
-                    row.addProperty("exact_session", plan.exactSession);
+                    row.addProperty("exact_session", runner.getExactSession().id());
                     row.addProperty("graph_reused", exact.isGraphReused());
                     row.addProperty("target_reused", exact.isTargetReused());
                     row.addProperty("unique_states_reached", counters.uniqueStatesReached());
@@ -374,25 +357,6 @@ public final class BenchmarkMain {
             return failure(current, runId, plan.project, plan.algorithm,
                 exception.getClass().getName() + ": " + exception.getMessage());
         }
-    }
-
-    /**
-     * The session a query runs with, brought to the state its mode describes before timing starts:
-     * {@code null} (cold), the account's session without targets, or with this target prepared.
-     */
-    static ExactRoutingSession prepareSession(String mode, Map<String, ExactRoutingSession> sessions,
-            String accountKey, PathfinderConfig config, RoutingStatic routingStatic, int target) {
-        if (mode.equals(SESSION_COLD)) {
-            return null;
-        }
-        ExactRoutingSession session = sessions.computeIfAbsent(accountKey, ignored -> new ExactRoutingSession());
-        if (mode.equals(SESSION_ACCOUNT)) {
-            session.clearTargets();
-        } else {
-            SiteGraph graph = session.graph(routingStatic, config.prepareExactRoutingAccount(true)).value();
-            session.target(graph, config.getMap(), target);
-        }
-        return session;
     }
 
     private static JsonObject failure(Case current, String runId, String project, String algorithm,
@@ -554,6 +518,13 @@ public final class BenchmarkMain {
             this.profile = profile;
             this.repetition = repetition;
             this.expectedReachable = expectedReachable;
+        }
+
+        Scenario scenario() {
+            return Scenario.scenario(route.getId() + "/" + profile, "canonical")
+                .fromTile(route.getStartPacked()).toTile(route.getTargetPacked())
+                .profile(Profiles.get(profile)).allowTransports(route.isAllowTransports())
+                .expectReachable(expectedReachable).build();
         }
     }
 
