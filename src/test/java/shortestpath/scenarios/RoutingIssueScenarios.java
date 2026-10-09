@@ -232,7 +232,7 @@ final class RoutingIssueScenarios {
         suite.scenario("Mage arena tele (#140) usable after guardian talk", "routing-issue-140")
             .from(3163, 3485, 0).to(3363, 3295, 0)
             .profile(UNIT_TEST)
-            .account(a -> a.varplayer(10670, 1))
+            .account(a -> a.varbit(VarbitID.MAGICTRAINING_ENTRA_NOOB, 1))
             .settings(s -> {
                 s.setUseTeleportationMinigames(true);
                 s.setBypassVarbitChecks(false);
@@ -1200,7 +1200,7 @@ final class RoutingIssueScenarios {
         suite.scenario("Mage arena tele (#140) locked before guardian talk", "routing-issue-140")
             .from(3163, 3485, 0).to(3363, 3295, 0)
             .profile(UNIT_TEST)
-            .account(a -> a.varplayer(10670, 0))
+            .account(a -> a.varbit(VarbitID.MAGICTRAINING_ENTRA_NOOB, 0))
             .settings(s -> {
                 s.setUseTeleportationMinigames(true);
                 s.setBypassVarbitChecks(false);
