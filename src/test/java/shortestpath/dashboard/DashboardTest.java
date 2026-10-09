@@ -237,7 +237,9 @@ public class DashboardTest {
         String sourceResourcesDir = System.getProperty("dashboard.sourceResourcesDir");
         if (sourceResourcesDir != null && suite != null) {
             Path lengthsFile = ExpectedLengths.file(Paths.get(sourceResourcesDir), suite);
-            ExpectedLengths.update(lengthsFile, allScenarios, capturedLengths);
+            // The whole suite, not just the scenarios a tier or filter selected: the rest keep
+            // their lengths.
+            ExpectedLengths.update(lengthsFile, Suites.load(suite), capturedLengths);
             System.out.println("Captured expected lengths for " + capturedLengths.size()
                 + " route(s) in " + lengthsFile);
         }
