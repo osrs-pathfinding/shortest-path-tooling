@@ -125,7 +125,7 @@ public class ProfilingPathfinder {
                 // Nothing in pending claimed its destination at enqueue. The first,
                 // cheapest, dequeue wins the tile; later queued duplicates are dropped.
                 int packed = graph.packedPosition(node);
-                boolean bank = graph.bankVisited(node);
+                BankVisitState bank = graph.bankVisited(node);
                 if (visited.get(packed, bank)) {
                     profile.delayedVisitSkipped++;
                     profile.queueSelectionNanos += System.nanoTime() - phaseStart;
@@ -306,9 +306,9 @@ public class ProfilingPathfinder {
         // Mirrors CollisionMap.getTileNeighbors: the banked state is only entered through an
         // explicit, costed transition — a bank-accessible tile emits a bank-visit edge carrying
         // the configured penalty once, on the decision to bank.
-        boolean pathBankVisited = graph.bankVisited(node);
-        if (!pathBankVisited && config.isBankPathEnabled() && config.bankAccessible(packedPosition)
-            && !visited.get(packedPosition, true)) {
+        BankVisitState pathBankVisited = graph.bankVisited(node);
+        if (pathBankVisited != BankVisitState.BANKED && config.isBankPathEnabled() && config.bankAccessible(packedPosition)
+            && !visited.get(packedPosition, BankVisitState.BANKED)) {
             neighbors.add(graph.createBankVisit(packedPosition, node, config.getBankVisitCost()));
             profile.bankTransitions++;
         }
@@ -429,7 +429,7 @@ public class ProfilingPathfinder {
     private PrimitiveIntList getAbstractNodeNeighbors(int node) {
         neighbors.clear();
         int sourceTile = graph.getClosestTilePosition(node);
-        boolean bankVisited = graph.bankVisited(node);
+        BankVisitState bankVisited = graph.bankVisited(node);
         int maxWildernessLevel = graph.abstractKind(node).maxWildernessLevel();
         for (Transport transport : config.getUsableTeleports(bankVisited)) {
             profile.transportEvaluations++;
