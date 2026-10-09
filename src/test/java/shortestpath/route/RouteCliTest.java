@@ -13,7 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import org.junit.Test;
 import shortestpath.WorldPointUtil;
-import shortestpath.scenarios.CanonicalScenarios;
+import shortestpath.scenarios.CanonicalCorpus;
 import shortestpath.scenarios.Route;
 
 public class RouteCliTest {
@@ -88,7 +88,7 @@ public class RouteCliTest {
 
     @Test
     public void namedRouteMatchesNamedCoordinatesAndSupportsRouteNames() throws Exception {
-        Path corpus = CanonicalScenarios.defaultCorpusDir();
+        Path corpus = CanonicalCorpus.dir();
         Route route = Route.load(corpus.resolve("corpus/routes-v1.json")).stream()
             .filter(candidate -> candidate.getId().equals("transport-heavy-0001"))
             .findFirst().orElseThrow();
@@ -107,7 +107,7 @@ public class RouteCliTest {
 
     @Test
     public void rejectsUnknownOrAmbiguousNamedRoutes() throws Exception {
-        Path corpus = CanonicalScenarios.defaultCorpusDir();
+        Path corpus = CanonicalCorpus.dir();
         try {
             RouteCli.run(new String[] {"--corpus", corpus.toString(), "--route",
                 "regression-9999", "--profile", "maxed"});
@@ -166,7 +166,7 @@ public class RouteCliTest {
     private static String[] withCorpus(String... args) {
         String[] result = new String[args.length + 2];
         result[0] = "--corpus";
-        result[1] = CanonicalScenarios.defaultCorpusDir().toString();
+        result[1] = CanonicalCorpus.dir().toString();
         System.arraycopy(args, 0, result, 2, args.length);
         return result;
     }

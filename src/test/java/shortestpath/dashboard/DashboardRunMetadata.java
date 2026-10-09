@@ -17,8 +17,8 @@ public final class DashboardRunMetadata {
      * @param run                   the record to annotate
      * @param presetId              preset name that was active for this run (e.g. {@code "ALL"})
      * @param config                the config snapshot after applying the preset and overrides
-     * @param lumbridgeDiaryEliteStub the stubbed varbit value for {@code LUMBRIDGE_DIARY_ELITE_COMPLETE}
-     *                              that was active during the run ({@code 0} or {@code 1})
+     * @param lumbridgeDiaryEliteStub the account's {@code LUMBRIDGE_DIARY_ELITE_COMPLETE} varbit during
+     *                              the run ({@code 0} or {@code 1})
      */
     public static void apply(
             PathfinderDashboardModels.RunRecord run,

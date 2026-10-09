@@ -16,6 +16,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import shortestpath.WorldPointUtil;
+import shortestpath.profiles.Profiles;
 
 /**
  * One route in a data suite file: a JSON array of route objects in the canonical corpus route
@@ -82,7 +83,7 @@ public final class Route {
         return Scenario.scenario(id + "/" + profile, category)
             .description(name)
             .fromTile(start).toTile(target)
-            .profile(shortestpath.profiles.Profiles.get(profile))
+            .profile(Profiles.get(profile))
             .allowTransports(allowTransports)
             .tiers(tiers)
             .expectReachable(!negativeProfiles.contains(profile));

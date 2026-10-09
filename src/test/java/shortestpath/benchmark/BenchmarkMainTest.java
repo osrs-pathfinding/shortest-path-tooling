@@ -10,15 +10,16 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import shortestpath.scenarios.CanonicalScenarios;
+import shortestpath.scenarios.CanonicalCorpus;
 import shortestpath.scenarios.Route;
+import shortestpath.scenarios.ScenarioRunner;
 
 public class BenchmarkMainTest {
     private static Path CORPUS;
 
     @BeforeClass
     public static void requireCorpus() {
-        CORPUS = CanonicalScenarios.defaultCorpusDir();
+        CORPUS = CanonicalCorpus.dir();
     }
 
     @Test
@@ -103,9 +104,9 @@ public class BenchmarkMainTest {
 
     @Test
     public void exactSessionDefaultsToColdAndIsValidated() throws Exception {
-        Assert.assertEquals("cold", BenchmarkMain.loadPlan(exactManifest(null, false), CORPUS).exactSession);
-        Assert.assertEquals("account", BenchmarkMain.loadPlan(exactManifest("account", false), CORPUS).exactSession);
-        Assert.assertEquals("target", BenchmarkMain.loadPlan(exactManifest("target", false), CORPUS).exactSession);
+        Assert.assertEquals(ScenarioRunner.ExactSession.COLD, BenchmarkMain.loadPlan(exactManifest(null, false), CORPUS).exactSession);
+        Assert.assertEquals(ScenarioRunner.ExactSession.ACCOUNT, BenchmarkMain.loadPlan(exactManifest("account", false), CORPUS).exactSession);
+        Assert.assertEquals(ScenarioRunner.ExactSession.TARGET, BenchmarkMain.loadPlan(exactManifest("target", false), CORPUS).exactSession);
         expectFailure(exactManifest("warm", false));
         Path legacy = manifest(firstRoute().getId(), "early", 1, 100000000L);
         JsonObject json = JsonParser.parseString(Files.readString(legacy)).getAsJsonObject();

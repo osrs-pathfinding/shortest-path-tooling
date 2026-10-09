@@ -13,6 +13,7 @@ import shortestpath.pathfinder.Pathfinder;
 import shortestpath.pathfinder.ProfilingPathfinder;
 import shortestpath.profiles.ProfileContext;
 import shortestpath.profiles.Profiles;
+import shortestpath.profiles.Setup;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -148,9 +149,9 @@ public class ProfilerTest {
      */
     @Test
     public void profilingDoesNotAffectResultsBankPath() {
-        PathfinderConfig bankPfConfig = Profiles.ALL.setup(new ProfileContext(WorldPointUtil.UNDEFINED, true))
-            .settings(settings -> settings.setIncludeBankPath(true))
-            .compile().getConfig();
+        Setup bank = Profiles.ALL.setup(new ProfileContext(WorldPointUtil.UNDEFINED, true));
+        bank.settings.setIncludeBankPath(true);
+        PathfinderConfig bankPfConfig = bank.compile().getConfig();
 
         int[][] routes = {
             // Lumbridge → Ardougne: long walk without bank, but bank-path mode unlocks

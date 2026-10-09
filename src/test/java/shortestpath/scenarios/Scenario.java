@@ -29,6 +29,9 @@ import shortestpath.profiles.Setup;
  * {@code scenarios/expected-lengths/<suite>.json} and rewritten by {@code captureExpectedLengths}.
  */
 public final class Scenario {
+    /** Where a scenario without a start begins: the Grand Exchange. */
+    public static final int DEFAULT_START = WorldPointUtil.packWorldPoint(3185, 3436, 0);
+
     private final String name;
     private final String category;
     private final int start;
@@ -43,7 +46,7 @@ public final class Scenario {
     private final OptionalInt minimumLength;
     private final OptionalInt expectedLength;
 
-    private Scenario(Builder builder, OptionalInt expectedLength) {
+    private Scenario(Builder builder) {
         name = builder.name;
         category = builder.category;
         start = builder.start;
@@ -56,7 +59,7 @@ public final class Scenario {
         tiers = Set.copyOf(builder.tiers);
         expectedReachable = builder.expectedReachable;
         minimumLength = builder.minimumLength;
-        this.expectedLength = expectedLength;
+        expectedLength = builder.expectedLength;
         if (target == WorldPointUtil.UNDEFINED) {
             throw new IllegalArgumentException("scenario " + name + " has no target");
         }
@@ -68,17 +71,11 @@ public final class Scenario {
 
     public String getName() { return name; }
     public String getCategory() { return category; }
-    /** The packed start tile, or {@code WorldPointUtil.UNDEFINED} for the dashboard's default start. */
-    public int getStartPoint() { return start; }
-    public int getEndPoint() { return target; }
-
-    /** Where a scenario without a start begins: the Grand Exchange. */
-    public static final int DEFAULT_START = WorldPointUtil.packWorldPoint(3185, 3436, 0);
-
+    /** The packed start tile as given, or {@code WorldPointUtil.UNDEFINED}. */
+    public int getStart() { return start; }
     /** The tile the route starts from: the start, or {@link #DEFAULT_START} when there is none. */
-    public int getRouteStart() {
-        return start != WorldPointUtil.UNDEFINED ? start : DEFAULT_START;
-    }
+    public int getRouteStart() { return start != WorldPointUtil.UNDEFINED ? start : DEFAULT_START; }
+    public int getTarget() { return target; }
     public Profile getProfile() { return profile; }
     public boolean isAllowTransports() { return allowTransports; }
     /** A human-readable route label beyond the name, or {@code null}. */
@@ -102,25 +99,6 @@ public final class Scenario {
         return setup().compile();
     }
 
-    Scenario withExpectedLength(OptionalInt length) {
-        return new Scenario(toBuilder(), length);
-    }
-
-    private Builder toBuilder() {
-        Builder builder = new Builder(name, category);
-        builder.start = start;
-        builder.target = target;
-        builder.profile = profile;
-        builder.account = account;
-        builder.settings = settings;
-        builder.allowTransports = allowTransports;
-        builder.description = description;
-        builder.tiers = tiers;
-        builder.expectedReachable = expectedReachable;
-        builder.minimumLength = minimumLength;
-        return builder;
-    }
-
     public static final class Builder {
         private final String name;
         private final String category;
@@ -134,10 +112,15 @@ public final class Scenario {
         private Set<String> tiers = Set.of();
         private boolean expectedReachable = true;
         private OptionalInt minimumLength = OptionalInt.empty();
+        private OptionalInt expectedLength = OptionalInt.empty();
 
         private Builder(String name, String category) {
             this.name = Objects.requireNonNull(name);
             this.category = Objects.requireNonNull(category);
+        }
+
+        String name() {
+            return name;
         }
 
         public Builder from(int x, int y, int plane) {
@@ -215,8 +198,14 @@ public final class Scenario {
             return this;
         }
 
+        /** Set from the suite's expected-lengths file when the suite is loaded. */
+        Builder expectedLength(int length) {
+            expectedLength = OptionalInt.of(length);
+            return this;
+        }
+
         public Scenario build() {
-            return new Scenario(this, OptionalInt.empty());
+            return new Scenario(this);
         }
     }
 }

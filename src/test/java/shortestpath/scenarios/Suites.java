@@ -4,7 +4,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -13,18 +12,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.OptionalInt;
 import java.util.Set;
-import java.util.function.Consumer;
+import shortestpath.profiles.Profiles;
 
 /**
  * Every scenario suite, by name. Suites with account or settings overrides are Java;
- * {@code clue-locations-full} and {@code canonical} (the canonical corpus, tagged with its tiers;
- * {@link CanonicalScenarios}) are route data ({@link Route}). A suite's optional exact lengths are in
+ * {@code clue-locations-full} and {@code canonical} ({@link CanonicalCorpus}) are route data
+ * ({@link Route}) run with a list of profiles. A suite's optional exact lengths are in
  * {@code /scenarios/expected-lengths/<suite>.json}.
  */
 public final class Suites {
-    private static final Map<String, Consumer<Suite>> SUITES = new LinkedHashMap<>();
+    /** Adds a suite's scenarios; data suites read their route files. */
+    private interface Definition {
+        void define(Suite suite) throws IOException;
+    }
+
+    private static final Map<String, Definition> SUITES = new LinkedHashMap<>();
 
     static {
         SUITES.put("routes", RouteScenarios::define);
@@ -35,11 +38,9 @@ public final class Suites {
         SUITES.put("seasonal-briefcase-routes", SeasonalBriefcaseScenarios::define);
         SUITES.put("quetzal-whistle-routes", QuetzalWhistleScenarios::define);
         SUITES.put("clue-locations-full", suite -> addRoutes(suite,
-            unchecked(() -> Route.loadResource("/scenarios/clue-locations.json")), List.of("ALL")));
-        SUITES.put("canonical", suite -> unchecked(() -> {
-            CanonicalScenarios.define(suite, CanonicalScenarios.defaultCorpusDir());
-            return null;
-        }));
+            Route.loadResource("/scenarios/clue-locations.json"), List.of("ALL")));
+        SUITES.put("canonical", suite -> addRoutes(suite,
+            CanonicalCorpus.routes(CanonicalCorpus.dir()), List.copyOf(Profiles.canonicalNames())));
     }
 
     private Suites() { }
@@ -74,13 +75,20 @@ public final class Suites {
 
     /** The scenarios of {@code suite} with their expected lengths. */
     public static List<Scenario> load(String suite) throws IOException {
-        Consumer<Suite> definition = SUITES.get(suite);
+        Definition definition = SUITES.get(suite);
         if (definition == null) {
             throw new IllegalArgumentException("unknown scenario suite '" + suite + "'; expected one of " + names());
         }
         Suite scenarios = new Suite();
-        definition.accept(scenarios);
-        return withLengths(build(suite, scenarios.scenarios()), ExpectedLengths.load(suite));
+        definition.define(scenarios);
+        Map<String, Integer> lengths = ExpectedLengths.load(suite);
+        for (Scenario.Builder scenario : scenarios.scenarios()) {
+            Integer length = lengths.get(scenario.name());
+            if (length != null) {
+                scenario.expectedLength(length);
+            }
+        }
+        return build(suite, scenarios.scenarios());
     }
 
     /**
@@ -162,26 +170,5 @@ public final class Suites {
             result.add(scenario);
         }
         return result;
-    }
-
-    static List<Scenario> withLengths(List<Scenario> scenarios, Map<String, Integer> lengths) {
-        List<Scenario> result = new ArrayList<>(scenarios.size());
-        for (Scenario scenario : scenarios) {
-            Integer length = lengths.get(scenario.getName());
-            result.add(length == null ? scenario : scenario.withExpectedLength(OptionalInt.of(length)));
-        }
-        return result;
-    }
-
-    private interface IoSupplier<T> {
-        T get() throws IOException;
-    }
-
-    private static <T> T unchecked(IoSupplier<T> supplier) {
-        try {
-            return supplier.get();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 }

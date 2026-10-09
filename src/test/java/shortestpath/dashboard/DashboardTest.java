@@ -16,12 +16,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
+import net.runelite.api.gameval.VarbitID;
 import org.junit.Test;
 import org.slf4j.LoggerFactory;
 import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.PathfinderProfile;
 import shortestpath.profiles.CompiledAccount;
-import shortestpath.profiles.Profiles;
 import shortestpath.scenarios.ExpectedLengths;
 import shortestpath.scenarios.Observation;
 import shortestpath.scenarios.ScenarioRunner;
@@ -325,7 +325,7 @@ public class DashboardTest {
                 run.expectedReachable = expectedReachable;
 
                 DashboardRunMetadata.apply(run, scenario.getProfile().name(), applied.getSettings(),
-                    Profiles.lumbridgeDiaryElite(scenario.getProfile()));
+                    applied.getClient().getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE));
 
                 if (profileData != null) {
                     profilerReportWriter.populateProfilerData(run, profileData);

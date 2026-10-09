@@ -264,10 +264,4 @@ public final class Profiles {
         PRESETS.put(name, profile);
         return profile;
     }
-
-    /** The Lumbridge elite diary varbit a preset starts with, for dashboard run metadata. */
-    public static int lumbridgeDiaryElite(Profile profile) {
-        Setup setup = profile.setup(new ProfileContext(WorldPointUtil.UNDEFINED, true));
-        return setup.account.build().varbits().getOrDefault(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE, 0);
-    }
 }

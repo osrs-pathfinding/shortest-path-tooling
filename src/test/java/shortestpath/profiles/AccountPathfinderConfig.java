@@ -20,10 +20,6 @@ public final class AccountPathfinderConfig extends TestPathfinderConfig {
         this.account = account;
     }
 
-    public Account getAccount() {
-        return account;
-    }
-
     @Override
     public QuestState getQuestState(Quest quest) {
         return account.questState(quest);

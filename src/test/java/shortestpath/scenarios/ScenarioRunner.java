@@ -110,7 +110,7 @@ public final class ScenarioRunner {
     public Observation run(Scenario scenario, CompiledAccount account, Profiling profiling) {
         PathfinderConfig config = account.getConfig();
         int start = scenario.getRouteStart();
-        Set<Integer> targets = Set.of(scenario.getEndPoint());
+        Set<Integer> targets = Set.of(scenario.getTarget());
         if (backend == Backend.LEGACY) {
             if (profiling == Profiling.OFF) {
                 long started = System.nanoTime();
@@ -128,7 +128,7 @@ public final class ScenarioRunner {
                 pathfinder.getProfile(), total);
         }
         prepare();
-        ExactRoutingSession session = session(config, scenario.getEndPoint());
+        ExactRoutingSession session = session(config, scenario.getTarget());
         long started = System.nanoTime();
         ExactPathfinder pathfinder = new ExactPathfinder(config, routingStatic, session, start, targets, null,
             config.getExactHeuristicWeight());

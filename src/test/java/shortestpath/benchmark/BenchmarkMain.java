@@ -12,11 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,7 +24,7 @@ import shortestpath.pathfinder.exact.ExactForwardSearch;
 import shortestpath.profiles.CompiledAccount;
 import shortestpath.profiles.Profiles;
 import shortestpath.profiles.Setup;
-import shortestpath.scenarios.CanonicalScenarios;
+import shortestpath.scenarios.CanonicalCorpus;
 import shortestpath.scenarios.Observation;
 import shortestpath.scenarios.Route;
 import shortestpath.scenarios.Scenario;
@@ -37,12 +35,6 @@ public final class BenchmarkMain {
     private static final int FORMAT_VERSION = 1;
     private static final int PROTOCOL_VERSION = 1;
     private static final String IMPLEMENTATION = "shortest-path-java";
-    /** New session per query: every stage is prepared inside the timed region. */
-    static final String SESSION_COLD = "cold";
-    /** Session per account; targets are dropped before each query, as when picking a new destination. */
-    static final String SESSION_ACCOUNT = "account";
-    /** Session per account; the target is prepared before timing, as when recalculating towards it. */
-    static final String SESSION_TARGET = "target";
 
     private BenchmarkMain() { }
 
@@ -61,8 +53,7 @@ public final class BenchmarkMain {
             throw new IllegalArgumentException("BENCHMARK_RUN_ID is required");
         }
 
-        ScenarioRunner runner = new ScenarioRunner(ScenarioRunner.Backend.parse(plan.algorithm),
-            ScenarioRunner.ExactSession.parse(plan.exactSession));
+        ScenarioRunner runner = new ScenarioRunner(plan.backend, plan.exactSession);
         runner.prepare();
         long routingStaticBuildNanos = runner.getRoutingStaticBuildNanos();
         Map<String, CompiledAccount> accounts = new HashMap<>();
@@ -160,30 +151,25 @@ public final class BenchmarkMain {
         long syntheticTime = requireNonNegativeLong(policy, "synthetic_benchmark_time");
         JsonObject adapterArgs = requiredObject(policy, "adapter_args");
         boolean diagnostic = false;
-        String algorithm = "legacy";
-        String exactSession = SESSION_COLD;
+        ScenarioRunner.Backend backend = ScenarioRunner.Backend.LEGACY;
+        ScenarioRunner.ExactSession exactSession = ScenarioRunner.ExactSession.COLD;
         for (String key : adapterArgs.keySet()) {
             if (key.equals("diagnostic")) diagnostic = requireBoolean(adapterArgs, key);
-            else if (key.equals("algorithm")) algorithm = requireString(adapterArgs, key);
-            else if (key.equals("exact_session")) exactSession = requireString(adapterArgs, key);
-            else throw new IllegalArgumentException("unsupported Java adapter argument: " + key);
+            else if (key.equals("algorithm")) backend = ScenarioRunner.Backend.parse(requireString(adapterArgs, key));
+            else if (key.equals("exact_session")) {
+                exactSession = ScenarioRunner.ExactSession.parse(requireString(adapterArgs, key));
+            } else throw new IllegalArgumentException("unsupported Java adapter argument: " + key);
         }
-        if (!exactSession.equals(SESSION_COLD) && !exactSession.equals(SESSION_ACCOUNT)
-                && !exactSession.equals(SESSION_TARGET)) {
-            throw new IllegalArgumentException("exact_session must be cold, account or target");
-        }
-        if (!algorithm.equals("legacy") && !algorithm.equals("exact")) {
-            throw new IllegalArgumentException("algorithm must be legacy or exact");
-        }
-        if (project.equals("shortest-path-exact") != algorithm.equals("exact")) {
+        boolean exact = backend == ScenarioRunner.Backend.EXACT;
+        if (project.equals("shortest-path-exact") != exact) {
             throw new IllegalArgumentException("benchmark project and algorithm disagree");
         }
-        if (!algorithm.equals("exact") && !exactSession.equals(SESSION_COLD)) {
+        if (!exact && exactSession != ScenarioRunner.ExactSession.COLD) {
             throw new IllegalArgumentException("exact_session requires the exact algorithm");
         }
 
         Map<String, Route> routes = new LinkedHashMap<>();
-        for (Route route : CanonicalScenarios.routes(corpus)) {
+        for (Route route : CanonicalCorpus.routes(corpus)) {
             routes.put(route.getId(), route);
         }
         JsonArray rawCases = requiredArray(manifest, "cases");
@@ -192,7 +178,6 @@ public final class BenchmarkMain {
         }
 
         List<Case> cases = new ArrayList<>();
-        Set<String> profilesUsed = new LinkedHashSet<>();
         Set<String> identities = new HashSet<>();
         for (JsonElement element : rawCases) {
             JsonObject raw = element.getAsJsonObject();
@@ -220,7 +205,6 @@ public final class BenchmarkMain {
                     "manifest expected_reachable disagrees with curated negativeProfiles: " + identity);
             }
             cases.add(new Case(route, profile, repetition, expectedReachable));
-            profilesUsed.add(profile);
         }
 
         Set<String> logicalKeys = new HashSet<>();
@@ -235,10 +219,6 @@ public final class BenchmarkMain {
             }
         }
 
-        Set<Boolean> transportModes = new LinkedHashSet<>();
-        for (Case current : cases) {
-            transportModes.add(current.route.isAllowTransports());
-        }
         List<Case> logicalCases = new ArrayList<>();
         Set<String> seenLogical = new HashSet<>();
         for (Case current : cases) {
@@ -247,8 +227,8 @@ public final class BenchmarkMain {
                 logicalCases.add(current);
             }
         }
-        return new Plan(project, cases, logicalCases, profilesUsed, transportModes, repetitions, warmup,
-            syntheticTime, diagnostic, algorithm, exactSession);
+        return new Plan(project, cases, logicalCases, repetitions, warmup, syntheticTime, diagnostic,
+            backend, exactSession);
     }
 
     private static JsonObject executionMetadata(Plan plan, long routingStaticBuildNanos) {
@@ -273,8 +253,8 @@ public final class BenchmarkMain {
         JsonObject adapterArgs = new JsonObject();
         adapterArgs.addProperty("diagnostic", plan.diagnostic);
         adapterArgs.addProperty("algorithm", plan.algorithm);
-        if (plan.algorithm.equals("exact")) {
-            adapterArgs.addProperty("exact_session", plan.exactSession);
+        if (plan.backend == ScenarioRunner.Backend.EXACT) {
+            adapterArgs.addProperty("exact_session", plan.exactSession.id());
         }
         metadata.add("adapter_args", adapterArgs);
         return metadata;
@@ -486,30 +466,28 @@ public final class BenchmarkMain {
         final String project;
         final List<Case> cases;
         final List<Case> logicalCases;
-        final Set<String> profiles;
-        final Set<Boolean> transportModes;
         final int repetitions;
         final boolean warmup;
         final long syntheticBenchmarkTime;
         final boolean diagnostic;
+        final ScenarioRunner.Backend backend;
+        final ScenarioRunner.ExactSession exactSession;
+        /** The backend's manifest name: {@code legacy} or {@code exact}. */
         final String algorithm;
-        final String exactSession;
 
         Plan(String project, List<Case> cases, List<Case> logicalCases,
-                Set<String> profiles, Set<Boolean> transportModes,
                 int repetitions, boolean warmup, long syntheticBenchmarkTime, boolean diagnostic,
-                String algorithm, String exactSession) {
+                ScenarioRunner.Backend backend, ScenarioRunner.ExactSession exactSession) {
             this.project = project;
             this.cases = List.copyOf(cases);
             this.logicalCases = List.copyOf(logicalCases);
-            this.profiles = Collections.unmodifiableSet(new LinkedHashSet<>(profiles));
-            this.transportModes = Set.copyOf(transportModes);
             this.repetitions = repetitions;
             this.warmup = warmup;
             this.syntheticBenchmarkTime = syntheticBenchmarkTime;
             this.diagnostic = diagnostic;
-            this.algorithm = algorithm;
+            this.backend = backend;
             this.exactSession = exactSession;
+            this.algorithm = backend.id();
         }
     }
 

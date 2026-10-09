@@ -87,7 +87,7 @@ public class ProfilesTest {
 
         CompiledAccount seasonal = Profiles.SEASONAL.setup(new ProfileContext(start, true)).compile();
         assertEquals(EnumSet.of(WorldType.SEASONAL), seasonal.getClient().getWorldType());
-        assertEquals(1, Profiles.lumbridgeDiaryElite(Profiles.SEASONAL));
+        assertEquals(1, seasonal.getClient().getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE));
 
         CompiledAccount bank = Profiles.BANK.setup(new ProfileContext(start, true)).compile();
         assertEquals(25000, bank.getConfig().bank.getItems().length);
@@ -95,11 +95,11 @@ public class ProfilesTest {
     }
 
     @Test
-    public void scenarioOverridesWinOverTheProfile() {
-        Setup setup = Profiles.UNIT_TEST.setup(new ProfileContext(WorldPointUtil.UNDEFINED, true))
-            .account(account -> account.level(Skill.AGILITY, 50).varbit(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE, 1)
-                .quest(Quest.RUM_DEAL, QuestState.IN_PROGRESS).inventory(995, 10).inventory(995, 5))
-            .settings(settings -> settings.setUseFairyRings(true));
+    public void overridesWinOverTheProfile() {
+        Setup setup = Profiles.UNIT_TEST.setup(new ProfileContext(WorldPointUtil.UNDEFINED, true));
+        setup.account.level(Skill.AGILITY, 50).varbit(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE, 1)
+            .quest(Quest.RUM_DEAL, QuestState.IN_PROGRESS).inventory(995, 10).inventory(995, 5);
+        setup.settings.setUseFairyRings(true);
         CompiledAccount compiled = setup.compile();
         assertEquals(50, compiled.getClient().getBoostedSkillLevel(Skill.AGILITY));
         assertEquals(1, compiled.getClient().getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE));

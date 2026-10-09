@@ -40,7 +40,7 @@ public class ScenariosTest {
 
     @Test
     public void canonicalIsEveryRouteWithEveryProfileTaggedWithItsTiers() throws IOException {
-        List<Route> routes = CanonicalScenarios.routes(CanonicalScenarios.defaultCorpusDir());
+        List<Route> routes = CanonicalCorpus.routes(CanonicalCorpus.dir());
         List<Scenario> canonical = Suites.load("canonical");
         assertEquals(routes.size() * 4, canonical.size());
         for (String tier : List.of("smoke", "standard", "full")) {
@@ -173,7 +173,7 @@ public class ScenariosTest {
         assertEquals("walk", scenarios.get(0).getCategory());
         assertEquals(Set.of("smoke"), scenarios.get(0).getTiers());
         assertEquals("anagram", scenarios.get(2).getCategory());
-        assertEquals(shortestpath.WorldPointUtil.UNDEFINED, scenarios.get(2).getStartPoint());
+        assertEquals(shortestpath.WorldPointUtil.UNDEFINED, scenarios.get(2).getStart());
         assertFalse(scenarios.get(2).isAllowTransports());
         assertEquals("Clue", scenarios.get(2).getDescription());
     }

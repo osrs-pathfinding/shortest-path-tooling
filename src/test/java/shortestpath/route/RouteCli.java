@@ -16,7 +16,7 @@ import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.TransportAvailability;
 import shortestpath.profiles.CompiledAccount;
 import shortestpath.profiles.Profiles;
-import shortestpath.scenarios.CanonicalScenarios;
+import shortestpath.scenarios.CanonicalCorpus;
 import shortestpath.scenarios.Observation;
 import shortestpath.scenarios.Route;
 import shortestpath.scenarios.Scenario;
@@ -48,7 +48,7 @@ public final class RouteCli {
             runSuite(arguments);
             return;
         }
-        List<Route> routes = CanonicalScenarios.routes(arguments.corpus);
+        List<Route> routes = CanonicalCorpus.routes(arguments.corpus);
         ScenarioRunner runner = new ScenarioRunner(ScenarioRunner.Backend.parse(arguments.algorithm));
 
         if (arguments.routeIds != null) {
@@ -136,7 +136,7 @@ public final class RouteCli {
         ExactPathfinder exact = observation.getExact();
         PathfinderResult result = observation.getResult();
         int start = scenario.getRouteStart();
-        int target = scenario.getEndPoint();
+        int target = scenario.getTarget();
         Scenario suiteScenario = suite != null ? scenario : null;
         List<MatchedTransport> transports = observation.isReached()
             ? transports(result.getPathSteps(), account.getConfig()) : List.of();
