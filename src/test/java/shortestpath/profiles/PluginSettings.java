@@ -2,7 +2,7 @@ package shortestpath.profiles;
 
 import java.util.EnumSet;
 import java.util.Set;
-import shortestpath.requirement.model.JewelleryBoxTier;
+import shortestpath.poh.JewelleryBoxTier;
 import shortestpath.ShortestPathConfig;
 import shortestpath.settings.TeleportationItem;
 import shortestpath.accounts.Poh;
