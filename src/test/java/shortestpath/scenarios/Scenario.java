@@ -16,15 +16,15 @@ import shortestpath.profiles.Setup;
  * plugin-setting overrides on top of it, and what counts as correct.
  *
  * <pre>
- * scenario("Digsite gate (#139) kudos 153+", "routing-issue-139")
+ * suite.scenario("Digsite gate (#139) kudos 153+ crosses gate", "routing-issue-139")
  *     .from(3293, 3428, 0).to(3350, 3415, 0)
  *     .profile(UNIT_TEST)
  *     .account(a -&gt; a.varbit(VarbitID.VM_KUDOS, 153))
  *     .settings(s -&gt; s.setBypassVarbitChecks(false))
- *     .minimumLength(40)
+ *     .minimumLength(40);
  * </pre>
  *
- * The exact expected length is data, kept per suite in
+ * {@link Overrides} names the overrides suites repeat. The exact expected length is data, kept per suite in
  * {@code scenarios/expected-lengths/<suite>.json} and rewritten by {@code captureExpectedLengths}.
  */
 public final class Scenario {

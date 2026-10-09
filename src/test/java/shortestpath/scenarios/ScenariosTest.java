@@ -18,7 +18,9 @@ import java.util.stream.Stream;
 import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
 import org.junit.Test;
+import shortestpath.leagues.LeagueRegion;
 import shortestpath.profiles.CompiledAccount;
+import shortestpath.profiles.Profiles;
 import shortestpath.transport.Transport;
 import shortestpath.transport.parser.VarCheckType;
 import shortestpath.transport.parser.VarRequirement;
@@ -68,6 +70,23 @@ public class ScenariosTest {
                 // Dashboard reports and the issue store refer to scenarios by name.
                 assertFalse(suite + ": comma in " + scenario.getName(), scenario.getName().contains(","));
             }
+        }
+    }
+
+    @Test
+    public void leagueAreasUnlockTheirRegionInThePlugin() {
+        for (LeagueRegion region : Overrides.LEAGUE_AREA_IDS.keySet()) {
+            CompiledAccount locked = Scenario.scenario("locked", "test").to(3222, 3218, 0)
+                .profile(Profiles.SEASONAL).build().compile();
+            CompiledAccount picked = Scenario.scenario("picked", "test").to(3222, 3218, 0)
+                .profile(Profiles.SEASONAL).account(Overrides.leagueAreas(region)).build().compile();
+            if (region.isAlwaysUnlocked() || region.isAlwaysBlocked()) {
+                continue;
+            }
+            assertFalse(region + " is locked before picking it",
+                locked.getConfig().getLeagueModeState().isUnlocked(region));
+            assertTrue(region + " is unlocked after picking it",
+                picked.getConfig().getLeagueModeState().isUnlocked(region));
         }
     }
 

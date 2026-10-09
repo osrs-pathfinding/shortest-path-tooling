@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 /**
  * Every committed scenario suite, by name. Suites with account or settings overrides are Java;
@@ -19,17 +19,17 @@ import java.util.function.Supplier;
  * in {@code /scenarios/expected-lengths/<suite>.json}.
  */
 public final class Suites {
-    private static final Map<String, Supplier<List<Scenario.Builder>>> SUITES = new LinkedHashMap<>();
+    private static final Map<String, Consumer<Suite>> SUITES = new LinkedHashMap<>();
 
     static {
-        SUITES.put("routes", RouteScenarios::all);
-        SUITES.put("unit-tests", UnitTestScenarios::all);
-        SUITES.put("routing-issues", RoutingIssueScenarios::all);
-        SUITES.put("collision-map-issues", CollisionMapIssueScenarios::all);
-        SUITES.put("f2p_routes", F2pRouteScenarios::all);
-        SUITES.put("seasonal_briefcase_routes", SeasonalBriefcaseScenarios::all);
-        SUITES.put("quetzal_whistle_routes", QuetzalWhistleScenarios::all);
-        SUITES.put("clue_locations_full", () -> data("/scenarios/clue_locations_full.csv"));
+        SUITES.put("routes", RouteScenarios::define);
+        SUITES.put("unit-tests", UnitTestScenarios::define);
+        SUITES.put("routing-issues", RoutingIssueScenarios::define);
+        SUITES.put("collision-map-issues", CollisionMapIssueScenarios::define);
+        SUITES.put("f2p_routes", F2pRouteScenarios::define);
+        SUITES.put("seasonal_briefcase_routes", SeasonalBriefcaseScenarios::define);
+        SUITES.put("quetzal_whistle_routes", QuetzalWhistleScenarios::define);
+        SUITES.put("clue_locations_full", suite -> data(suite, "/scenarios/clue_locations_full.csv"));
     }
 
     private Suites() { }
@@ -40,11 +40,13 @@ public final class Suites {
 
     /** The scenarios of {@code suite} with their expected lengths. */
     public static List<Scenario> load(String suite) throws IOException {
-        Supplier<List<Scenario.Builder>> source = SUITES.get(suite);
-        if (source == null) {
+        Consumer<Suite> definition = SUITES.get(suite);
+        if (definition == null) {
             throw new IllegalArgumentException("unknown scenario suite '" + suite + "'; expected one of " + names());
         }
-        return withLengths(build(suite, source.get()), ExpectedLengths.load(suite));
+        Suite scenarios = new Suite();
+        definition.accept(scenarios);
+        return withLengths(build(suite, scenarios.scenarios()), ExpectedLengths.load(suite));
     }
 
     /** A data-only scenario file outside the committed suites; it has no expected lengths. */
@@ -75,9 +77,11 @@ public final class Suites {
         return result;
     }
 
-    private static List<Scenario.Builder> data(String resource) {
+    private static void data(Suite suite, String resource) {
         try {
-            return ScenarioData.loadResource(resource);
+            for (Scenario.Builder scenario : ScenarioData.loadResource(resource)) {
+                suite.add(scenario);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

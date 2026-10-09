@@ -107,12 +107,20 @@ that the files and suites match.
 ### Java scenarios
 
 ```java
-scenario("Digsite gate (#139) kudos 153+ crosses gate", "routing-issue-139")
-    .from(3293, 3428, 0).to(3350, 3415, 0)
-    .profile(UNIT_TEST)
-    .account(a -> a.varbit(VarbitID.VM_KUDOS, 153))
-    .settings(s -> s.setBypassVarbitChecks(false))
-    .minimumLength(40)
+static void define(Suite suite) {
+    suite.scenario("Digsite gate (#139) kudos 153+ crosses gate", "routing-issue-139")
+        .from(3293, 3428, 0).to(3350, 3415, 0)
+        .profile(UNIT_TEST)
+        .account(a -> a.varbit(VarbitID.VM_KUDOS, 153))
+        .settings(s -> s.setBypassVarbitChecks(false))
+        .minimumLength(40);
+
+    suite.scenario("Civitas → Catherby (Kandarin pick)", "briefcase")
+        .from(1735, 3093, 0).to(2807, 3442, 0)
+        .profile(SEASONAL)
+        .account(leagueAreas(LeagueRegion.ASGARNIA, LeagueRegion.KANDARIN))
+        .account(a -> a.inventory(ItemID.LEAGUE_BANK_HEIST_TELEPORT, 1));
+}
 ```
 
 - `.profile(...)` — a `Profiles` constant (see [Profiles](#profiles)).
@@ -121,12 +129,15 @@ scenario("Digsite gate (#139) kudos 153+ crosses gate", "routing-issue-139")
   quantities of the same id add up. Use the RuneLite `gameval` constants (`ItemID`, `VarbitID`,
   `VarPlayerID`); `varbits` are bit-packed slices of varplayer state, and e.g. quest points are varp
   `VarPlayerID.QP` while varp `139` is `LEGENDSQUEST` progress — a common mix-up.
+- `Overrides` names the repeated ones: `.account(leagueAreas(...))` (league area picks by
+  `LeagueRegion`), `.account(eliteDiaries())`, `.settings(bankTeleports())`. `.account` and
+  `.settings` may be called several times; they apply in order after the profile.
 - `.settings(s -> ...)` — `DashboardPathfinderConfig` setters, the dashboard twin of every
   `ShortestPathConfig` item (`ConfigParityTest` keeps them in sync).
 - `.minimumLength(n)` — checked when the suite has no exact expected length for the scenario.
 - `.expectUnreachable()` — an intentional-failure scenario: it passes only when no path is found.
 
-Names must be unique within a suite and comma-free; reports, expected lengths and the issue store
+Each scenario is one `suite.scenario(...)...;` statement. Names must be unique within a suite and comma-free; reports, expected lengths and the issue store
 refer to scenarios by name.
 
 #### Variable overrides and the bypass flags

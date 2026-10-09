@@ -4,68 +4,167 @@ import net.runelite.api.Quest;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import static java.util.Map.entry;
 
 /** Translates semantic profile state into the routing variables consumed by v1. */
 final class RoutingVariables {
     static final int BENCHMARK_NOW_MINUTES = 100_000_000;
 
-    private static final Map<Integer, Integer> EARLY_VARBITS = Map.ofEntries(
-        entry(260, 0), entry(299, 0), entry(346, 0), entry(418, 0), entry(451, 0), entry(487, 0),
-        entry(496, 0), entry(532, 12), entry(538, 0), entry(621, 0), entry(668, 0), entry(2098, 0),
-        entry(2187, 1), entry(2573, 0), entry(2867, 0), entry(2868, 0), entry(2869, 0), entry(2870, 0),
-        entry(2871, 0), entry(2872, 0), entry(3264, 0), entry(3311, 0), entry(3598, 1), entry(3637, 0), entry(3741, 1), entry(3759, 0), entry(3910, 0),
-        entry(4070, 0), entry(4441, 0), entry(4541, 0), entry(4542, 0), entry(4548, 0), entry(4552, 0), entry(4558, 0), entry(4560, 0),
-        entry(4561, 0), entry(4564, 0), entry(4585, 0), entry(4744, 0), entry(4819, 0),
-        entry(5005, 0), entry(5023, 0), entry(5087, 0), entry(5088, 0), entry(5421, 0), entry(5619, 1),
-        entry(5629, 0), entry(5672, 0), entry(5673, 0), entry(5674, 0), entry(5675, 0), entry(5676, 0),
-        entry(5677, 0), entry(5678, 0), entry(5679, 0), entry(5680, 0), entry(5681, 0), entry(5682, 0),
-        entry(5683, 0), entry(5684, 0), entry(5810, 0), entry(6027, 0), entry(6028, 0), entry(6038, 0),
-        entry(6056, 0), entry(6069, 0), entry(6076, 1), entry(6312, 1), entry(6359, 0), entry(6528, 0),
-        entry(7255, 0), entry(7796, 0), entry(7801, 0), entry(7857, 0),
-        entry(7937, 0), entry(7938, 0), entry(8253, 0), entry(8397, 0),
-        entry(8398, 0), entry(9805, 0), entry(10449, 0), entry(10450, 0), entry(10528, 0), entry(11175, 0),
-        entry(11176, 0), entry(11177, 0), entry(11178, 0), entry(11410, 0), entry(12310, 0), entry(12341, 0),
-        entry(13599, 0), entry(13839, 0), entry(13841, 0), entry(17226, 0), entry(18351, 0), entry(18355, 0),
-        entry(18356, 0), entry(18370, 0), entry(18371, 0)
+    /**
+     * The raw routing variables every profile sets, as (early value, progressed value). Early is the
+     * {@code early} baseline; progressed is {@code mid}, {@code end} and {@code maxed}. Semantic state
+     * (diaries, quests, unlocks, POH) is compiled on top and must agree with these.
+     */
+    private static final List<Keyed> VARBITS = List.of(
+        keyed(VarbitID.MDAUGHTER_QUEST_VAR, 0, 70),
+        keyed(VarbitID.DWARFROCK_QUEST, 0, 10),
+        keyed(VarbitID.GOLEM_A, 0, 10),
+        keyed(VarbitID.ICS_LITTLE_VAR, 0, 26),
+        keyed(VarbitID.TOG_JUNA_BOWL, 0, 2),
+        keyed(VarbitID.ZOGRE, 0, 14),
+        keyed(VarbitID.THZFE_BLOCKING_BARRICADE, 0, 1),
+        keyed(VarbitID.LOST_TRIBE_QUEST, 12, 12),
+        keyed(VarbitID.LOST_TRIBE_HOLE_2_DUG, 0, 1),
+        keyed(VarbitID.EDGEVILLE_SPAWN, 0, 1),
+        keyed(VarbitID.FALADOR_SPAWN, 0, 1),
+        keyed(VarbitID.SWANSONG, 0, 200),
+        keyed(VarbitID.POH_HOUSE_LOCATION, 1, 1),
+        keyed(VarbitID.MYQ3_MAIN_QUEST, 0, 320),
+        keyed(VarbitID.ZEP_MULTI_BASKET, 0, 2),
+        keyed(VarbitID.ZEP_MULTI_PICCARD, 0, 2),
+        keyed(VarbitID.ZEP_MULTI_CAST, 0, 1),
+        keyed(VarbitID.ZEP_MULTI_GNO, 0, 1),
+        keyed(VarbitID.ZEP_MULTI_CRAFT, 0, 1),
+        keyed(VarbitID.ZEP_MULTI_VARR, 0, 1),
+        keyed(VarbitID.BARBASSAULT_ARENANEWB, 0, 11),
+        keyed(VarbitID.FRIS_QUEST, 0, 340),
+        keyed(VarbitID.ATJUN_MED_REWARD, 1, 1),
+        keyed(VarbitID.VM_KUDOS, 0, 153),
+        keyed(VarbitID.DRAGONSLAYER_CRANDOR_FOUND_SECRET_DOOR, 1, 1),
+        keyed(VarbitID.BRUT_FIRE, 0, 2),
+        keyed(VarbitID.CAMELOT_SPAWN, 0, 1),
+        keyed(VarbitID.SPELLBOOK, 0, 0),
+        keyed(VarbitID.FENK_BUILT_BRIDGE_NORTH, 0, 2),
+        keyed(VarbitID.WILDERNESS_SWORD_LAST_TELEPORT, 0, 0),
+        keyed(VarbitID.MORYTANIA_LEGS_LAST_TELEPORT, 0, 0),
+        keyed(VarbitID.YANILLE_TELEPORT_LOCATION, 0, 0),
+        keyed(VarbitID.LUMBRIDGE_CABBAGE_TELEPORT, 0, 0),
+        keyed(VarbitID.DESERT_NARDAH_TELEPORT, 0, 0),
+        keyed(VarbitID.SEERS_CAMELOT_TELEPORT, 0, 0),
+        keyed(VarbitID.SEERS_SHERLOCK_TELEPORT, 0, 0),
+        keyed(VarbitID.WESTERN_PISC_TELEPORT, 0, 0),
+        keyed(VarbitID.VARROCK_GE_TELEPORT, 0, 0),
+        keyed(VarbitID.POH_TELE_TOGGLE, 0, 0),
+        keyed(VarbitID.CHINCHOMPA_TELEPORTS, 0, 0),
+        keyed(VarbitID.FREMENNIK_BASIC_TELEPORT, 0, 0),
+        keyed(VarbitID.FENK_BUILT_BRIDGE_SOUTH, 0, 2),
+        keyed(VarbitID.CATA_HOLE1, 0, 1),
+        keyed(VarbitID.CATA_HOLE2, 0, 1),
+        keyed(VarbitID.RAIDS_GUIDE_TRAVEL_UNLOCK, 0, 1),
+        keyed(VarbitID.VEOS_PROGRESS, 1, 1),
+        keyed(VarbitID.KARAM_DUNGEON_BACKDOOR, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_NARDAH, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_DIGSITE, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_FELDIP, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_LUNARISLE, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_MORTTON, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_PESTCONTROL, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_PISCATORIS, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_TAIBWO, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_ELF, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_MOSLES, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_LUMBERYARD, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_ZULANDRA, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_CERBERUS, 0, 1),
+        keyed(VarbitID.OBSERVATORY_SHORTCUT_ROPE, 0, 1),
+        keyed(VarbitID.HOSIDIUSQUEST, 0, 7),
+        keyed(VarbitID.HOSIDIUSQUEST_REWARD, 0, 1),
+        keyed(VarbitID.PISCQUEST_REWARD, 0, 1),
+        keyed(VarbitID.BOOKOFSCROLLS_REVENANTS, 0, 1),
+        keyed(VarbitID.ARDOUGNE_CLOAK_LOWBITS, 0, 0),
+        keyed(VarbitID.CORSAIR_COVE_RESOURCE_ENTRY, 1, 1),
+        keyed(VarbitID.LUMBRIDGE_MED_COUNT, 1, 1),
+        keyed(VarbitID.SHAYZIENQUEST_REWARD, 0, 1),
+        keyed(VarbitID.MY2ARM_STATUS, 0, 207),
+        keyed(VarbitID.MYQ5, 0, 88),
+        keyed(VarbitID.LOVAQUEST, 0, 11),
+        keyed(VarbitID.LOVAQUEST_REWARD, 0, 1),
+        keyed(VarbitID.ARCQUEST_REWARD, 0, 1),
+        keyed(VarbitID.ZEAH_BLESSING_WOODLAND_TELEPORT, 0, 0),
+        keyed(VarbitID.ZEAH_BLESSING_BRIMSTONE_TELEPORT, 0, 0),
+        keyed(VarbitID.BOOKOFSCROLLS_WATSON_LOWBITS, 0, 1),
+        keyed(VarbitID.HOSDUN_WEST_DOOR_STATUS, 0, 1),
+        keyed(VarbitID.HOSDUN_EAST_DOOR_STATUS, 0, 1),
+        keyed(VarbitID.CIVITAS_SPAWN, 0, 1),
+        keyed(VarbitID.DARKM_SHORTCUT_INNER, 0, 1),
+        keyed(VarbitID.DARKM_SHORTCUT_OUTER, 0, 1),
+        keyed(VarbitID.WILDERNESS_SPAWN, 0, 1),
+        keyed(VarbitID.PENDANT_OF_ATES_DARKFROST_FOUND, 0, 1),
+        keyed(VarbitID.PENDANT_OF_ATES_TWILIGHT_FOUND, 0, 1),
+        keyed(VarbitID.PENDANT_OF_ATES_RALOS_FOUND, 0, 1),
+        keyed(VarbitID.PENDANT_OF_ATES_ALDARIN_FOUND, 0, 1),
+        keyed(VarbitID.COLOSSEUM_HIGHEST_WAVE, 0, 9),
+        keyed(VarbitID.KOUREND_SPAWN, 0, 1),
+        keyed(VarbitID.CATA_HOLE_GIANTS_DEN, 0, 1),
+        keyed(VarbitID.LOTG, 0, 50),
+        keyed(VarbitID.PHARAOHS_SCEPTRE_NECROPOLIS, 0, 1),
+        keyed(VarbitID.BCS, 0, 108),
+        keyed(VarbitID.MET_AUBURN_MOUNTAIN_GUIDE, 0, 1),
+        keyed(VarbitID.AMENITY_ROWBOAT_VATRACHOS, 0, 1),
+        keyed(VarbitID.AMENITY_ROWBOAT_ANGLERS, 0, 1),
+        keyed(VarbitID.AMENITY_ROWBOAT_SOUL_TEAR, 0, 1),
+        keyed(VarbitID.AMENITY_ROWBOAT_YNYSDAIL, 0, 1),
+        keyed(VarbitID.AMENITY_ROWBOAT_BUCCANEERS, 0, 1)
     );
-    private static final Map<Integer, Integer> PROGRESSED_VARBITS = Map.ofEntries(
-        entry(260, 70), entry(299, 10), entry(346, 10), entry(418, 26), entry(451, 2), entry(487, 14),
-        entry(496, 1), entry(532, 12), entry(538, 1), entry(621, 1), entry(668, 1), entry(2098, 200),
-        entry(2187, 1), entry(2573, 320), entry(2867, 2), entry(2868, 2), entry(2869, 1), entry(2870, 1),
-        entry(2871, 1), entry(2872, 1), entry(3264, 11), entry(3311, 340), entry(3598, 1), entry(3637, 153),
-        entry(3741, 1), entry(3759, 2), entry(3910, 1), entry(4070, 0), entry(4441, 2), entry(4541, 0),
-        entry(4542, 0), entry(4548, 0), entry(4552, 0), entry(4558, 0), entry(4560, 0), entry(4561, 0),
-        entry(4564, 0), entry(4585, 0), entry(4744, 0), entry(4819, 0), entry(5005, 0), entry(5023, 2),
-        entry(5087, 1), entry(5088, 1), entry(5421, 1), entry(5619, 1), entry(5629, 1), entry(5672, 1),
-        entry(5673, 1), entry(5674, 1), entry(5675, 1), entry(5676, 1), entry(5677, 1), entry(5678, 1),
-        entry(5679, 1), entry(5680, 1), entry(5681, 1), entry(5682, 1), entry(5683, 1), entry(5684, 1),
-        entry(5810, 1), entry(6027, 7), entry(6028, 1), entry(6038, 1), entry(6056, 1), entry(6069, 0),
-        entry(6076, 1), entry(6312, 1), entry(6359, 1), entry(6528, 207), entry(7255, 88), entry(7796, 11),
-        entry(7801, 1), entry(7857, 1), entry(7937, 0), entry(7938, 0), entry(8253, 1), entry(8397, 1),
-        entry(8398, 1), entry(9805, 1), entry(10449, 1), entry(10450, 1), entry(10528, 1), entry(11175, 1),
-        entry(11176, 1), entry(11177, 1), entry(11178, 1), entry(11410, 9), entry(12310, 1), entry(12341, 1),
-        entry(13599, 50), entry(13839, 1), entry(13841, 108), entry(17226, 1), entry(18351, 1), entry(18355, 1),
-        entry(18356, 1), entry(18370, 1), entry(18371, 1)
-    );
-    private static final Map<Integer, Integer> EARLY_VARPLAYERS = Map.ofEntries(
-        entry(11, 0), entry(65, 0), entry(111, 9), entry(116, 0), entry(139, 0), entry(150, 160),
-        entry(165, 30), entry(176, 10), entry(212, 14), entry(328, 15), entry(359, 0), entry(517, 0),
-        entry(888, 99_999_979), entry(892, 0), entry(4182, 0), entry(4560, 0)
+    private static final List<Keyed> VARPLAYERS = List.of(
+        keyed(VarPlayerID.FISHINGCOMPO, 0, 5),
+        keyed(VarPlayerID.WATERFALL_QUEST, 0, 10),
+        keyed(VarPlayerID.TREEQUEST, 9, 9),
+        keyed(VarPlayerID.ZOMBIEQUEEN, 0, 15),
+        keyed(VarPlayerID.LEGENDSQUEST, 0, 75),
+        keyed(VarPlayerID.GRANDTREE, 160, 160),
+        keyed(VarPlayerID.ELENAQUEST, 30, 30),
+        keyed(VarPlayerID.DRAGONQUEST, 10, 10),
+        keyed(VarPlayerID.ITWATCHTOWER, 14, 14),
+        keyed(VarPlayerID.REGICIDE_QUEST, 15, 15),
+        keyed(VarPlayerID.MISC_QUEST, 0, 100),
+        keyed(VarPlayerID.MOURNING_QUEST, 0, 9),
+        keyed(VarPlayerID.SLUG2_REGIONUID, 99_999_979, 99_999_979),
+        keyed(VarPlayerID.AIDE_TELE_TIMER, 0, 0),
+        keyed(VarPlayerID.QUETZALS_UNLOCKED, 0, 18912),
+        keyed(VarPlayerID.HOME_TELEPORT_ANIM_TOGGLES, 0, 0)
     );
 
-    static Map<Integer, Integer> earlyVarbits() { return new LinkedHashMap<>(EARLY_VARBITS); }
-    static Map<Integer, Integer> earlyVarplayers() { return new LinkedHashMap<>(EARLY_VARPLAYERS); }
+    static Map<Integer, Integer> earlyVarbits() { return values(VARBITS, true); }
+    static Map<Integer, Integer> earlyVarplayers() { return values(VARPLAYERS, true); }
+    static Map<Integer, Integer> progressedVarbits() { return values(VARBITS, false); }
+    static Map<Integer, Integer> progressedVarplayers() { return values(VARPLAYERS, false); }
 
-    static Map<Integer, Integer> progressedVarbits() { return new LinkedHashMap<>(PROGRESSED_VARBITS); }
+    private static final class Keyed {
+        final int id;
+        final int early;
+        final int progressed;
 
-    static Map<Integer, Integer> progressedVarplayers() {
-        return Map.ofEntries(
-            entry(11, 5), entry(65, 10), entry(111, 9), entry(116, 15), entry(139, 75), entry(150, 160),
-            entry(165, 30), entry(176, 10), entry(212, 14), entry(328, 15), entry(359, 100), entry(517, 9),
-            entry(888, 99_999_979), entry(892, 0), entry(4182, 18_912), entry(4560, 0)
-        );
+        Keyed(int id, int early, int progressed) {
+            this.id = id;
+            this.early = early;
+            this.progressed = progressed;
+        }
+    }
+
+    private static Keyed keyed(int id, int early, int progressed) {
+        return new Keyed(id, early, progressed);
+    }
+
+    private static Map<Integer, Integer> values(List<Keyed> baseline, boolean early) {
+        Map<Integer, Integer> result = new LinkedHashMap<>();
+        for (Keyed variable : baseline) {
+            if (result.put(variable.id, early ? variable.early : variable.progressed) != null) {
+                throw new IllegalStateException("routing variable " + variable.id + " is keyed twice");
+            }
+        }
+        return result;
     }
 
     private RoutingVariables() { }
