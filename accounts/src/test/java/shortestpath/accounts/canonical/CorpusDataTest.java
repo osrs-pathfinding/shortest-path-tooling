@@ -1,4 +1,4 @@
-package shortestpath.corpus;
+package shortestpath.accounts.canonical;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

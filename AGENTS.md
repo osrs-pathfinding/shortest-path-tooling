@@ -71,7 +71,7 @@ Profiling is expensive — check the `[profiled|unprofiled]` tag on the
 "Running N scenario(s)" banner to confirm what a run is doing:
 
 - **Large datasets auto-run unprofiled** (>200 scenarios, e.g.
-  `clue_locations_full` — ~1 min vs tens of minutes). Pass
+  `clue-locations-full` — ~1 min vs tens of minutes). Pass
   `-PdashboardProfile=true` only when you specifically need profiled data
   for a big dataset.
 - **Small datasets stay profiled by default** (debugging keeps its

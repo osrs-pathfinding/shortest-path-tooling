@@ -26,7 +26,7 @@ cake. Every extraction copies the same rules:
   self-enforcing. `new` for per-refresh objects (`Requirements`,
   `RequirementContext`) and for anything the harnesses subclass —
   `PathfinderConfig` must stay `new`-able for `TestPathfinderConfig` and
-  `DashboardPathfinderConfig`. The `SpiritTreePatchState` package-private
+  `PluginSettings`. The `SpiritTreePatchState` package-private
   test constructor is the precedent for test-only construction seams.
 - Every service and published fact carries its producer-thread and
   consumer-thread pair (client / worker / render) — annotated on the

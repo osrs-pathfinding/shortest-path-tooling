@@ -3,7 +3,6 @@ package shortestpath.profiles;
 import net.runelite.api.Client;
 import shortestpath.accounts.Account;
 import shortestpath.accounts.AccountClient;
-import shortestpath.dashboard.DashboardPathfinderConfig;
 
 /** Turns an {@link Account} and plugin settings into the config the pathfinders read. */
 public final class AccountCompiler {
@@ -13,7 +12,7 @@ public final class AccountCompiler {
      * Refreshes on the calling thread, which the plugin treats as the client thread; run the
      * pathfinder on the same thread.
      */
-    public static CompiledAccount compile(Account account, DashboardPathfinderConfig settings) {
+    public static CompiledAccount compile(Account account, PluginSettings settings) {
         Client client = AccountClient.of(account);
         AccountPathfinderConfig config = new AccountPathfinderConfig(client, settings, account,
             settings.isBypassVarbitChecks(), settings.isBypassVarPlayerChecks());

@@ -30,7 +30,7 @@ def dashboardThreads = providers.gradleProperty('dashboardThreads')
 def dashboardBackend = providers.gradleProperty('dashboardBackend')
         .orElse('LEGACY')
 // Derive bundle name and title from the suite (or file) name + profile flag.
-// e.g. suite=clue_locations_full, profile=true
+// e.g. suite=clue-locations-full, profile=true
 //   → bundle: clue-locations-full-profiled, title: Clue Locations Full Profiled
 // Override with -PdashboardBundle=... or -PdashboardTitle=...
 def source = (dashboardDataset.get().isEmpty() ? dashboardSuite.get() : dashboardDataset.get()) +
@@ -44,7 +44,7 @@ def backendSlug = dashboardBackend.get().equalsIgnoreCase('LEGACY')
 def dashboardBundle = providers.gradleProperty('dashboardBundle')
         .orElse(profiled ? "${slug}${backendSlug}-profiled" : "${slug}${backendSlug}")
 def dashboardTitle = providers.gradleProperty('dashboardTitle')
-        .orElse(stem.tokenize('_').collect { it.capitalize() }.join(' ')
+        .orElse(stem.tokenize('_-').collect { it.capitalize() }.join(' ')
                 + (backendSlug.isEmpty() ? '' : ' ' + dashboardBackend.get().toLowerCase().capitalize())
                 + (profiled ? ' Profiled' : ''))
 

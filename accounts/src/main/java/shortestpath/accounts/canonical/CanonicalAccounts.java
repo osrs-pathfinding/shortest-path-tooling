@@ -1,4 +1,4 @@
-package shortestpath.corpus.profiles;
+package shortestpath.accounts.canonical;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;

@@ -1,4 +1,4 @@
-package shortestpath.dashboard;
+package shortestpath.profiles;
 
 import java.util.EnumSet;
 import java.util.Set;
@@ -10,27 +10,28 @@ import shortestpath.transport.PohNexusPortal;
 import shortestpath.transport.PohMountedItem;
 
 /**
- * Mutable POJO implementation of {@link ShortestPathConfig} for the dashboard test harness.
+ * The plugin settings a scenario runs with: a mutable {@link ShortestPathConfig}. Every
+ * {@link Profiles profile} starts from one, and scenarios override it with
+ * {@code .settings(s -> s.setUseFairyRings(true))}.
  * <p>
- * Every functionally relevant setting has a field and a setter so that presets and per-row
- * {@code config_overrides} can configure any combination without touching
- * {@link shortestpath.TestShortestPathConfig}.
+ * Every functionally relevant setting has a field and a setter ({@code ConfigParityTest} keeps
+ * them in step with the plugin's config items).
  * <p>
  * Display and UI methods (drawMap, drawMinimap, colours, hotkeys …) are not overridden and
  * fall through to the {@link ShortestPathConfig} interface defaults, which are never called
  * during pathfinding.
  * <p>
  * Defaults are chosen to match the {@link ShortestPathConfig} interface defaults so that
- * {@code routes.csv} routes continue to work without any per-row overrides, with three
+ * scenarios only state the settings they care about, with three
  * intentional exceptions:
  * <ul>
- *   <li>{@code calculationCutoff} = 500 (interface default is 5 — far too small for dashboard runs)</li>
- *   <li>{@code useTeleportationItems} = {@code NONE} (presets always set this explicitly)</li>
+ *   <li>{@code calculationCutoff} = 500 (interface default is 5 — far too small for long routes)</li>
+ *   <li>{@code useTeleportationItems} = {@code NONE} (profiles always set this explicitly)</li>
  *   <li>{@code currencyThreshold} = 10 000 000 (generous; ensures currency-gated routes are never
  *       blocked by a threshold)</li>
  * </ul>
  */
-public class DashboardPathfinderConfig implements ShortestPathConfig {
+public class PluginSettings implements ShortestPathConfig {
 
     // -------------------------------------------------------------------------
     // Transport toggles

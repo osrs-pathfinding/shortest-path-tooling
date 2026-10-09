@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 
 /**
  * Every scenario suite, by name. Suites with account or settings overrides are Java;
- * {@code clue_locations_full} and {@code canonical} (the canonical corpus, tagged with its tiers;
+ * {@code clue-locations-full} and {@code canonical} (the canonical corpus, tagged with its tiers;
  * {@link CanonicalScenarios}) are route data ({@link Route}). A suite's optional exact lengths are in
  * {@code /scenarios/expected-lengths/<suite>.json}.
  */
@@ -27,10 +27,10 @@ public final class Suites {
         SUITES.put("unit-tests", UnitTestScenarios::define);
         SUITES.put("routing-issues", RoutingIssueScenarios::define);
         SUITES.put("collision-map-issues", CollisionMapIssueScenarios::define);
-        SUITES.put("f2p_routes", F2pRouteScenarios::define);
-        SUITES.put("seasonal_briefcase_routes", SeasonalBriefcaseScenarios::define);
-        SUITES.put("quetzal_whistle_routes", QuetzalWhistleScenarios::define);
-        SUITES.put("clue_locations_full", suite -> addRoutes(suite,
+        SUITES.put("f2p-routes", F2pRouteScenarios::define);
+        SUITES.put("seasonal-briefcase-routes", SeasonalBriefcaseScenarios::define);
+        SUITES.put("quetzal-whistle-routes", QuetzalWhistleScenarios::define);
+        SUITES.put("clue-locations-full", suite -> addRoutes(suite,
             unchecked(() -> Route.loadResource("/scenarios/clue-locations.json")), List.of("ALL")));
         SUITES.put("canonical", suite -> unchecked(() -> {
             CanonicalScenarios.define(suite, CanonicalScenarios.defaultCorpusDir());

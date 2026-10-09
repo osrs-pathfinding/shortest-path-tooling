@@ -34,7 +34,7 @@ Each route in `corpus/routes-v1.json` has these consumer-facing fields:
 ## Account profiles
 
 Never edit the generated JSON. The profiles are defined in Java under
-`accounts/src/main/java/shortestpath/corpus/profiles/`:
+`accounts/src/main/java/shortestpath/accounts/canonical/`:
 
 - skills, quests, quest points, total level, diaries, POH, milestones, unlocks and planted trees:
   `CanonicalProfiles.java`;

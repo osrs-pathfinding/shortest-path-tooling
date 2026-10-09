@@ -14,8 +14,7 @@ import shortestpath.JewelleryBoxTier;
 import shortestpath.TeleportationItem;
 import shortestpath.WorldPointUtil;
 import shortestpath.accounts.Account;
-import shortestpath.corpus.profiles.CanonicalAccounts;
-import shortestpath.dashboard.DashboardPathfinderConfig;
+import shortestpath.accounts.canonical.CanonicalAccounts;
 import shortestpath.transport.PohMountedItem;
 import shortestpath.transport.PohNexusPortal;
 
@@ -139,8 +138,8 @@ public final class Profiles {
      * The canonical benchmark settings: every transport the route allows, neutral user cost
      * penalties, a 500-tick cutoff, and no harness bypass of varbit or varplayer requirements.
      */
-    static DashboardPathfinderConfig canonicalSettings(Account.Poh poh, boolean allowTransports) {
-        DashboardPathfinderConfig settings = new DashboardPathfinderConfig();
+    static PluginSettings canonicalSettings(Account.Poh poh, boolean allowTransports) {
+        PluginSettings settings = new PluginSettings();
         settings.setAvoidWilderness(false);
         settings.setUseAgilityShortcuts(allowTransports);
         settings.setUseGrappleShortcuts(allowTransports);
@@ -237,9 +236,9 @@ public final class Profiles {
      * 2277), every quest finished, fairy rings unlocked, the given Lumbridge elite diary state,
      * the player standing on the scenario's start tile, and nothing carried or banked unless the
      * scenario adds it ({@code BANK} presets bank every item). Settings start from
-     * {@link DashboardPathfinderConfig}'s defaults, which bypass varbit and varplayer checks.
+     * {@link PluginSettings}'s defaults, which bypass varbit and varplayer checks.
      */
-    private static Profile preset(String name, int lumbridgeDiaryElite, Consumer<DashboardPathfinderConfig> settings) {
+    private static Profile preset(String name, int lumbridgeDiaryElite, Consumer<PluginSettings> settings) {
         Profile profile = new Profile() {
             @Override public String name() { return name; }
             @Override public Setup setup(ProfileContext context) {
@@ -257,7 +256,7 @@ public final class Profiles {
                 if (name.equals("BANK") || name.equals("BANK_PERM")) {
                     account.universalBank();
                 }
-                DashboardPathfinderConfig config = new DashboardPathfinderConfig();
+                PluginSettings config = new PluginSettings();
                 settings.accept(config);
                 return new Setup(account, config);
             }

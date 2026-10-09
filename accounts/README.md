@@ -1,7 +1,7 @@
 # Account profiles
 
 Java definitions of the canonical benchmark accounts (`early`, `mid`, `end`, `maxed`).
-`src/main/java/shortestpath/corpus/profiles/CanonicalProfiles.java` is the semantic source; the
+`src/main/java/shortestpath/accounts/canonical/CanonicalProfiles.java` is the semantic source; the
 JSON in `../corpus/accounts/` and `../corpus/profiles/` is generated from it for non-Java
 consumers.
 

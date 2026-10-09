@@ -4,8 +4,8 @@ import static shortestpath.profiles.Profiles.ALL;
 
 
 /**
- * Quetzal whistle routes. Suite {@code quetzal_whistle_routes}; exact lengths in
- * {@code scenarios/expected-lengths/quetzal_whistle_routes.json}.
+ * Quetzal whistle routes. Suite {@code quetzal-whistle-routes}; exact lengths in
+ * {@code scenarios/expected-lengths/quetzal-whistle-routes.json}.
  */
 final class QuetzalWhistleScenarios {
     private QuetzalWhistleScenarios() { }

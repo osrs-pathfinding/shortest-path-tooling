@@ -95,10 +95,10 @@ always Java; a suite whose rows all use a named profile unchanged may be data.
 | `unit-tests` | Java (`UnitTestScenarios`) | Regression cases for specific logic (bank branching, gating, wilderness, spells) |
 | `routing-issues` | Java (`RoutingIssueScenarios`) | Regressions for upstream routing issues; the category names the issue |
 | `collision-map-issues` | Java (`CollisionMapIssueScenarios`) | Regressions for upstream collision-map issues |
-| `f2p_routes` | Java (`F2pRouteScenarios`) | Free-to-play routes |
-| `seasonal_briefcase_routes` | Java (`SeasonalBriefcaseScenarios`) | Demonic Pacts League routes, including the briefcase |
-| `quetzal_whistle_routes` | Java (`QuetzalWhistleScenarios`) | Quetzal whistle and primo-quetzal routes |
-| `clue_locations_full` | data (`scenarios/clue_locations_full.csv`) | Full clue-step reachability corpus |
+| `f2p-routes` | Java (`F2pRouteScenarios`) | Free-to-play routes |
+| `seasonal-briefcase-routes` | Java (`SeasonalBriefcaseScenarios`) | Demonic Pacts League routes, including the briefcase |
+| `quetzal-whistle-routes` | Java (`QuetzalWhistleScenarios`) | Quetzal whistle and primo-quetzal routes |
+| `clue-locations-full` | data (`scenarios/clue-locations-full.csv`) | Full clue-step reachability corpus |
 | `canonical-smoke`, `canonical-standard`, `canonical` | the canonical corpus (`corpus/corpus/routes-v1.json`) | Each tier's routes × `early`/`mid`/`end`/`maxed`, named `<route id>/<profile>` like the benchmark cases; a profile in the route's `negativeProfiles` must not reach it |
 
 `Suites` registers them; `./gradlew -q scenarioSuites` lists them. A suite may have
@@ -142,7 +142,7 @@ static void define(Suite suite) {
 - `Overrides` names the repeated ones: `.account(leagueAreas(...))` (league area picks by
   `LeagueRegion`), `.account(eliteDiaries())`, `.settings(bankTeleports())`. `.account` and
   `.settings` may be called several times; they apply in order after the profile.
-- `.settings(s -> ...)` — `DashboardPathfinderConfig` setters, the dashboard twin of every
+- `.settings(s -> ...)` — `PluginSettings` setters, the scenario-side twin of every
   `ShortestPathConfig` item (`ConfigParityTest` keeps them in sync).
 - `.minimumLength(n)` — checked when the suite has no exact expected length for the scenario.
 - `.expectUnreachable()` — an intentional-failure scenario: it passes only when no path is found.
@@ -158,7 +158,7 @@ they interact with transport gating in a way that is easy to miss:
 - Transport TSVs under `transports/` carry separate `Varbits` and `VarPlayers` requirement columns,
   evaluated by `varbitChecks`/`varPlayerChecks` in `PathfinderConfig`.
 - The dashboard presets **bypass both checks by default** (`bypassVarbitChecks`/`bypassVarPlayerChecks`
-  are `true` in `DashboardPathfinderConfig`), so an overridden id only gates a transport when the
+  are `true` in `PluginSettings`), so an overridden id only gates a transport when the
   scenario also calls `s.setBypassVarbitChecks(false)` or `s.setBypassVarPlayerChecks(false)`. The
   canonical profiles never bypass.
 - Example: the digsite scenarios in `RoutingIssueScenarios` pair `.varbit(VarbitID.VM_KUDOS, 153)`
@@ -199,7 +199,7 @@ stubs it replaced did), so the plugin computes combat level 3.
 
 ### Data-only scenario CSVs
 
-For a long list of routes that all use one profile unchanged (`clue_locations_full`), or an ad-hoc
+For a long list of routes that all use one profile unchanged (`clue-locations-full`), or an ad-hoc
 list run with `-PdashboardDataset=<file>`:
 
 ```
@@ -234,13 +234,13 @@ Runs `DashboardTest` against one suite and writes a bundle into the output site.
 | `dashboardProfile` | auto (on up to 200 scenarios) | Enable profiling (heatmaps, phase timings) |
 
 The bundle name and title are auto-derived when not overridden. For example:
-- suite `clue_locations_full`, profiling on → bundle `clue-locations-full-profiled`, title `Clue Locations Full Profiled`
+- suite `clue-locations-full`, profiling on → bundle `clue-locations-full-profiled`, title `Clue Locations Full Profiled`
 - suite `routes`, profiling off → bundle `routes`, title `Routes`
 
 To build without profiling (faster, no heatmaps):
 
 ```bash
-./gradlew dashboard -PdashboardProfile=false -PdashboardSuite=clue_locations_full
+./gradlew dashboard -PdashboardProfile=false -PdashboardSuite=clue-locations-full
 ```
 
 ### `captureExpectedLengths`
@@ -316,8 +316,8 @@ When modifying `Pathfinder.java`'s search loop, run this test to confirm the pro
 | "This destination should be reachable" | Add a scenario to `RouteScenarios` or `UnitTestScenarios`, run `dashboard` |
 | Route quality, bank usage, transport choice, exact config control | `UnitTestScenarios` with the `UNIT_TEST` profile and `.settings(...)` |
 | An upstream routing issue | `RoutingIssueScenarios`, category `<domain>-issue-<N>` |
-| Broad sweep after changing core search behavior | `clue_locations_full`, profiling off |
-| Quetzal whistle transport regressions | `quetzal_whistle_routes` |
+| Broad sweep after changing core search behavior | `clue-locations-full`, profiling off |
+| Quetzal whistle transport regressions | `quetzal-whistle-routes` |
 | Performance analysis (where time is spent, queue sizes) | Any suite with `dashboardProfile=true` |
 | Bootstrap or refresh expected path lengths | `captureExpectedLengths` task |
 

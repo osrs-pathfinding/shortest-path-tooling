@@ -74,7 +74,7 @@ public class ScenariosTest {
     @Test
     public void javaSuitesCompile() throws IOException {
         for (String suite : Suites.names()) {
-            if (suite.equals("clue_locations_full") || suite.equals("canonical")) {
+            if (suite.equals("clue-locations-full") || suite.equals("canonical")) {
                 continue;
             }
             for (Scenario scenario : Suites.load(suite)) {

@@ -19,10 +19,10 @@
 |---|---:|---:|---:|---:|---:|
 | `routes.csv` | 29 | 5331 | **4927** | **-404** | **-7.58%** |
 | `unit-tests.csv` | 27 | 4602 | **4457** | **-145** | **-3.15%** |
-| `quetzal_whistle_routes.csv` | 15 | **1622** | 1629 | +7 | +0.43% |
+| `quetzal-whistle-routes.csv` | 15 | **1622** | 1629 | +7 | +0.43% |
 | `collision-map-issues.csv` | 14 | 1494 | **1473** | **-21** | **-1.41%** |
-| `seasonal_briefcase_routes.csv` | 26 | **3303** | 3413 | +110 | +3.33% |
-| `clue_locations_full.csv` | 866 | 207132 | **157314** | **-49818** | **-24.05%** |
+| `seasonal-briefcase-routes.csv` | 26 | **3303** | 3413 | +110 | +3.33% |
+| `clue-locations-full.csv` | 866 | 207132 | **157314** | **-49818** | **-24.05%** |
 | **All combined** | **977** | **223484** | **173213** | **-50271** | **-22.49%** |
 
 ## Normalized Breakdown (Less Biased Than Total ms)
@@ -36,10 +36,10 @@ To reduce that bias, the metrics below normalize by scenario count and by datase
 |---|---:|---:|---:|---:|
 | `routes.csv` | 183.83 | **169.90** | **-13.93** | **-7.58%** |
 | `unit-tests.csv` | 170.44 | **165.07** | **-5.37** | **-3.15%** |
-| `quetzal_whistle_routes.csv` | **108.13** | 108.60 | +0.47 | +0.43% |
+| `quetzal-whistle-routes.csv` | **108.13** | 108.60 | +0.47 | +0.43% |
 | `collision-map-issues.csv` | 106.71 | **105.21** | **-1.50** | **-1.41%** |
-| `seasonal_briefcase_routes.csv` | **127.04** | 131.27 | +4.23 | +3.33% |
-| `clue_locations_full.csv` | 239.18 | **181.66** | **-57.53** | **-24.05%** |
+| `seasonal-briefcase-routes.csv` | **127.04** | 131.27 | +4.23 | +3.33% |
+| `clue-locations-full.csv` | 239.18 | **181.66** | **-57.53** | **-24.05%** |
 | **All combined** | 228.75 | **177.29** | **-51.46** | **-22.49%** |
 
 ### Category Summary
@@ -63,10 +63,10 @@ To reduce that bias, the metrics below normalize by scenario count and by datase
 |---|---:|---:|---:|
 | `routes.csv` | 29 | **-3.69%** | **-4.33%** |
 | `unit-tests.csv` | 27 | **-5.25%** | **-2.08%** |
-| `quetzal_whistle_routes.csv` | 15 | **-8.07%** | **-8.66%** |
+| `quetzal-whistle-routes.csv` | 15 | **-8.07%** | **-8.66%** |
 | `collision-map-issues.csv` | 14 | +11.73% | +3.32% |
-| `seasonal_briefcase_routes.csv` | 26 | **-4.02%** | **-1.45%** |
-| `clue_locations_full.csv` | 866 | **-2.19%** | **-1.62%** |
+| `seasonal-briefcase-routes.csv` | 26 | **-4.02%** | **-1.45%** |
+| `clue-locations-full.csv` | 866 | **-2.19%** | **-1.62%** |
 
 ## Dashboard Algorithm Category Breakdown (Profile Categories)
 
@@ -192,12 +192,12 @@ that cannot reach the destination, and it is the dominant UX pain-point.
 |---|---:|---:|---:|
 | `routes.csv` | 29 (27 R, 2 U) | 6.92 → 6.68 ms (−3.5%) | 240 → 212 ms |
 | `unit-tests.csv` | 27 (27 R) | 11.7 → 9.23 ms (−16.4%) | — |
-| `quetzal_whistle_routes.csv` | 15 (15 R) | 0.69 → 0.73 ms (−11.2% median) | — |
+| `quetzal-whistle-routes.csv` | 15 (15 R) | 0.69 → 0.73 ms (−11.2% median) | — |
 | `collision-map-issues.csv` | 14 (14 R) | 0.20 → 0.28 ms (+4.2% median) | — |
-| `seasonal_briefcase_routes.csv` | 26 (18 R, 8 U) | 0.34 → 0.28 ms (+8.8% median) | 181 → 159 ms |
-| `clue_locations_full.csv` | 866 (817 R, 49 U) | **147 → 96.2 ms (−33.7%)** | **462 → 234 ms (−49.4%)** |
+| `seasonal-briefcase-routes.csv` | 26 (18 R, 8 U) | 0.34 → 0.28 ms (+8.8% median) | 181 → 159 ms |
+| `clue-locations-full.csv` | 866 (817 R, 49 U) | **147 → 96.2 ms (−33.7%)** | **462 → 234 ms (−49.4%)** |
 
-The headline numbers come from `clue_locations_full.csv`, which has the
+The headline numbers come from `clue-locations-full.csv`, which has the
 longest searches and dwarfs every other dataset in absolute time. The other
 five datasets are dominated by very-short paths (sub-millisecond) where the
 median % swings sign-flip easily on noise — but the absolute values are tens
@@ -238,8 +238,8 @@ report JSON.
 ```bash
 # Capture baseline (master)
 git -C ../shortest-path checkout master
-for csv in routes unit-tests quetzal_whistle_routes \
-           collision-map-issues seasonal_briefcase_routes clue_locations_full; do
+for csv in routes unit-tests quetzal-whistle-routes \
+           collision-map-issues seasonal-briefcase-routes clue-locations-full; do
   ../shortest-path/gradlew --quiet dashboard \
     -PdashboardSuite=$csv \
     -PdashboardProfile=false
@@ -514,10 +514,10 @@ for ds in routes unit-tests quetzal-whistle-routes collision-map-issues \
   case "$ds" in
     routes) csv=routes;;
     unit-tests) csv=unit-tests;;
-    quetzal-whistle-routes) csv=quetzal_whistle_routes;;
+    quetzal-whistle-routes) csv=quetzal-whistle-routes;;
     collision-map-issues) csv=collision-map-issues;;
-    seasonal-briefcase-routes) csv=seasonal_briefcase_routes;;
-    clue-locations-full) csv=clue_locations_full;;
+    seasonal-briefcase-routes) csv=seasonal-briefcase-routes;;
+    clue-locations-full) csv=clue-locations-full;;
   esac
   ../shortest-path/gradlew --quiet dashboard \
     -PdashboardSuite=$csv -PdashboardProfile=false

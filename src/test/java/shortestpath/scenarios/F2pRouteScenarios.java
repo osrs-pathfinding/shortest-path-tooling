@@ -6,8 +6,8 @@ import net.runelite.api.Skill;
 import net.runelite.api.gameval.ItemID;
 
 /**
- * Free-to-play routes. Suite {@code f2p_routes}; exact lengths in
- * {@code scenarios/expected-lengths/f2p_routes.json}.
+ * Free-to-play routes. Suite {@code f2p-routes}; exact lengths in
+ * {@code scenarios/expected-lengths/f2p-routes.json}.
  */
 final class F2pRouteScenarios {
     private F2pRouteScenarios() { }

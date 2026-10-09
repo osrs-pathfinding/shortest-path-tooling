@@ -15,7 +15,7 @@ The canonical profiles are:
   and all modeled planted spirit trees.
 
 Their source definitions are in
-`accounts/src/main/java/shortestpath/corpus/profiles/CanonicalProfiles.java` (repository root).
+`accounts/src/main/java/shortestpath/accounts/canonical/CanonicalProfiles.java` (repository root).
 Item inventories and banks use the reusable data in `CanonicalItems.java`.
 `ProfileCompiler` turns a `ProfileSpec` into the checked-in
 `accounts/account-profiles-v1.json`; `RoutingVariables` translates semantic

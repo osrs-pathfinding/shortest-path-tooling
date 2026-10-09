@@ -1066,9 +1066,9 @@ def do_verify(args: argparse.Namespace) -> int:
                     "-PdashboardProfile=false"]
             # Belt-and-braces over the slug auto-tagging — a renamed
             # suite would otherwise lose its overlay silently.
-            if suite.startswith("seasonal_"):
+            if suite.startswith("seasonal-"):
                 argv.append("-PdashboardSeasonal=true")
-            if suite.startswith("f2p_"):
+            if suite.startswith("f2p-"):
                 argv.append("-PdashboardF2p=true")
             slug = suite.lower().replace("_", "-")
             print(f"--- suite {idx}/{len(datasets)}: {suite}",

@@ -36,7 +36,7 @@ tasks.register('generateAccountProfiles', JavaExec) {
     group = 'build'
     description = 'Regenerates corpus/accounts/account-profiles-v1.json and corpus/profiles/*.json.'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'shortestpath.corpus.profiles.Main'
+    mainClass = 'shortestpath.accounts.canonical.Main'
     args 'generate', new File(corpusDir, 'accounts/account-profiles-v1.json').path,
         new File(corpusDir, 'profiles').path
 }
@@ -46,7 +46,7 @@ tasks.register('verifyAccountProfiles', JavaExec) {
     group = 'verification'
     description = 'Checks that the committed account fixtures match the Java profile definitions.'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'shortestpath.corpus.profiles.Main'
+    mainClass = 'shortestpath.accounts.canonical.Main'
     args 'verify', new File(corpusDir, 'accounts/account-profiles-v1.json').path,
         new File(corpusDir, 'profiles').path
 }

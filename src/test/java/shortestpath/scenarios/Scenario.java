@@ -6,8 +6,8 @@ import java.util.OptionalInt;
 import java.util.function.Consumer;
 import shortestpath.WorldPointUtil;
 import shortestpath.accounts.Account;
-import shortestpath.dashboard.DashboardPathfinderConfig;
 import shortestpath.profiles.CompiledAccount;
+import shortestpath.profiles.PluginSettings;
 import shortestpath.profiles.Profile;
 import shortestpath.profiles.ProfileContext;
 import shortestpath.profiles.Setup;
@@ -35,7 +35,7 @@ public final class Scenario {
     private final int target;
     private final Profile profile;
     private final Consumer<Account.Builder> account;
-    private final Consumer<DashboardPathfinderConfig> settings;
+    private final Consumer<PluginSettings> settings;
     private final boolean allowTransports;
     private final String description;
     private final Set<String> tiers;
@@ -128,7 +128,7 @@ public final class Scenario {
         private int target = WorldPointUtil.UNDEFINED;
         private Profile profile;
         private Consumer<Account.Builder> account = account -> { };
-        private Consumer<DashboardPathfinderConfig> settings = settings -> { };
+        private Consumer<PluginSettings> settings = settings -> { };
         private boolean allowTransports = true;
         private String description;
         private Set<String> tiers = Set.of();
@@ -173,7 +173,7 @@ public final class Scenario {
         }
 
         /** Overrides the profile's plugin settings; applied after the profile and after earlier calls. */
-        public Builder settings(Consumer<DashboardPathfinderConfig> override) {
+        public Builder settings(Consumer<PluginSettings> override) {
             settings = settings.andThen(override);
             return this;
         }

@@ -2,14 +2,13 @@ package shortestpath.profiles;
 
 import java.util.function.Consumer;
 import shortestpath.accounts.Account;
-import shortestpath.dashboard.DashboardPathfinderConfig;
 
 /** A profile's account and plugin settings, ready for scenario overrides. */
 public final class Setup {
     public final Account.Builder account;
-    public final DashboardPathfinderConfig settings;
+    public final PluginSettings settings;
 
-    public Setup(Account.Builder account, DashboardPathfinderConfig settings) {
+    public Setup(Account.Builder account, PluginSettings settings) {
         this.account = account;
         this.settings = settings;
     }
@@ -19,7 +18,7 @@ public final class Setup {
         return this;
     }
 
-    public Setup settings(Consumer<DashboardPathfinderConfig> override) {
+    public Setup settings(Consumer<PluginSettings> override) {
         override.accept(settings);
         return this;
     }

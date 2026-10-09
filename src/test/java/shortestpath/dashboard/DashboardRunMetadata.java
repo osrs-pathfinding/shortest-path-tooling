@@ -1,5 +1,7 @@
 package shortestpath.dashboard;
 
+import shortestpath.profiles.PluginSettings;
+
 /**
  * Fills dashboard-specific metadata fields on {@link PathfinderDashboardModels.RunRecord}s.
  * <p>
@@ -21,7 +23,7 @@ public final class DashboardRunMetadata {
     public static void apply(
             PathfinderDashboardModels.RunRecord run,
             String presetId,
-            DashboardPathfinderConfig config,
+            PluginSettings config,
             int lumbridgeDiaryEliteStub) {
         run.routeModeId = presetId;
         run.teleportationItems = config.useTeleportationItems().name();

@@ -15,15 +15,16 @@ import net.runelite.client.config.ConfigItem;
 import org.junit.Test;
 import shortestpath.ShortestPathConfig;
 import shortestpath.TestShortestPathConfig;
+import shortestpath.profiles.PluginSettings;
 
 /**
  * Config-surface parity lint between {@link ShortestPathConfig} and the dashboard
- * twin {@link DashboardPathfinderConfig}.
+ * twin {@link PluginSettings}.
  *
  * <p>Three properties are asserted for every runtime-retained {@code @ConfigItem}
  * on the interface:
  * <ol>
- *   <li><b>Presence</b> — {@code DashboardPathfinderConfig} declares a method with
+ *   <li><b>Presence</b> — {@code PluginSettings} declares a method with
  *       the same name (a fall-through to the interface default is a failure —
  *       the twin exists so scenario config semantics never silently depend on
  *       upstream defaults).</li>
@@ -150,7 +151,7 @@ public class ConfigParityTest {
                 continue;
             }
             try {
-                DashboardPathfinderConfig.class.getDeclaredMethod(m.getName());
+                PluginSettings.class.getDeclaredMethod(m.getName());
             } catch (NoSuchMethodException e) {
                 missing.add(m.getName() + " (keyName=" + keyName(m) + ")");
             }
@@ -158,7 +159,7 @@ public class ConfigParityTest {
         // Forward-compat report: twin members with no @ConfigItem counterpart
         // are non-fatal — printed for visibility only.
         List<String> orphan = new ArrayList<>();
-        for (Method m : DashboardPathfinderConfig.class.getDeclaredMethods()) {
+        for (Method m : PluginSettings.class.getDeclaredMethods()) {
             if (m.getParameterCount() == 0 && m.getReturnType() != void.class
                 && !m.getName().startsWith("set") && !m.getName().startsWith("is")) {
                 try {
@@ -177,7 +178,7 @@ public class ConfigParityTest {
             System.out.println("ConfigParityTest forward-compat twin members"
                 + " (no @ConfigItem counterpart, non-fatal): " + orphan);
         }
-        assertTrue("@ConfigItem methods missing a DashboardPathfinderConfig override: "
+        assertTrue("@ConfigItem methods missing a PluginSettings override: "
             + missing, missing.isEmpty());
     }
 
@@ -190,7 +191,7 @@ public class ConfigParityTest {
             }
             String setter = setterName(m.getName());
             try {
-                DashboardPathfinderConfig.class.getDeclaredMethod(setter, m.getReturnType());
+                PluginSettings.class.getDeclaredMethod(setter, m.getReturnType());
             } catch (NoSuchMethodException e) {
                 missing.add(setter + "(" + m.getReturnType().getSimpleName() + ")");
             }
@@ -201,7 +202,7 @@ public class ConfigParityTest {
 
     @Test
     public void twinDefaultsMatchTestConfig() throws Exception {
-        DashboardPathfinderConfig twin = new DashboardPathfinderConfig();
+        PluginSettings twin = new PluginSettings();
         TestShortestPathConfig reference = new TestShortestPathConfig();
         List<String> divergent = new ArrayList<>();
         for (Method m : configItems()) {

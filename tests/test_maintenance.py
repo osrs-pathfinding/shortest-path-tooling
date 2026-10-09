@@ -1519,12 +1519,12 @@ def test_probes_failure_continues_and_reports(tmp_path, monkeypatch,
 # What ./gradlew -q scenarioSuites prints.
 DASHBOARD_CSVS = [
     "canonical",
-    "clue_locations_full",
+    "clue-locations-full",
     "collision-map-issues",
-    "f2p_routes",
-    "quetzal_whistle_routes",
+    "f2p-routes",
+    "quetzal-whistle-routes",
     "routes",
-    "seasonal_briefcase_routes",
+    "seasonal-briefcase-routes",
     "unit-tests",
 ]
 
@@ -1746,8 +1746,8 @@ def test_verify_overlay_flags(tmp_path, monkeypatch):
                         "=", 1)[1]
         by_dataset[name] = cmd
     assert "-PdashboardSeasonal=true" in \
-        by_dataset["seasonal_briefcase_routes"]
-    assert "-PdashboardF2p=true" in by_dataset["f2p_routes"]
+        by_dataset["seasonal-briefcase-routes"]
+    assert "-PdashboardF2p=true" in by_dataset["f2p-routes"]
     assert not any("dashboardSeasonal" in a
                    for a in by_dataset["routes"])
     assert not any("dashboardF2p" in a

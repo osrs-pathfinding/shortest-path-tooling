@@ -5,8 +5,8 @@ import java.util.function.Consumer;
 import net.runelite.api.gameval.VarbitID;
 import shortestpath.TeleportationItem;
 import shortestpath.accounts.Account;
-import shortestpath.dashboard.DashboardPathfinderConfig;
 import shortestpath.leagues.LeagueRegion;
+import shortestpath.profiles.PluginSettings;
 
 /**
  * Named account and settings overrides that scenarios repeat. Each is a value for
@@ -78,7 +78,7 @@ public final class Overrides {
     }
 
     /** Teleport items from the inventory and the bank, with bank visits in the route. */
-    public static Consumer<DashboardPathfinderConfig> bankTeleports() {
+    public static Consumer<PluginSettings> bankTeleports() {
         return settings -> {
             settings.setUseTeleportationItems(TeleportationItem.INVENTORY_AND_BANK);
             settings.setIncludeBankPath(true);

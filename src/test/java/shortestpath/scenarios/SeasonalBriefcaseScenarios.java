@@ -9,8 +9,8 @@ import net.runelite.api.gameval.VarbitID;
 import shortestpath.leagues.LeagueRegion;
 
 /**
- * Demonic Pacts League routes, including the briefcase teleports. Suite {@code seasonal_briefcase_routes}; exact lengths in
- * {@code scenarios/expected-lengths/seasonal_briefcase_routes.json}.
+ * Demonic Pacts League routes, including the briefcase teleports. Suite {@code seasonal-briefcase-routes}; exact lengths in
+ * {@code scenarios/expected-lengths/seasonal-briefcase-routes.json}.
  */
 final class SeasonalBriefcaseScenarios {
     private SeasonalBriefcaseScenarios() { }

@@ -57,7 +57,7 @@ The default remains the `./shortest-path` Git submodule.
 | Task | Description |
 |------|-------------|
 | `./gradlew dashboard` | Build the pathfinder dashboard from the default `routes` suite |
-| `./gradlew dashboard -PdashboardSuite=clue_locations_full` | Build dashboard from a specific scenario suite |
+| `./gradlew dashboard -PdashboardSuite=clue-locations-full` | Build dashboard from a specific scenario suite |
 | `./gradlew captureExpectedLengths -PdashboardSuite=routes` | Write actual path lengths into the suite's `src/test/resources/scenarios/expected-lengths/<suite>.json` |
 | `./gradlew bankTileDump -PbankTileCacheDir=<dir> -PbankTileXteaPath=<keys.json>` | Dump bank-object placements from an OSRS cache to TSV |
 | `./gradlew sailingAmenityVarbitDump -PsailingAmenityCacheDir=<dir> -PsailingAmenityXteaPath=<keys.json>` | Dump Sailing island amenity varbits from an OSRS cache |

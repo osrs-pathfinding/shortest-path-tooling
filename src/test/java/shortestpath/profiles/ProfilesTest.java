@@ -20,7 +20,7 @@ import org.junit.Test;
 import shortestpath.TeleportationItem;
 import shortestpath.WorldPointUtil;
 import shortestpath.accounts.Account;
-import shortestpath.corpus.profiles.CanonicalAccounts;
+import shortestpath.accounts.canonical.CanonicalAccounts;
 import shortestpath.transport.PohMountedItem;
 import shortestpath.transport.PohNexusPortal;
 

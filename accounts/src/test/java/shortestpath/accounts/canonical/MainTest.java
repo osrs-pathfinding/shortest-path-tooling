@@ -1,4 +1,4 @@
-package shortestpath.corpus.profiles;
+package shortestpath.accounts.canonical;
 
 import org.junit.Test;
 import java.nio.charset.StandardCharsets;

@@ -1,4 +1,4 @@
-package shortestpath.corpus.profiles;
+package shortestpath.accounts.canonical;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

@@ -49,7 +49,7 @@ Union: **107 unique files**. Branch deltas relative to
   first cell with the responsibility qualifier after it — mechanical
   coverage checks read first cells only.
 - **Scope.** The partition covers plugin main sources only. Harness and test
-  mirrors (`TestPathfinderConfig`, `DashboardPathfinderConfig`,
+  mirrors (`TestPathfinderConfig`, `PluginSettings`,
   `ProfilingPathfinder`) appear as blast radius on the clusters they mirror,
   not as partition rows.
 - **Citations.** Symbols, not line numbers — line numbers rot under stack
@@ -244,7 +244,7 @@ cluster.
 | Killed seams | Gates no longer read `Client`, `ShortestPathConfig`, or `PathfinderConfig` directly; per-gate config reads collapsed into `RoutingPolicy`; eligibility evaluation centralised in `TransportEligibility` |
 | Seam anchors | the `RejectionReason` constant set; `check(...)` stays package-private — verdicts are internal instrumentation, consumed by tests only for this milestone; `RequirementContext.capture(...)` is the producer contract |
 | Extraction PR | upstream #707, #708, #709, #710 (landed); #711 carries the config panel and the restriction contract |
-| Blast radius | `requirement/` (10 files) + `requirement/model/` (7 files); harness mirrors ride the `RequirementHooks` seam (`TestPathfinderConfig`, `DashboardPathfinderConfig`) |
+| Blast radius | `requirement/` (10 files) + `requirement/model/` (7 files); harness mirrors ride the `RequirementHooks` seam (`TestPathfinderConfig`, `PluginSettings`) |
 | Known violations | `Requirements` calls `ShortestPathPlugin.isInsidePoh` four times inside the POH gates (`pohDisabled`, `pohVariant`) — a leaf package referencing the shell; migrates to the POH service when it lands |
 
 Package neighbours deliberately outside this cluster: `OwnedItems` collects
@@ -270,7 +270,7 @@ public fields every refresh.
 | Killed seams | Public mutable config-mirror fields on `PathfinderConfig`; stringly-typed `override()` keys scattered across leaf packages; per-site caching duplicated between `cacheConfigValues()` and `TransportTypeConfig` |
 | Seam anchors | The settings view's read/write/listen consumer contract is pinned — it is the real crossing both the gates and the panel sit on; the `config` override payload grammar is pinned with the plugin-message protocol record; intra-service method surface provisional |
 | Extraction PR | Future — the settings service extraction (first in the sequence; the panel contract shapes it) |
-| Blast radius | `ShortestPathConfig`, `TransportTypeConfig`, the override/config responsibility rows on `ShortestPathPlugin` and `PathfinderConfig`; every cached-field consumer re-points; harness twins (`TestPathfinderConfig`, `DashboardPathfinderConfig`) keep `new`-able config |
+| Blast radius | `ShortestPathConfig`, `TransportTypeConfig`, the override/config responsibility rows on `ShortestPathPlugin` and `PathfinderConfig`; every cached-field consumer re-points; harness twins (`TestPathfinderConfig`, `PluginSettings`) keep `new`-able config |
 | Known violations | `TransportTypeConfig` (3 sites) and `PathfinderConfig` (16 sites) call `ShortestPathPlugin.override` — leaf packages reaching into shell statics; migrate to the settings service when it lands |
 
 ### Config panel (writer)

@@ -1,4 +1,4 @@
-package shortestpath.corpus.profiles;
+package shortestpath.accounts.canonical;
 
 import net.runelite.api.Quest;
 import net.runelite.api.gameval.VarPlayerID;
