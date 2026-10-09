@@ -16,6 +16,8 @@ import shortestpath.pathfinder.PathfinderConfig;
 import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.TransportAvailability;
 import shortestpath.pathfinder.exact.RoutingStatic;
+import shortestpath.corpus.profiles.CanonicalAccounts;
+import shortestpath.profiles.CompiledAccount;
 import shortestpath.pathfinder.exact.ExactForwardSearch;
 import shortestpath.transport.Transport;
 
@@ -36,8 +38,6 @@ public final class CanonicalRouteCli {
         Arguments arguments = Arguments.parse(rawArgs);
         List<CanonicalRoute> routes = CanonicalCorpusLoader.loadRoutes(
             arguments.corpus.resolve("corpus/routes-v1.json"));
-        Map<String, CanonicalAccountProfile> profiles = CanonicalAccountProfileLoader.load(
-            arguments.corpus.resolve("accounts/account-profiles-v1.json"));
         RoutingStatic routingStatic = arguments.algorithm.equals("exact")
             ? CanonicalRouteAdapter.buildRoutingStatic() : null;
 
@@ -49,7 +49,7 @@ public final class CanonicalRouteCli {
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("unknown route: " + routeId));
                 query(route.getStartPacked(), route.getTargetPacked(), route,
-                    arguments.profiles.get(i), route.isAllowTransports(), profiles, arguments,
+                    arguments.profiles.get(i), route.isAllowTransports(), arguments,
                     routingStatic);
             }
             return;
@@ -58,11 +58,11 @@ public final class CanonicalRouteCli {
         if (arguments.routeSelector != null) {
             CanonicalRoute route = findRoute(routes, arguments.routeSelector);
             query(route.getStartPacked(), route.getTargetPacked(), route,
-                arguments.profile, true, profiles, arguments, routingStatic);
+                arguments.profile, true, arguments, routingStatic);
             return;
         }
 
-        query(arguments.start, arguments.target, null, arguments.profile, true, profiles, arguments,
+        query(arguments.start, arguments.target, null, arguments.profile, true, arguments,
             routingStatic);
     }
 
@@ -74,15 +74,9 @@ public final class CanonicalRouteCli {
     }
 
     private static void query(int start, int target, CanonicalRoute route, String profileName,
-            boolean allowTransports, Map<String, CanonicalAccountProfile> profiles,
-            Arguments arguments, RoutingStatic routingStatic) throws Exception {
-        CanonicalAccountProfile profile = profiles.get(profileName);
-        if (profile == null) {
-            throw new IllegalArgumentException("unknown profile \"" + profileName
-                + "\"; expected " + String.join(", ", profiles.keySet()));
-        }
-        CanonicalAccountCompiler.CompiledAccount account = new CanonicalAccountCompiler()
-            .compileAtTime(profileName, profile, allowTransports, profile.getBenchmarkNowMinutes());
+            boolean allowTransports, Arguments arguments, RoutingStatic routingStatic) throws Exception {
+        CompiledAccount account = CanonicalAccountCompiler.compile(profileName, allowTransports,
+            CanonicalAccounts.benchmarkNowMinutes());
         ExactPathfinder exact = arguments.algorithm.equals("exact")
             ? CanonicalRouteAdapter.runExact(start, target, account, routingStatic, null) : null;
         PathfinderResult result = exact == null

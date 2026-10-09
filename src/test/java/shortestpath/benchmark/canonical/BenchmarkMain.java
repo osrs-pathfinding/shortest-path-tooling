@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -25,6 +26,7 @@ import shortestpath.pathfinder.PathfinderConfig;
 import shortestpath.pathfinder.exact.ExactForwardSearch;
 import shortestpath.pathfinder.exact.ExactRoutingSession;
 import shortestpath.pathfinder.exact.RoutingStatic;
+import shortestpath.profiles.CompiledAccount;
 import shortestpath.pathfinder.exact.SiteGraph;
 
 /** Stable, manifest-driven Java adapter entry point. */
@@ -56,18 +58,16 @@ public final class BenchmarkMain {
             throw new IllegalArgumentException("BENCHMARK_RUN_ID is required");
         }
 
-        CanonicalAccountCompiler compiler = new CanonicalAccountCompiler();
         long routingStaticStarted = System.nanoTime();
         RoutingStatic routingStatic = plan.algorithm.equals("exact") ? CanonicalRouteAdapter.buildRoutingStatic() : null;
         long routingStaticBuildNanos = routingStatic == null ? 0 : System.nanoTime() - routingStaticStarted;
-        Map<String, CanonicalAccountCompiler.CompiledAccount> accounts = new HashMap<>();
+        Map<String, CompiledAccount> accounts = new HashMap<>();
         Map<String, String> accountFailures = new HashMap<>();
-        for (String profileName : plan.profiles.keySet()) {
-            CanonicalAccountProfile profile = plan.profiles.get(profileName);
+        for (String profileName : plan.profiles) {
             for (boolean allowTransports : plan.transportModes) {
                 String key = accountKey(profileName, allowTransports);
                 try {
-                    accounts.put(key, compiler.compileAtTime(profileName, profile, allowTransports,
+                    accounts.put(key, CanonicalAccountCompiler.compile(profileName, allowTransports,
                         plan.syntheticBenchmarkTime));
                 } catch (RuntimeException exception) {
                     accountFailures.put(key, exception.getClass().getName() + ": " + exception.getMessage());
@@ -219,8 +219,6 @@ public final class BenchmarkMain {
             profilesUsed.add(profile);
         }
 
-        Map<String, CanonicalAccountProfile> profiles = CanonicalAccountProfileLoader.load(
-            corpus.resolve("accounts/account-profiles-v1.json"), profilesUsed);
         Set<String> logicalKeys = new HashSet<>();
         for (Case current : cases) {
             logicalKeys.add(current.route.getId() + "/" + current.profile);
@@ -245,7 +243,7 @@ public final class BenchmarkMain {
                 logicalCases.add(current);
             }
         }
-        return new Plan(project, cases, logicalCases, profiles, transportModes, repetitions, warmup,
+        return new Plan(project, cases, logicalCases, profilesUsed, transportModes, repetitions, warmup,
             syntheticTime, diagnostic, algorithm, exactSession);
     }
 
@@ -286,10 +284,10 @@ public final class BenchmarkMain {
     }
 
     private static JsonObject execute(Case current, Plan plan,
-            Map<String, CanonicalAccountCompiler.CompiledAccount> accounts,
+            Map<String, CompiledAccount> accounts,
             Map<String, String> accountFailures, RoutingStatic routingStatic,
             Map<String, ExactRoutingSession> sessions, boolean measured, String runId) {
-        CanonicalAccountCompiler.CompiledAccount account = accounts.get(
+        CompiledAccount account = accounts.get(
             accountKey(current.profile, current.route.isAllowTransports()));
         String accountFailure = accountFailures.get(accountKey(current.profile, current.route.isAllowTransports()));
         if (accountFailure != null) {
@@ -518,7 +516,7 @@ public final class BenchmarkMain {
         final String project;
         final List<Case> cases;
         final List<Case> logicalCases;
-        final Map<String, CanonicalAccountProfile> profiles;
+        final Set<String> profiles;
         final Set<Boolean> transportModes;
         final int repetitions;
         final boolean warmup;
@@ -528,13 +526,13 @@ public final class BenchmarkMain {
         final String exactSession;
 
         Plan(String project, List<Case> cases, List<Case> logicalCases,
-                Map<String, CanonicalAccountProfile> profiles, Set<Boolean> transportModes,
+                Set<String> profiles, Set<Boolean> transportModes,
                 int repetitions, boolean warmup, long syntheticBenchmarkTime, boolean diagnostic,
                 String algorithm, String exactSession) {
             this.project = project;
             this.cases = List.copyOf(cases);
             this.logicalCases = List.copyOf(logicalCases);
-            this.profiles = Map.copyOf(profiles);
+            this.profiles = Collections.unmodifiableSet(new LinkedHashSet<>(profiles));
             this.transportModes = Set.copyOf(transportModes);
             this.repetitions = repetitions;
             this.warmup = warmup;

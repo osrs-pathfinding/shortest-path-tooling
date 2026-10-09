@@ -1,46 +1,21 @@
 package shortestpath.dashboard;
 
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import java.util.EnumSet;
-import java.util.List;
 import java.util.Map;
-import net.runelite.api.Client;
-import net.runelite.api.Item;
-import net.runelite.api.ItemContainer;
-import net.runelite.api.Player;
 import net.runelite.api.Skill;
-import net.runelite.api.WorldType;
-import net.runelite.api.coords.WorldPoint;
-import net.runelite.api.gameval.InventoryID;
-import net.runelite.api.gameval.VarbitID;
 import shortestpath.JewelleryBoxTier;
 import shortestpath.TeleportationItem;
-import shortestpath.WorldPointUtil;
 import shortestpath.pathfinder.PathfinderBackend;
 import shortestpath.pathfinder.TestPathfinderConfig;
+import shortestpath.profiles.CompiledAccount;
+import shortestpath.profiles.Profile;
+import shortestpath.profiles.ProfileContext;
+import shortestpath.profiles.Profiles;
+import shortestpath.profiles.Setup;
 
 /**
- * Applies a {@link DashboardScenario} to a Mockito {@link Client} and a fresh
- * {@link DashboardPathfinderConfig}, producing a ready-to-use {@link TestPathfinderConfig}.
- *
- * <p>The sequence of operations matches the old {@code AbstractRouteMode.apply()} contract:
- * <ol>
- *   <li>Run the client baseline (resets all per-call stubs to defaults).</li>
- *   <li>Create a fresh {@link DashboardPathfinderConfig} and apply the preset.</li>
- *   <li>Apply preset-driven varbit stub (BANK preset → diary=0).</li>
- *   <li>Apply per-scenario varbit overrides.</li>
- *   <li>Apply per-scenario varplayer overrides.</li>
- *   <li>Stub inventory and equipment containers.</li>
- *   <li>Apply per-scenario skill level overrides.</li>
- *   <li>Apply {@code config_overrides}.</li>
- *   <li>Create {@link DashboardQuestConfig} (carrying the scenario's per-quest
- *       states plus the bypassVarbitChecks/bypassVarPlayerChecks flags from
- *       step 8) and assign bank container.</li>
- *   <li>Call {@code refresh()} on the config.</li>
- * </ol>
+ * Applies a {@link DashboardScenario} row to its preset {@link Profile} and compiles the result.
+ * The row's columns override the preset's account (varbits, varplayers, items, skills, quests)
+ * and settings ({@code config_overrides}); later columns win over the preset.
  */
 public final class DashboardScenarioRunner {
 
@@ -68,127 +43,35 @@ public final class DashboardScenarioRunner {
     }
 
     /**
-     * Apply {@code scenario} to produce a fresh {@link ApplyResult}.
-     *
-     * @param scenario               the scenario to run
-     * @param client                 the Mockito-mocked client
-     * @param clientBaseline         resets all client stubs to their default values (called first)
-     * @param universalBankContainer all-items bank container used for BANK preset runs
-     * @return a fully-initialised {@link ApplyResult} ready for pathfinding
+     * Apply {@code scenario} to produce a fresh {@link ApplyResult}. The config refreshes on the
+     * calling thread, so run the pathfinder on the same thread.
      */
-    public static ApplyResult apply(
-            DashboardScenario scenario,
-            Client client,
-            Runnable clientBaseline,
-            ItemContainer universalBankContainer) {
+    public static ApplyResult apply(DashboardScenario scenario) {
+        Profile profile = Profiles.get(scenario.getPreset());
+        Setup setup = profile.setup(new ProfileContext(scenario.getStartPoint(), true));
 
-        // Step 1: reset client stubs to baseline
-        clientBaseline.run();
-
-        // Step 2: create fresh config and apply preset
-        DashboardPathfinderConfig config = new DashboardPathfinderConfig();
-        DashboardPresets.apply(scenario.getPreset(), config);
-
-        // Step 3: preset-driven Lumbridge diary varbit
-        int diaryStub = DashboardPresets.lumbridgeDiaryEliteStub(scenario.getPreset());
-        when(client.getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE)).thenReturn(diaryStub);
-
-        // Step 3b: seasonal-world stub. The SEASONAL preset is the league
-        // mode trigger — every other preset reports a vanilla world, which
-        // makes LeagueModeState.refresh skip the league filter entirely.
-        // Mockito stubs are sticky across apply() calls, so reset all six
-        // LEAGUE_AREA_SELECTION_* varbits (10662-10667) to 0 here; per-
-        // scenario varbits in step 4 then restore them to the row's chosen
-        // picks (or leave them locked).
-        EnumSet<WorldType> worldTypes = "SEASONAL".equalsIgnoreCase(scenario.getPreset())
-            ? EnumSet.of(WorldType.SEASONAL)
-            : EnumSet.noneOf(WorldType.class);
-        when(client.getWorldType()).thenReturn(worldTypes);
-        for (int slot = 0; slot < 6; slot++) {
-            when(client.getVarbitValue(10662 + slot)).thenReturn(0);
+        scenario.getVarbits().forEach(setup.account::varbit);
+        scenario.getVarplayers().forEach(setup.account::varplayer);
+        for (DashboardScenario.ItemQuantity item : scenario.getInventory()) {
+            setup.account.inventory(item.itemId, item.quantity);
         }
-
-        // Step 3c: player-location stub. Region-scoped detection (planted
-        // spirit trees sample their patch varbit only while standing in that
-        // patch's region) needs a player position; the scenario's own start
-        // tile is the honest stand-in, same "derive from existing columns"
-        // shape as the seasonal stub above. Inert on plugin code that never
-        // reads getLocalPlayer() during refresh.
-        Player localPlayer = mock(Player.class);
-        WorldPoint startWorldPoint = WorldPointUtil.unpackWorldPoint(scenario.getStartPoint());
-        when(localPlayer.getWorldLocation()).thenReturn(startWorldPoint);
-        when(client.getLocalPlayer()).thenReturn(localPlayer);
-
-        // Step 4: per-scenario varbit overrides
-        for (Map.Entry<Integer, Integer> entry : scenario.getVarbits().entrySet()) {
-            when(client.getVarbitValue(entry.getKey())).thenReturn(entry.getValue());
+        for (DashboardScenario.ItemQuantity item : scenario.getEquipment()) {
+            setup.account.equipment(item.itemId, item.quantity);
         }
-
-        // Step 5: per-scenario varplayer overrides
-        for (Map.Entry<Integer, Integer> entry : scenario.getVarplayers().entrySet()) {
-            when(client.getVarpValue(entry.getKey())).thenReturn(entry.getValue());
+        // BANK presets already bank every item; a row's bank column only matters elsewhere.
+        if (!setup.account.build().hasUniversalBank()) {
+            for (DashboardScenario.ItemQuantity item : scenario.getBank()) {
+                setup.account.bank(item.itemId, item.quantity);
+            }
         }
-
-        // Step 6: inventory and equipment containers
-        stubItemContainer(client, InventoryID.INV, scenario.getInventory());
-        stubItemContainer(client, InventoryID.WORN, scenario.getEquipment());
-
-        // Step 7: skill level overrides
         for (Map.Entry<String, Integer> entry : scenario.getSkillLevels().entrySet()) {
-            when(client.getBoostedSkillLevel(Skill.valueOf(entry.getKey())))
-                .thenReturn(entry.getValue());
+            setup.account.level(Skill.valueOf(entry.getKey()), entry.getValue());
         }
+        scenario.getQuestStates().forEach(setup.account::quest);
+        applyConfigOverrides(scenario.getConfigOverrides(), setup.settings);
 
-        // Step 8: config_overrides dispatch
-        applyConfigOverrides(scenario.getConfigOverrides(), config);
-
-        // Step 9: build the pathfinder config. DashboardQuestConfig carries the
-        // scenario's per-quest state map; it must exist before refresh() so the
-        // questStates snapshot in refreshTransports sees the overrides.
-        // Both bypass flags come from config_overrides (default true) so a row
-        // can re-enable varbit/varplayer transport gating individually.
-        TestPathfinderConfig pfConfig = new DashboardQuestConfig(client, config,
-            scenario.getQuestStates(), config.isBypassVarbitChecks(),
-            config.isBypassVarPlayerChecks());
-
-        // Assign bank container. BANK and BANK_PERM both set includeBankPath=true,
-        // so both need a non-null bank container — otherwise banked teleport items
-        // are silently unavailable while the pathfinder still enters bank-visit states.
-        boolean isBankPreset = "BANK".equalsIgnoreCase(scenario.getPreset())
-            || "BANK_PERM".equalsIgnoreCase(scenario.getPreset());
-        if (isBankPreset) {
-            pfConfig.bank = universalBankContainer;
-        } else if (!scenario.getBank().isEmpty()) {
-            pfConfig.bank = buildItemContainer(scenario.getBank());
-        }
-
-        // Step 10: refresh
-        pfConfig.refresh();
-
-        return new ApplyResult(pfConfig, config, diaryStub);
-    }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    private static void stubItemContainer(Client client, int containerId, List<DashboardScenario.ItemQuantity> items) {
-        if (items.isEmpty()) {
-            // Return null → PathfinderConfig treats null container as empty
-            when(client.getItemContainer(containerId)).thenReturn(null);
-        } else {
-            ItemContainer container = buildItemContainer(items);
-            doReturn(container).when(client).getItemContainer(containerId);
-        }
-    }
-
-    private static ItemContainer buildItemContainer(List<DashboardScenario.ItemQuantity> items) {
-        Item[] itemArray = items.stream()
-            .map(iq -> new Item(iq.itemId, iq.quantity))
-            .toArray(Item[]::new);
-        ItemContainer container = mock(ItemContainer.class);
-        when(container.getItems()).thenReturn(itemArray);
-        return container;
+        CompiledAccount compiled = setup.compile();
+        return new ApplyResult(compiled.getConfig(), compiled.getSettings(), Profiles.lumbridgeDiaryElite(profile));
     }
 
     /**

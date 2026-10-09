@@ -19,6 +19,7 @@ def runeLiteVersion = 'latest.release'
 dependencies {
     // Plugin main sources via composite build (shortest-path is included in settings.gradle)
     testImplementation 'shortestpath:shortest-path'
+    testImplementation project(':accounts')
 
     // RuneLite — needed directly because the plugin declares client as compileOnly
     testImplementation group: 'net.runelite', name: 'client', version: runeLiteVersion
@@ -28,7 +29,6 @@ dependencies {
     }
 
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.mockito:mockito-core:3.4.6'
     testImplementation 'com.google.code.gson:gson:2.10.1'
 
     testCompileOnly 'org.projectlombok:lombok:1.18.30'

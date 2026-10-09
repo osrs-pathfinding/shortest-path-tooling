@@ -2,14 +2,8 @@ package shortestpath.dashboard;
 
 import java.util.EnumSet;
 import java.util.Set;
-import net.runelite.api.Client;
-import net.runelite.api.GameState;
-import net.runelite.api.QuestState;
-import net.runelite.api.Skill;
 import org.junit.Before;
 import org.junit.Test;
-import shortestpath.TeleportationItem;
-import shortestpath.TestShortestPathConfig;
 import shortestpath.WorldPointUtil;
 import shortestpath.leagues.LeagueRegion;
 import shortestpath.pathfinder.PathfinderConfig;
@@ -17,13 +11,11 @@ import shortestpath.pathfinder.PathfinderProfile;
 import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.Pathfinder;
 import shortestpath.pathfinder.ProfilingPathfinder;
-import shortestpath.pathfinder.TestPathfinderConfig;
+import shortestpath.profiles.ProfileContext;
+import shortestpath.profiles.Profiles;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Verifies that {@link ProfilingPathfinder} produces the same results as the
@@ -32,23 +24,12 @@ import static org.mockito.Mockito.when;
  * engine behind {@link DashboardTest}.
  */
 public class ProfilerTest {
-    private Client client;
-    private TestShortestPathConfig config;
     private PathfinderConfig pathfinderConfig;
 
     @Before
     public void setUp() {
-        client = mock(Client.class);
-        config = new TestShortestPathConfig();
-        when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
-        when(client.getClientThread()).thenReturn(Thread.currentThread());
-        when(client.getBoostedSkillLevel(any(Skill.class))).thenReturn(99);
-        config.setCalculationCutoffValue(500);
-        config.setUseTeleportationItemsValue(TeleportationItem.ALL);
-        config.setIncludeBankPathValue(false);
-
-        pathfinderConfig = new TestPathfinderConfig(client, config, QuestState.FINISHED, true, true);
-        pathfinderConfig.refresh();
+        pathfinderConfig = Profiles.ALL.setup(new ProfileContext(WorldPointUtil.UNDEFINED, true))
+            .compile().getConfig();
     }
 
     @Test
@@ -113,7 +94,7 @@ public class ProfilerTest {
         // Profiling overhead must not cause catastrophic slowdown on the short walk.
         // Use an absolute cap (2× the calculation cutoff) rather than a ratio,
         // because ratio-based checks are unreliable when the unprofiled run is very fast.
-        long maxTimedNanos = config.calculationCutoff() * 2_000_000L;
+        long maxTimedNanos = 500 * 2_000_000L;
         assertTrue("Profiling overhead too high: profiled=" + timedNanos / 1_000_000 + "ms" +
             ", limit=" + maxTimedNanos / 1_000_000 + "ms",
             timedNanos < maxTimedNanos);
@@ -127,13 +108,8 @@ public class ProfilerTest {
      */
     @Test
     public void profilingDoesNotAffectResultsLeague() {
-        TestShortestPathConfig leagueConfig = new TestShortestPathConfig();
-        leagueConfig.setCalculationCutoffValue(500);
-        leagueConfig.setUseTeleportationItemsValue(TeleportationItem.ALL);
-        leagueConfig.setIncludeBankPathValue(false);
-
-        PathfinderConfig leaguePfConfig = new TestPathfinderConfig(client, leagueConfig, QuestState.FINISHED, true, true);
-        leaguePfConfig.refresh();
+        PathfinderConfig leaguePfConfig = Profiles.ALL.setup(new ProfileContext(WorldPointUtil.UNDEFINED, true))
+            .compile().getConfig();
         // Kandarin only: Misthalin (Varrock area) and Asgarnia (Falador area) are blocked.
         leaguePfConfig.getLeagueModeState().setForTest(true, EnumSet.of(LeagueRegion.KANDARIN));
 
@@ -172,13 +148,9 @@ public class ProfilerTest {
      */
     @Test
     public void profilingDoesNotAffectResultsBankPath() {
-        TestShortestPathConfig bankConfig = new TestShortestPathConfig();
-        bankConfig.setCalculationCutoffValue(500);
-        bankConfig.setUseTeleportationItemsValue(TeleportationItem.ALL);
-        bankConfig.setIncludeBankPathValue(true);
-
-        PathfinderConfig bankPfConfig = new TestPathfinderConfig(client, bankConfig, QuestState.FINISHED, true, true);
-        bankPfConfig.refresh();
+        PathfinderConfig bankPfConfig = Profiles.ALL.setup(new ProfileContext(WorldPointUtil.UNDEFINED, true))
+            .settings(settings -> settings.setIncludeBankPath(true))
+            .compile().getConfig();
 
         int[][] routes = {
             // Lumbridge → Ardougne: long walk without bank, but bank-path mode unlocks

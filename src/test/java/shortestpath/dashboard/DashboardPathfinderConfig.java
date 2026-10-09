@@ -14,7 +14,7 @@ import shortestpath.transport.PohMountedItem;
  * <p>
  * Every functionally relevant setting has a field and a setter so that presets and per-row
  * {@code config_overrides} can configure any combination without touching
- * {@link shortestpath.TestShortestPathConfig} or the unit-test {@link org.mockito.Mock} pattern.
+ * {@link shortestpath.TestShortestPathConfig}.
  * <p>
  * Display and UI methods (drawMap, drawMinimap, colours, hotkeys …) are not overridden and
  * fall through to the {@link ShortestPathConfig} interface defaults, which are never called
@@ -231,7 +231,7 @@ public class DashboardPathfinderConfig implements ShortestPathConfig {
     }
 
     // =========================================================================
-    // Setters (called by DashboardPresets and DashboardScenarioRunner)
+    // Setters (called by shortestpath.profiles.Profiles and scenario overrides)
     // =========================================================================
 
     public void setAvoidWilderness(boolean v) { avoidWilderness = v; }

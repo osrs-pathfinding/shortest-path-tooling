@@ -1,9 +1,5 @@
 package shortestpath.dashboard;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -22,15 +18,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.EnumSet;
-import net.runelite.api.Client;
-import net.runelite.api.GameState;
-import net.runelite.api.Item;
-import net.runelite.api.ItemContainer;
-import net.runelite.api.Skill;
-import net.runelite.api.WorldType;
-import net.runelite.api.gameval.InventoryID;
-import net.runelite.api.gameval.VarbitID;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import org.junit.Test;
@@ -89,14 +76,7 @@ import shortestpath.pathfinder.TestPathfinderConfig;
  */
 public class DashboardTest {
 
-    // Universal bank: every item id 0..24999 in qty 1000 – used for BANK preset runs.
-    private static final Item[] UNIVERSAL_BANK_ITEMS;
-
     static {
-        UNIVERSAL_BANK_ITEMS = new Item[25000];
-        for (int i = 0; i < 25000; i++) {
-            UNIVERSAL_BANK_ITEMS[i] = new Item(i, 1000);
-        }
         ((Logger) LoggerFactory.getLogger("shortestpath.transport.Transport")).setLevel(Level.OFF);
     }
 
@@ -144,60 +124,6 @@ public class DashboardTest {
      * emitted in strictly increasing order for the tqdm progress hook.
      */
     private static final Object HEARTBEAT_LOCK = new Object();
-
-    /**
-     * Reset {@code client} and re-apply the baseline stubs every scenario
-     * starts from. Must run on the thread that will execute the scenario:
-     * the {@code getClientThread()} stub captures {@code Thread.currentThread()}
-     * at invocation time, which is what lets each worker pass the
-     * client-thread gate inside the pathfinder config refresh.
-     */
-    private static void stubClientBaseline(Client client) {
-        reset(client);
-        when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
-        when(client.getClientThread()).thenReturn(Thread.currentThread());
-        when(client.getBoostedSkillLevel(any(Skill.class))).thenReturn(99);
-        when(client.getTotalLevel()).thenReturn(2277);
-        when(client.getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE)).thenReturn(1);
-        when(client.getVarbitValue(VarbitID.FAIRY2_QUEENCURE_QUEST)).thenReturn(100);
-        when(client.getWorldType()).thenReturn(EnumSet.noneOf(WorldType.class));
-        when(client.getItemContainer(InventoryID.INV)).thenReturn(null);
-        when(client.getItemContainer(InventoryID.WORN)).thenReturn(null);
-    }
-
-    /**
-     * Per-worker Mockito fixtures. {@code DashboardScenarioRunner.apply} mutates
-     * the passed {@link Client} (the baseline resets and re-stubs it per
-     * scenario), so a mock must never be shared across workers — each worker
-     * thread builds and owns its own set.
-     */
-    private static final class WorkerContext {
-        final Client client;
-        final Runnable clientBaseline;
-        final ItemContainer universalBankContainer;
-
-        WorkerContext(Client client, Runnable clientBaseline, ItemContainer universalBankContainer) {
-            this.client = client;
-            this.clientBaseline = clientBaseline;
-            this.universalBankContainer = universalBankContainer;
-        }
-    }
-
-    /**
-     * Build a worker's Mockito fixtures. MUST be invoked on the worker thread
-     * itself so the initial {@code getClientThread()} stub captures the worker,
-     * not the main thread.
-     */
-    private static WorkerContext newWorkerContext() {
-        Client client = mock(Client.class);
-        Runnable clientBaseline = () -> stubClientBaseline(client);
-        clientBaseline.run();
-
-        ItemContainer universalBankContainer = mock(ItemContainer.class);
-        when(universalBankContainer.getItems()).thenReturn(UNIVERSAL_BANK_ITEMS);
-
-        return new WorkerContext(client, clientBaseline, universalBankContainer);
-    }
 
     /**
      * Resolve the scenario worker count: the {@code dashboard.threads} system
@@ -330,9 +256,8 @@ public class DashboardTest {
 
     /**
      * Worker loop: pull scenario indexes off the shared queue and run each
-     * scenario with this thread's own Mockito fixtures. Every per-scenario
-     * mutable input to {@link DashboardScenarioRunner#apply} lives in the
-     * worker's {@link WorkerContext}; everything shared (the scenario list,
+     * scenario. {@link DashboardScenarioRunner#apply} builds a fresh client and
+     * config per scenario on this thread; everything shared (the scenario list,
      * the results array, the writers and publisher) is either immutable or
      * written under an index unique to this scenario.
      */
@@ -346,13 +271,11 @@ public class DashboardTest {
             String bundleName,
             boolean profile,
             boolean heatmap) {
-        WorkerContext ctx = newWorkerContext();
         int n = scenarios.size();
         for (int i = nextIndex.getAndIncrement(); i < n; i = nextIndex.getAndIncrement()) {
             DashboardScenario scenario = scenarios.get(i);
             try {
-                DashboardScenarioRunner.ApplyResult applied = DashboardScenarioRunner.apply(
-                    scenario, ctx.client, ctx.clientBaseline, ctx.universalBankContainer);
+                DashboardScenarioRunner.ApplyResult applied = DashboardScenarioRunner.apply(scenario);
 
                 // Default to the Grand Exchange bank when no explicit start is set (e.g. clue-step CSV rows)
                 int start = scenario.getStartPoint() != WorldPointUtil.UNDEFINED

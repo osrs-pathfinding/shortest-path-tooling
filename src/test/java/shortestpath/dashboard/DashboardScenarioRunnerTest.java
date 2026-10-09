@@ -3,29 +3,15 @@ package shortestpath.dashboard;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import net.runelite.api.Client;
-import net.runelite.api.GameState;
-import net.runelite.api.Item;
-import net.runelite.api.ItemContainer;
 import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
-import net.runelite.api.Skill;
-import net.runelite.api.WorldType;
-import net.runelite.api.gameval.InventoryID;
-import net.runelite.api.gameval.VarbitID;
-import org.junit.Before;
 import org.junit.Test;
 import shortestpath.WorldPointUtil;
 import shortestpath.transport.Transport;
@@ -40,51 +26,6 @@ import shortestpath.transport.parser.VarRequirement;
  * whether transport var requirements evaluate at all.
  */
 public class DashboardScenarioRunnerTest {
-
-    // Universal bank: every item id 0..24999 in qty 1000 – used for BANK preset runs.
-    private static final Item[] UNIVERSAL_BANK_ITEMS;
-
-    static {
-        UNIVERSAL_BANK_ITEMS = new Item[25000];
-        for (int i = 0; i < 25000; i++) {
-            UNIVERSAL_BANK_ITEMS[i] = new Item(i, 1000);
-        }
-    }
-
-    private Client client;
-    private Runnable clientBaseline;
-    private ItemContainer universalBankContainer;
-
-    @Before
-    public void setUp() {
-        client = mock(Client.class);
-        when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
-        when(client.getClientThread()).thenReturn(Thread.currentThread());
-        when(client.getBoostedSkillLevel(any(Skill.class))).thenReturn(99);
-        when(client.getTotalLevel()).thenReturn(2277);
-        when(client.getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE)).thenReturn(1);
-        when(client.getVarbitValue(VarbitID.FAIRY2_QUEENCURE_QUEST)).thenReturn(100);
-        when(client.getWorldType()).thenReturn(EnumSet.noneOf(WorldType.class));
-        when(client.getItemContainer(InventoryID.INV)).thenReturn(null);
-        when(client.getItemContainer(InventoryID.WORN)).thenReturn(null);
-
-        universalBankContainer = mock(ItemContainer.class);
-        when(universalBankContainer.getItems()).thenReturn(UNIVERSAL_BANK_ITEMS);
-
-        // Capture current stub state as the per-scenario baseline Runnable
-        clientBaseline = () -> {
-            reset(client);
-            when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
-            when(client.getClientThread()).thenReturn(Thread.currentThread());
-            when(client.getBoostedSkillLevel(any(Skill.class))).thenReturn(99);
-            when(client.getTotalLevel()).thenReturn(2277);
-            when(client.getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE)).thenReturn(1);
-            when(client.getVarbitValue(VarbitID.FAIRY2_QUEENCURE_QUEST)).thenReturn(100);
-            when(client.getWorldType()).thenReturn(EnumSet.noneOf(WorldType.class));
-            when(client.getItemContainer(InventoryID.INV)).thenReturn(null);
-            when(client.getItemContainer(InventoryID.WORN)).thenReturn(null);
-        };
-    }
 
     /**
      * A {@code quests=The Grand Tree=NOT_STARTED} cell must reach the
@@ -101,8 +42,7 @@ public class DashboardScenarioRunnerTest {
         try {
             DashboardScenario scenario =
                 new DashboardScenarioLoader().loadFromCsv(csv).get(0);
-            DashboardScenarioRunner.ApplyResult applied = DashboardScenarioRunner.apply(
-                scenario, client, clientBaseline, universalBankContainer);
+            DashboardScenarioRunner.ApplyResult applied = DashboardScenarioRunner.apply(scenario);
             assertEquals(QuestState.NOT_STARTED,
                 applied.pathfinderConfig.getQuestState(Quest.THE_GRAND_TREE));
             assertEquals(QuestState.FINISHED,
@@ -117,8 +57,7 @@ public class DashboardScenarioRunnerTest {
      * <em>fails</em> (inverted naming — true means "reject this transport").
      * A {@code config_overrides=bypassVarPlayerChecks=false} row must make
      * transport {@code VarPlayers} requirements evaluate against the
-     * scenario's {@code varplayers} stubs — and Mockito's default 0 for
-     * unstubbed ids — while an absent override keeps the historical
+     * scenario's {@code varplayers} — and 0 for unset ids — while an absent override keeps the historical
      * always-bypassed behavior.
      */
     @Test
@@ -140,8 +79,7 @@ public class DashboardScenarioRunnerTest {
             .endPoint(target)
             .varplayers(Map.of(139, 0))
             .build();
-        DashboardScenarioRunner.ApplyResult applied = DashboardScenarioRunner.apply(
-            bypassed, client, clientBaseline, universalBankContainer);
+        DashboardScenarioRunner.ApplyResult applied = DashboardScenarioRunner.apply(bypassed);
         assertFalse(applied.pathfinderConfig.varPlayerChecks(varpReqTransport, 0));
 
         // bypassVarPlayerChecks=false + a satisfying stub: 50 > 49 passes,
@@ -152,11 +90,10 @@ public class DashboardScenarioRunnerTest {
             .varplayers(Map.of(139, 50))
             .configOverrides(Map.of("bypassVarPlayerChecks", "false"))
             .build();
-        applied = DashboardScenarioRunner.apply(
-            satisfied, client, clientBaseline, universalBankContainer);
+        applied = DashboardScenarioRunner.apply(satisfied);
         assertFalse(applied.pathfinderConfig.varPlayerChecks(varpReqTransport, 0));
 
-        // bypassVarPlayerChecks=false with no varp-139 stub: Mockito's
+        // bypassVarPlayerChecks=false with no varp 139 set: the
         // default 0 fails 139>49, so the transport is rejected — the flag
         // flips the gate and the stub feeds it.
         DashboardScenario unstubbed = DashboardScenario.builder()
@@ -164,8 +101,7 @@ public class DashboardScenarioRunnerTest {
             .endPoint(target)
             .configOverrides(Map.of("bypassVarPlayerChecks", "false"))
             .build();
-        applied = DashboardScenarioRunner.apply(
-            unstubbed, client, clientBaseline, universalBankContainer);
+        applied = DashboardScenarioRunner.apply(unstubbed);
         assertTrue(applied.pathfinderConfig.varPlayerChecks(varpReqTransport, 0));
     }
 }
