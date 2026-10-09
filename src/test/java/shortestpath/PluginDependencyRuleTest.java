@@ -105,45 +105,9 @@ public class PluginDependencyRuleTest
 		ALLOWLIST.put("shortestpath/leagues/LeagueRegionChecker.java:105",
 			"resource anchor — league-region TSV read; the loader migrates self-anchored");
 
-		// Static imports of the POH landing-tile constants.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:29",
-			"import static of POH_LANDING_X — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:30",
-			"import static of POH_LANDING_Y — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:10",
-			"import static of POH_LANDING_X — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:11",
-			"import static of POH_LANDING_Y — migrates to the POH service");
-
-		// isInsidePoh world-geometry reads — migrate to the POH service.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:775",
-			"isInsidePoh redirect filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:104",
-			"isInsidePoh origin check — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/requirement/Requirements.java:194",
-			"isInsidePoh POH gate — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/requirement/Requirements.java:262",
-			"isInsidePoh POH-variant gate — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:266",
-			"isInsidePoh marker filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:301",
-			"isInsidePoh tracer filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:336",
-			"isInsidePoh marker filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:380",
-			"isInsidePoh marker filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:412",
-			"isInsidePoh click-point filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:804",
-			"isInsidePoh transport-tile check — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:864",
-			"isInsidePoh player-tile check — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:865",
-			"isInsidePoh player-tile check — migrates to the POH service");
-
 		// Sailing path colour constant reads — migrate with the overlay
 		// extraction to a presentation-side colour seam.
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:228",
+		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:229",
 			"COLOUR_SAILING_PATH read — migrates with the overlay extraction");
 		ALLOWLIST.put("shortestpath/overlay/PathMapOverlay.java:142",
 			"COLOUR_SAILING_PATH read — migrates with the overlay extraction");
