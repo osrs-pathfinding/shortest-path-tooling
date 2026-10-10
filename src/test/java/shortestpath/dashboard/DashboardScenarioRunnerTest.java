@@ -29,8 +29,8 @@ import org.junit.Before;
 import org.junit.Test;
 import shortestpath.WorldPointUtil;
 import shortestpath.transport.Transport;
-import shortestpath.transport.parser.VarCheckType;
-import shortestpath.transport.parser.VarRequirement;
+import shortestpath.requirement.model.VarCheckType;
+import shortestpath.requirement.model.VarRequirement;
 
 /**
  * Exercises {@link DashboardScenarioRunner#apply} — the seam where a scenario's

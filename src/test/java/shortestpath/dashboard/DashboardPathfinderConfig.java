@@ -2,9 +2,9 @@ package shortestpath.dashboard;
 
 import java.util.EnumSet;
 import java.util.Set;
-import shortestpath.JewelleryBoxTier;
+import shortestpath.requirement.model.JewelleryBoxTier;
 import shortestpath.ShortestPathConfig;
-import shortestpath.TeleportationItem;
+import shortestpath.requirement.TeleportationItem;
 import shortestpath.pathfinder.PathfinderBackend;
 import shortestpath.transport.PohNexusPortal;
 import shortestpath.transport.PohMountedItem;
