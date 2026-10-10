@@ -26,8 +26,8 @@ import net.runelite.api.gameval.InventoryID;
  *
  * <p>Only the calls the pathfinder makes while refreshing its config are answered from the
  * account. Every other method returns an empty value (0, {@code false}, an empty collection or
- * {@code null}), as the Mockito stubs this replaces did. In particular
- * {@code getRealSkillLevel} answers 0, so the plugin computes combat level 3.
+ * {@code null}), as the Mockito stubs this replaces did. {@code getRealSkillLevel} answers 0, so
+ * the plugin computes combat level 3, unless the account {@link Account#reportsRealLevels()}.
  */
 public final class AccountClient {
     private AccountClient() { }
@@ -47,6 +47,8 @@ public final class AccountClient {
                 case "getVarbitValue": return account.varbits().getOrDefault((Integer) args[0], 0);
                 case "getVarpValue": return account.varplayers().getOrDefault((Integer) args[0], 0);
                 case "getBoostedSkillLevel": return account.level((Skill) args[0]);
+                case "getRealSkillLevel":
+                    return account.reportsRealLevels() ? account.level((Skill) args[0]) : EMPTY;
                 case "getTotalLevel": return totalLevel;
                 case "getLocalPlayer": return player;
                 case "getItemContainer":

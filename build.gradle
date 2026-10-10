@@ -14,12 +14,11 @@ repositories {
     mavenCentral()
 }
 
-def runeLiteVersion = 'latest.release'
-
 dependencies {
     // Plugin main sources via composite build (shortest-path is included in settings.gradle)
     testImplementation 'shortestpath:shortest-path'
     testImplementation project(':accounts')
+    testImplementation project(':routing')
 
     // RuneLite — needed directly because the plugin declares client as compileOnly
     testImplementation group: 'net.runelite', name: 'client', version: runeLiteVersion
@@ -68,7 +67,6 @@ def shortestPathProjectDir = gradle.ext.shortestPathProjectDir
 compileTestJava.source fileTree(
     dir: new File(shortestPathProjectDir, 'src/test/java'),
     includes: [
-        'shortestpath/pathfinder/TestPathfinderConfig.java',
         'shortestpath/TestShortestPathConfig.java',
     ]
 )

@@ -21,8 +21,7 @@ public final class Setup {
     public CompiledAccount compile() {
         Account built = account.build();
         Client client = AccountClient.of(built);
-        AccountPathfinderConfig config = new AccountPathfinderConfig(client, settings, built,
-            settings.isBypassVarbitChecks(), settings.isBypassVarPlayerChecks());
+        AccountPathfinderConfig config = new AccountPathfinderConfig(client, settings, built);
         config.bank = AccountClient.container(built.bank());
         if (built.plantedSpiritTrees() != null) {
             config.availableSpiritTrees = built.plantedSpiritTrees();

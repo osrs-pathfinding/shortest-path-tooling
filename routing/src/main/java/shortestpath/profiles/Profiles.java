@@ -1,7 +1,6 @@
 package shortestpath.profiles;
 
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -10,13 +9,10 @@ import java.util.function.Consumer;
 import net.runelite.api.QuestState;
 import net.runelite.api.WorldType;
 import net.runelite.api.gameval.VarbitID;
-import shortestpath.JewelleryBoxTier;
 import shortestpath.TeleportationItem;
 import shortestpath.WorldPointUtil;
 import shortestpath.accounts.Account;
 import shortestpath.accounts.canonical.CanonicalAccounts;
-import shortestpath.transport.PohMountedItem;
-import shortestpath.transport.PohNexusPortal;
 
 /**
  * Every named profile: the four canonical accounts ({@code early}, {@code mid}, {@code end},
@@ -169,15 +165,7 @@ public final class Profiles {
         settings.setCurrencyThreshold(Integer.MAX_VALUE);
         settings.setCalculationCutoff(500);
 
-        settings.setUsePoh(true);
-        settings.setUsePohFairyRing(allowTransports && poh.fairyRing);
-        settings.setUsePohSpiritTree(allowTransports && poh.spiritTree);
-        settings.setUsePohObelisk(allowTransports && poh.obelisk);
-        settings.setPohJewelleryBoxTier(JewelleryBoxTier.valueOf(poh.jewelleryBox.name()));
-        settings.setPohMountedItems(mountedItems(poh));
-        Set<PohNexusPortal> portals = nexusPortals(poh);
-        settings.setUseTeleportationPortalsPoh(allowTransports && !portals.isEmpty());
-        settings.setPohNexusPortals(portals);
+        settings.applyPoh(poh, allowTransports);
 
         // User preference penalties are neutral; intrinsic transport costs stay in plugin data.
         settings.setCostAgilityShortcuts(0);
@@ -205,30 +193,6 @@ public final class Profiles {
         settings.setCostWildernessObelisks(0);
         settings.setCostSeasonalTransports(0);
         return settings;
-    }
-
-    static Set<PohNexusPortal> nexusPortals(Account.Poh poh) {
-        if (poh.portals == null) {
-            return EnumSet.allOf(PohNexusPortal.class);
-        }
-        Set<PohNexusPortal> result = EnumSet.noneOf(PohNexusPortal.class);
-        for (String displayInfo : poh.portals) {
-            PohNexusPortal portal = PohNexusPortal.fromDisplayInfo(displayInfo);
-            if (portal == null) {
-                throw new IllegalArgumentException("unknown POH portal: " + displayInfo);
-            }
-            result.add(portal);
-        }
-        return result;
-    }
-
-    static Set<PohMountedItem> mountedItems(Account.Poh poh) {
-        Set<PohMountedItem> result = EnumSet.noneOf(PohMountedItem.class);
-        if (poh.mountedGlory) result.add(PohMountedItem.GLORY);
-        if (poh.mountedXerics) result.add(PohMountedItem.XERICS_TALISMAN);
-        if (poh.mountedDigsite) result.add(PohMountedItem.DIGSITE_PENDANT);
-        if (poh.mountedMythical) result.add(PohMountedItem.MYTHICAL_CAPE);
-        return result;
     }
 
     /**

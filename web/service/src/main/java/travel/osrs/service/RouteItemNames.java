@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import shortestpath.pathfinder.ServicePathfinderConfig;
+import shortestpath.pathfinder.PluginResources;
 
 /**
  * Writes the item name table served by {@link ItemCatalog}: every item the current transport data can
@@ -37,7 +37,7 @@ public final class RouteItemNames
 	{
 		if (args.length != 2) throw new IllegalArgumentException("usage: RouteItemNames <itemsmin.js path or URL> <output.tsv>");
 		Map<Integer, String> names = chiselNames(read(args[0]));
-		List<Integer> ids = ServicePathfinderConfig.routeItemIds().stream().sorted().collect(Collectors.toList());
+		List<Integer> ids = PluginResources.routeItemIds().stream().sorted().collect(Collectors.toList());
 		List<Integer> missing = ids.stream().filter(id -> !names.containsKey(id)).collect(Collectors.toList());
 		if (!missing.isEmpty()) throw new IllegalStateException("Chisel has no name for route items " + missing);
 

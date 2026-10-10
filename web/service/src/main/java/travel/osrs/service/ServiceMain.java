@@ -18,6 +18,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import shortestpath.routeapi.RouteApi;
 
 public final class ServiceMain
 {
@@ -57,7 +58,7 @@ public final class ServiceMain
 		app.post("/v1/route", ctx -> {
 			JsonNode body = mapper.readTree(ctx.body());
 			validator.validate(body);
-			ApiModels.RouteRequest request = mapper.treeToValue(body, ApiModels.RouteRequest.class);
+			RouteApi.RouteRequest request = mapper.treeToValue(body, RouteApi.RouteRequest.class);
 			requests.increment();
 			Timer.Sample sample = Timer.start(metrics);
 			try

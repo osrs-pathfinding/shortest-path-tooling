@@ -5,6 +5,7 @@ import java.util.Set;
 import shortestpath.JewelleryBoxTier;
 import shortestpath.ShortestPathConfig;
 import shortestpath.TeleportationItem;
+import shortestpath.accounts.Account;
 import shortestpath.pathfinder.PathfinderBackend;
 import shortestpath.transport.PohNexusPortal;
 import shortestpath.transport.PohMountedItem;
@@ -320,4 +321,44 @@ public class PluginSettings implements ShortestPathConfig {
     public void setUnlockCanoeAxe(boolean v) { unlockCanoeAxe = v; }
     public void setUnlockXericsHonour(boolean v) { unlockXericsHonour = v; }
     public void setUnlockDragontoothPassage(boolean v) { unlockDragontoothPassage = v; }
+
+    /**
+     * Sets the POH settings from the account's facilities: the POH is used, and its fairy ring,
+     * spirit tree, obelisk and nexus portals only when the route allows transports.
+     */
+    public void applyPoh(Account.Poh poh, boolean allowTransports) {
+        setUsePoh(true);
+        setUsePohFairyRing(allowTransports && poh.fairyRing);
+        setUsePohSpiritTree(allowTransports && poh.spiritTree);
+        setUsePohObelisk(allowTransports && poh.obelisk);
+        setPohJewelleryBoxTier(JewelleryBoxTier.valueOf(poh.jewelleryBox.name()));
+        setPohMountedItems(mountedItems(poh));
+        Set<PohNexusPortal> portals = nexusPortals(poh);
+        setUseTeleportationPortalsPoh(allowTransports && !portals.isEmpty());
+        setPohNexusPortals(portals);
+    }
+
+    static Set<PohNexusPortal> nexusPortals(Account.Poh poh) {
+        if (poh.portals == null) {
+            return EnumSet.allOf(PohNexusPortal.class);
+        }
+        Set<PohNexusPortal> result = EnumSet.noneOf(PohNexusPortal.class);
+        for (String displayInfo : poh.portals) {
+            PohNexusPortal portal = PohNexusPortal.fromDisplayInfo(displayInfo);
+            if (portal == null) {
+                throw new IllegalArgumentException("unknown POH portal: " + displayInfo);
+            }
+            result.add(portal);
+        }
+        return result;
+    }
+
+    static Set<PohMountedItem> mountedItems(Account.Poh poh) {
+        Set<PohMountedItem> result = EnumSet.noneOf(PohMountedItem.class);
+        if (poh.mountedGlory) result.add(PohMountedItem.GLORY);
+        if (poh.mountedXerics) result.add(PohMountedItem.XERICS_TALISMAN);
+        if (poh.mountedDigsite) result.add(PohMountedItem.DIGSITE_PENDANT);
+        if (poh.mountedMythical) result.add(PohMountedItem.MYTHICAL_CAPE);
+        return result;
+    }
 }

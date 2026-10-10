@@ -8,9 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.io.InputStream;
 import java.util.List;
-import net.runelite.api.gameval.VarPlayerID;
-import net.runelite.api.gameval.VarbitID;
 import org.junit.jupiter.api.Test;
+import shortestpath.routeapi.RouteApi;
 
 class RoutingEngineTest
 {
@@ -18,12 +17,12 @@ class RoutingEngineTest
 	void canonicalProfileRunsThroughExactPathfinder() throws Exception
 	{
 		ObjectMapper mapper = JsonMapper.builder().findAndAddModules().build();
-		ApiModels.RouteRequest request = new ApiModels.RouteRequest();
+		RouteApi.RouteRequest request = new RouteApi.RouteRequest();
 		try (InputStream profile = getClass().getResourceAsStream("/profiles/mid.json"))
 		{
-			request.account = mapper.readValue(profile, ApiModels.AccountBuild.class);
+			request.account = mapper.readValue(profile, RouteApi.AccountBuild.class);
 		}
-		request.policy = new ApiModels.RoutePolicy();
+		request.policy = new RouteApi.RoutePolicy();
 		request.policy.avoidWilderness = true;
 		request.policy.banking = "allow";
 		request.policy.resources = "fastest";
@@ -31,14 +30,14 @@ class RoutingEngineTest
 		request.destination = location(3210, 3424, 0);
 		new SchemaValidator().validate(mapper.valueToTree(request));
 
-		ApiModels.RoutePlan plan = new RoutingEngine(mapper).route(request);
+		RouteApi.RoutePlan plan = new RoutingEngine(mapper).route(request);
 
 		assertTrue(plan.reachable);
 		assertTrue(plan.costTicks > 0);
 		assertEquals("exact-v1", plan.metadata.routingEngineVersion);
 		assertTrue(!plan.segments.isEmpty());
-		assertTrue(plan.segments.stream().filter(ApiModels.TravelSegment.class::isInstance)
-			.map(ApiModels.TravelSegment.class::cast).anyMatch(segment -> !segment.requirements.isEmpty()),
+		assertTrue(plan.segments.stream().filter(RouteApi.TravelSegment.class::isInstance)
+			.map(RouteApi.TravelSegment.class::cast).anyMatch(segment -> !segment.requirements.isEmpty()),
 			"semantic travel steps should expose their player-facing requirements");
 	}
 
@@ -46,12 +45,12 @@ class RoutingEngineTest
 	void routePolicyOptionsReachTheExactPathfinder() throws Exception
 	{
 		ObjectMapper mapper = JsonMapper.builder().findAndAddModules().build();
-		ApiModels.RouteRequest request = new ApiModels.RouteRequest();
+		RouteApi.RouteRequest request = new RouteApi.RouteRequest();
 		try (InputStream profile = getClass().getResourceAsStream("/profiles/maxed.json"))
 		{
-			request.account = mapper.readValue(profile, ApiModels.AccountBuild.class);
+			request.account = mapper.readValue(profile, RouteApi.AccountBuild.class);
 		}
-		request.policy = new ApiModels.RoutePolicy();
+		request.policy = new RouteApi.RoutePolicy();
 		request.policy.avoidWilderness = true;
 		request.policy.banking = "never";
 		request.policy.resources = "fastest";
@@ -59,41 +58,19 @@ class RoutingEngineTest
 		request.destination = location(2757, 3477, 0);
 		RoutingEngine engine = new RoutingEngine(mapper);
 
-		ApiModels.RoutePlan fastest = engine.route(request);
+		RouteApi.RoutePlan fastest = engine.route(request);
 		request.policy.avoidedTransportTypes = List.of("TELEPORTATION_ITEM", "TELEPORTATION_SPELL",
 			"TELEPORTATION_SPELL_HOME", "TELEPORTATION_MINIGAME", "TELEPORTATION_PORTAL", "FAIRY_RING", "SPIRIT_TREE");
-		ApiModels.RoutePlan restricted = engine.route(request);
+		RouteApi.RoutePlan restricted = engine.route(request);
 
 		assertTrue(fastest.reachable && restricted.reachable);
 		assertTrue(restricted.costTicks > fastest.costTicks, "avoiding teleports should make the route longer");
-		for (ApiModels.RoutePlan plan : List.of(fastest, restricted))
-			assertFalse(plan.segments.stream().anyMatch(ApiModels.BankSegment.class::isInstance),
+		for (RouteApi.RoutePlan plan : List.of(fastest, restricted))
+			assertFalse(plan.segments.stream().anyMatch(RouteApi.BankSegment.class::isInstance),
 				"banking \"never\" must not visit a bank");
-		assertFalse(restricted.segments.stream().filter(ApiModels.TravelSegment.class::isInstance)
-			.map(segment -> ((ApiModels.TravelSegment) segment).transportId.split(":")[0])
+		assertFalse(restricted.segments.stream().filter(RouteApi.TravelSegment.class::isInstance)
+			.map(segment -> ((RouteApi.TravelSegment) segment).transportId.split(":")[0])
 			.anyMatch(request.policy.avoidedTransportTypes::contains));
-	}
-
-	@Test
-	void semanticAccountStateOverridesCompatibilityVariables() throws Exception
-	{
-		ObjectMapper mapper = JsonMapper.builder().findAndAddModules().build();
-		ApiModels.AccountBuild account;
-		try (InputStream profile = getClass().getResourceAsStream("/profiles/mid.json"))
-		{
-			account = mapper.readValue(profile, ApiModels.AccountBuild.class);
-		}
-		account.diaries.put("Ardougne", "Easy");
-		account.runtime.spellbook = "Ancient";
-		account.runtime.minigameTeleport.state = "usedAt";
-		account.runtime.minigameTeleport.minutes = 123L;
-		account.completedQuests.remove("The Grand Tree");
-
-		assertEquals(1, AccountCompiler.semanticVarbits(account).get(VarbitID.ARDOUGNE_DIARY_EASY_COMPLETE));
-		assertEquals(0, AccountCompiler.semanticVarbits(account).get(VarbitID.ARDOUGNE_DIARY_MEDIUM_COMPLETE));
-		assertEquals(1, AccountCompiler.semanticVarbits(account).get(VarbitID.SPELLBOOK));
-		assertEquals(0, AccountCompiler.semanticVarplayers(account).get(VarPlayerID.GRANDTREE));
-		assertEquals(123, AccountCompiler.semanticVarplayers(account).get(VarPlayerID.SLUG2_REGIONUID));
 	}
 
 	@Test
@@ -115,10 +92,10 @@ class RoutingEngineTest
 		assertTrue(ItemCatalog.find("rune pouch", null).stream().anyMatch(item -> "12791".equals(item.key)));
 	}
 
-	private static ApiModels.Location location(int x, int y, int plane)
+	private static RouteApi.Location location(int x, int y, int plane)
 	{
-		ApiModels.Location location = new ApiModels.Location();
-		location.coordinate = new ApiModels.WorldPoint(x, y, plane);
+		RouteApi.Location location = new RouteApi.Location();
+		location.coordinate = new RouteApi.WorldPoint(x, y, plane);
 		return location;
 	}
 }

@@ -59,7 +59,7 @@ public class ProfilesTest {
     public void mountedItemsFollowThePoh() {
         Account.Poh poh = new Account.Poh(false, false, false, Account.JewelleryBox.NONE,
             true, false, true, false, List.of());
-        assertEquals(EnumSet.of(PohMountedItem.GLORY, PohMountedItem.DIGSITE_PENDANT), Profiles.mountedItems(poh));
+        assertEquals(EnumSet.of(PohMountedItem.GLORY, PohMountedItem.DIGSITE_PENDANT), PluginSettings.mountedItems(poh));
     }
 
     @Test

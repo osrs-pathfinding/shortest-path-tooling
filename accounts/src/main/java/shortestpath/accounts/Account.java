@@ -24,6 +24,7 @@ import net.runelite.api.WorldType;
 public final class Account {
     private final Map<Skill, Integer> levels;
     private final int defaultLevel;
+    private final boolean reportsRealLevels;
     private final Integer totalLevel;
     private final Map<Integer, Integer> varbits;
     private final Map<Integer, Integer> varplayers;
@@ -41,6 +42,7 @@ public final class Account {
     private Account(Builder builder) {
         levels = Collections.unmodifiableMap(new EnumMap<>(builder.levels));
         defaultLevel = builder.defaultLevel;
+        reportsRealLevels = builder.reportsRealLevels;
         totalLevel = builder.totalLevel;
         varbits = Collections.unmodifiableMap(new LinkedHashMap<>(builder.varbits));
         varplayers = Collections.unmodifiableMap(new LinkedHashMap<>(builder.varplayers));
@@ -70,6 +72,11 @@ public final class Account {
     public Map<Skill, Integer> levels() { return levels; }
     public int defaultLevel() { return defaultLevel; }
     public int level(Skill skill) { return levels.getOrDefault(skill, defaultLevel); }
+    /**
+     * Whether the client reports {@link #level} as the real skill level too. Otherwise it reports
+     * 0, so the plugin computes combat level 3: the profiles keep that for benchmark parity.
+     */
+    public boolean reportsRealLevels() { return reportsRealLevels; }
     /** The reported total level: explicit, or the sum of the listed levels. */
     public int totalLevel() {
         if (totalLevel != null) {
@@ -163,6 +170,7 @@ public final class Account {
     public static final class Builder {
         private final Map<Skill, Integer> levels = new EnumMap<>(Skill.class);
         private int defaultLevel = 1;
+        private boolean reportsRealLevels;
         private Integer totalLevel;
         private final Map<Integer, Integer> varbits = new LinkedHashMap<>();
         private final Map<Integer, Integer> varplayers = new LinkedHashMap<>();
@@ -182,6 +190,7 @@ public final class Account {
         private Builder(Account account) {
             levels.putAll(account.levels);
             defaultLevel = account.defaultLevel;
+            reportsRealLevels = account.reportsRealLevels;
             totalLevel = account.totalLevel;
             varbits.putAll(account.varbits);
             varplayers.putAll(account.varplayers);
@@ -203,6 +212,8 @@ public final class Account {
         /** The level of every skill not set with {@link #level}. */
         public Builder defaultLevel(int level) { defaultLevel = level; return this; }
         public Builder totalLevel(int level) { totalLevel = level; return this; }
+        /** Reports the levels as real skill levels too; see {@link Account#reportsRealLevels()}. */
+        public Builder reportsRealLevels(boolean value) { reportsRealLevels = value; return this; }
         public Builder varbit(int id, int value) { varbits.put(id, value); return this; }
         public Builder varplayer(int id, int value) { varplayers.put(id, value); return this; }
         public Builder quest(Quest quest, QuestState state) { questStates.put(quest, state); return this; }

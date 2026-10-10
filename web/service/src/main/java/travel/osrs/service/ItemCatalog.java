@@ -13,7 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import shortestpath.pathfinder.ServicePathfinderConfig;
+import shortestpath.pathfinder.PluginResources;
 
 final class ItemCatalog
 {
@@ -42,7 +42,7 @@ final class ItemCatalog
 	private static Map<Integer, ApiModels.ItemOption> load()
 	{
 		Map<Integer, String> names = loadNames();
-		List<ApiModels.ItemOption> items = ServicePathfinderConfig.routeItemIds().stream().map(id -> {
+		List<ApiModels.ItemOption> items = PluginResources.routeItemIds().stream().map(id -> {
 			String name = names.get(id);
 			if (name == null) throw new IllegalStateException("missing MOID name for route item " + id);
 			return new ApiModels.ItemOption(Integer.toString(id), name);
