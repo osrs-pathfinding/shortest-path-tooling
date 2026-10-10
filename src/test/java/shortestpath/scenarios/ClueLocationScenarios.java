@@ -19,21 +19,30 @@ final class ClueLocationScenarios {
     private static final Consumer<Account.Builder> DIVING_GEAR = a -> a
         .equipment(ItemID.HUNDRED_PIRATE_DIVING_HELMET, 1)
         .equipment(ItemID.HUNDRED_PIRATE_DIVING_BACKPACK, 1);
+    private static final Consumer<Account.Builder> TRADING_STICKS = a -> a.inventory(ItemID.VILLAGE_TRADE_STICKS, 100);
+    private static final Consumer<Account.Builder> CHEFS_HAT = a -> a.equipment(ItemID.CHEFS_HAT, 1);
+    private static final Consumer<Account.Builder> LOCKPICK = a -> a.inventory(ItemID.LOCKPICK, 1);
 
     /** Route id -> the items its way in needs. */
-    private static final Map<String, Consumer<Account.Builder>> ITEMS = Map.of(
+    private static final Map<String, Consumer<Account.Builder>> ITEMS = Map.ofEntries(
         // Dragontooth Island: the Port Phasmatys ghost captain takes 25 ecto-tokens.
-        "coordinate-3822-3562-0", ECTO_TOKENS,
-        "hot_cold_possible-3803-3532-0", ECTO_TOKENS,
-        "hot_cold_possible-3811-3569-0", ECTO_TOKENS,
+        Map.entry("coordinate-3822-3562-0", ECTO_TOKENS),
+        Map.entry("hot_cold_possible-3803-3532-0", ECTO_TOKENS),
+        Map.entry("hot_cold_possible-3811-3569-0", ECTO_TOKENS),
         // The Shadow Dungeon ladder needs a ring of visibility.
-        "cryptic-2744-5116-0", RING_OF_VISIBILITY,
-        "emote-2629-5071-0", RING_OF_VISIBILITY,
+        Map.entry("cryptic-2744-5116-0", RING_OF_VISIBILITY),
+        Map.entry("emote-2629-5071-0", RING_OF_VISIBILITY),
         // Trollweiss Mountain is reached by sledding down the slope.
-        "cryptic-2780-3783-0", SLED,
-        "emote-2776-3781-0", SLED,
+        Map.entry("cryptic-2780-3783-0", SLED),
+        Map.entry("emote-2776-3781-0", SLED),
         // Mogre Camp: Murphy's dive needs a fishbowl helmet and diving apparatus.
-        "map-2953-9523-1", DIVING_GEAR);
+        Map.entry("map-2953-9523-1", DIVING_GEAR),
+        // The Tai Bwo Wannai hardwood grove charges 100 trading sticks to enter.
+        Map.entry("coordinate-2820-3078-0", TRADING_STICKS),
+        // The Cooks' Guild door needs a chef's hat (or a cooking or max cape).
+        Map.entry("cryptic-3143-3445-0", CHEFS_HAT),
+        // The Wilderness magic axe hut doors are picked with a lockpick.
+        Map.entry("emote-3191-3960-0", LOCKPICK));
 
     private ClueLocationScenarios() { }
 
