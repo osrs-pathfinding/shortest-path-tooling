@@ -13,19 +13,22 @@ npm run dev
 Open <http://localhost:5173/route>. `/` redirects there. The dev server proxies `/api` to the service.
 `npm test` runs the frontend tests and `npm run build` type-checks and builds `dist/`.
 
-Choose and customize account presets from the planner's account sidebar. Custom builds contain semantic skills,
-quests, unlocks, and POH settings and are saved in the browser; raw routing variables remain hidden.
+Everything that affects a route can be configured, and the editors are built from the route service's
+`GET /v1/catalog`, so a new quest, unlock or plugin setting appears without frontend changes:
 
-**More route options** exposes the plugin's remaining routing settings: per-transport toggles and thresholds, the
-teleport item source, a fare limit, and unlocks the game does not report. They are part of the route policy
-(`../corpus/schemas/route-policy-v1.schema.json`), which the service compiles into plugin settings
-(`routing/` `RoutePolicies`).
+- **Account** (sidebar): levels, quest points, completed quests, diaries, unlocks, items, house, spellbook,
+  minigame teleport cooldown. Start from a preset (`GET /v1/presets`, the canonical accounts) and save a
+  custom build in the browser. The format is `../corpus/schemas/account-v1.schema.json`.
+- **Route settings**: every route-affecting item of the plugin's own config (`ShortestPathConfig`), with
+  the plugin's labels: transport toggles and thresholds, teleport items, unlocks the game doesn't
+  report, and advanced options such as the legacy or exact backend. Requests and links carry only the
+  settings that differ from the planner's defaults (`routing/` `PlannerSettings`).
 
-Routes are URL-backed: endpoint, preset, and route-policy changes survive reload and browser navigation. Use
+Routes are URL-backed: endpoint, account and settings changes survive reload and browser navigation. Use
 **Copy route link** to share the current setup. Custom accounts are gzip-compressed into a versioned URL fragment,
-so one link carries both the route and profile without depending on the recipient's browser storage. Received
-profiles open as temporary **Shared builds** and are only saved locally when the recipient explicitly chooses to
-save them. Links are size-limited and schema-validated before use.
+so one link carries both the route and account without depending on the recipient's browser storage. Received
+accounts open as temporary **shared** accounts and are only saved locally when the recipient explicitly chooses
+to save them. Links are size-limited and schema-validated before use.
 
 Endpoint markers are draggable. Walking, teleport, transport, and bank steps are rendered as distinct map layers;
 selecting an itinerary step focuses the corresponding layer. On narrow screens the itinerary is a collapsible
@@ -42,11 +45,9 @@ choose and document a first-party hosting/cache policy before a public productio
 
 Use established ecosystem libraries for UI, routing, map rendering, forms, API state, validation, and server implementation where they are the idiomatic choice. Do not replace them with local substitutes merely because the first version looks small.
 
-The API contracts live in `../corpus/schemas` and the preset accounts in `../corpus/profiles`
-(generated from the Java profiles in `../accounts`). `npm run contracts` copies them into
-`src/generated/` and `public/data/profiles/` and generates the TypeScript types; `dev`, `build` and
-`test` run it first, and its outputs are not committed. Override the corpus location with
-`SHORTEST_PATH_CORPUS_DIR`.
+The API contracts live in `../corpus/schemas`. `npm run contracts` copies the account schema into
+`src/generated/` and generates the TypeScript types; `dev`, `build` and `test` run it first, and its
+outputs are not committed. Override the corpus location with `SHORTEST_PATH_CORPUS_DIR`.
 
 ## Deploy
 

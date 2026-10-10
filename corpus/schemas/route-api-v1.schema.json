@@ -3,112 +3,463 @@
   "$id": "https://osrs.travel/schemas/route-api-v1.schema.json",
   "title": "Route API v1",
   "oneOf": [
-    { "$ref": "#/$defs/routeRequest" },
-    { "$ref": "#/$defs/routePlan" }
+    {
+      "$ref": "#/$defs/routeRequest"
+    },
+    {
+      "$ref": "#/$defs/routePlan"
+    },
+    {
+      "$ref": "#/$defs/presets"
+    },
+    {
+      "$ref": "#/$defs/catalog"
+    }
   ],
   "$defs": {
     "worldPoint": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["x", "y", "plane"],
+      "required": [
+        "x",
+        "y",
+        "plane"
+      ],
       "properties": {
-        "x": { "type": "integer", "minimum": 0, "maximum": 32767 },
-        "y": { "type": "integer", "minimum": 0, "maximum": 32767 },
-        "plane": { "type": "integer", "minimum": 0, "maximum": 3 }
+        "x": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32767
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32767
+        },
+        "plane": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
       }
     },
     "location": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["coordinate"],
+      "required": [
+        "coordinate"
+      ],
       "properties": {
-        "placeId": { "type": "string", "minLength": 1 },
-        "name": { "type": "string", "minLength": 1 },
-        "coordinate": { "$ref": "#/$defs/worldPoint" }
+        "placeId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "coordinate": {
+          "$ref": "#/$defs/worldPoint"
+        }
       }
     },
     "capability": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "name"],
+      "required": [
+        "kind",
+        "name"
+      ],
       "properties": {
-        "kind": { "enum": ["quest", "diary", "skill", "item", "unlock"] },
-        "name": { "type": "string", "minLength": 1 }
+        "kind": {
+          "enum": [
+            "quest",
+            "diary",
+            "skill",
+            "item",
+            "unlock"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "walkSegment": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "costTicks", "path"],
+      "required": [
+        "kind",
+        "costTicks",
+        "path"
+      ],
       "properties": {
-        "kind": { "const": "walk" },
-        "costTicks": { "type": "integer", "minimum": 0 },
-        "path": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/worldPoint" } }
+        "kind": {
+          "const": "walk"
+        },
+        "costTicks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "path": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/worldPoint"
+          }
+        }
       }
     },
     "travelSegment": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "transportId", "name", "from", "to", "costTicks", "requirements"],
+      "required": [
+        "kind",
+        "transportId",
+        "name",
+        "from",
+        "to",
+        "costTicks",
+        "requirements"
+      ],
       "properties": {
-        "kind": { "enum": ["teleport", "transport"] },
-        "transportId": { "type": "string", "minLength": 1 },
-        "name": { "type": "string", "minLength": 1 },
-        "from": { "$ref": "#/$defs/worldPoint" },
-        "to": { "$ref": "#/$defs/worldPoint" },
-        "costTicks": { "type": "integer", "minimum": 0 },
-        "requirements": { "type": "array", "items": { "$ref": "#/$defs/capability" } }
+        "kind": {
+          "enum": [
+            "teleport",
+            "transport"
+          ]
+        },
+        "transportId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from": {
+          "$ref": "#/$defs/worldPoint"
+        },
+        "to": {
+          "$ref": "#/$defs/worldPoint"
+        },
+        "costTicks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/capability"
+          }
+        }
       }
     },
     "bankSegment": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "location", "costTicks"],
+      "required": [
+        "kind",
+        "location",
+        "costTicks"
+      ],
       "properties": {
-        "kind": { "const": "bank" },
-        "location": { "$ref": "#/$defs/worldPoint" },
-        "costTicks": { "type": "integer", "minimum": 0 }
+        "kind": {
+          "const": "bank"
+        },
+        "location": {
+          "$ref": "#/$defs/worldPoint"
+        },
+        "costTicks": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "routeRequest": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["account", "start", "destination", "policy"],
+      "required": [
+        "account",
+        "settings",
+        "start",
+        "destination"
+      ],
       "properties": {
-        "account": { "$ref": "account-build-v1.schema.json" },
-        "start": { "$ref": "#/$defs/location" },
-        "destination": { "$ref": "#/$defs/location" },
-        "policy": { "$ref": "route-policy-v1.schema.json" }
+        "account": {
+          "$ref": "account-v1.schema.json"
+        },
+        "settings": {
+          "$ref": "#/$defs/settings"
+        },
+        "start": {
+          "$ref": "#/$defs/location"
+        },
+        "destination": {
+          "$ref": "#/$defs/location"
+        }
       }
     },
     "routePlan": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "reachable", "costTicks", "start", "destination", "segments", "metadata"],
+      "required": [
+        "apiVersion",
+        "reachable",
+        "costTicks",
+        "start",
+        "destination",
+        "segments",
+        "metadata"
+      ],
       "properties": {
-        "apiVersion": { "const": "v1" },
-        "reachable": { "type": "boolean" },
-        "costTicks": { "type": ["integer", "null"], "minimum": 0 },
-        "start": { "$ref": "#/$defs/location" },
-        "destination": { "$ref": "#/$defs/location" },
+        "apiVersion": {
+          "const": "v1"
+        },
+        "reachable": {
+          "type": "boolean"
+        },
+        "costTicks": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "start": {
+          "$ref": "#/$defs/location"
+        },
+        "destination": {
+          "$ref": "#/$defs/location"
+        },
         "segments": {
           "type": "array",
-          "items": { "oneOf": [
-            { "$ref": "#/$defs/walkSegment" },
-            { "$ref": "#/$defs/travelSegment" },
-            { "$ref": "#/$defs/bankSegment" }
-          ] }
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/walkSegment"
+              },
+              {
+                "$ref": "#/$defs/travelSegment"
+              },
+              {
+                "$ref": "#/$defs/bankSegment"
+              }
+            ]
+          }
         },
         "metadata": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["worldDataVersion", "accountSchemaVersion", "routingEngineVersion"],
+          "required": [
+            "worldDataVersion",
+            "accountSchemaVersion",
+            "routingEngineVersion"
+          ],
           "properties": {
-            "worldDataVersion": { "type": "string", "minLength": 1 },
-            "accountSchemaVersion": { "const": 1 },
-            "routingEngineVersion": { "type": "string", "minLength": 1 }
+            "worldDataVersion": {
+              "type": "string",
+              "minLength": 1
+            },
+            "accountSchemaVersion": {
+              "const": 1
+            },
+            "routingEngineVersion": {
+              "enum": [
+                "legacy-v1",
+                "exact-v1"
+              ]
+            }
           }
         }
+      }
+    },
+    "settings": {
+      "description": "Plugin settings that differ from the planner's defaults, by ShortestPathConfig method name. GET /v1/catalog lists every setting with its type and default.",
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "boolean",
+          "integer",
+          "string"
+        ]
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        }
+      }
+    },
+    "setting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "name",
+        "description",
+        "section",
+        "type",
+        "defaultValue"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "section": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "boolean",
+            "integer",
+            "choice"
+          ]
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "defaultValue": {
+          "type": [
+            "boolean",
+            "integer",
+            "string"
+          ]
+        }
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "skills",
+        "quests",
+        "diaries",
+        "diaryTiers",
+        "unlocks",
+        "spellbooks",
+        "houseLocations",
+        "jewelleryBoxes",
+        "portals",
+        "plantedSpiritTrees",
+        "settings"
+      ],
+      "properties": {
+        "skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "quests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "diaries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "diaryTiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "unlocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "spellbooks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "houseLocations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "jewelleryBoxes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "portals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "plantedSpiritTrees": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        },
+        "settings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/setting"
+          }
+        }
+      }
+    },
+    "preset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "account"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "account": {
+          "$ref": "account-v1.schema.json"
+        }
+      }
+    },
+    "presets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/preset"
       }
     }
   }

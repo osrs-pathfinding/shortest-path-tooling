@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://osrs.travel/schemas/account-v1.schema.json",
+  "title": "Account v1",
+  "description": "An account as a player describes it. Names (skills, quests, diaries, unlocks, ...) are the Java enum constant names; GET /v1/catalog lists them with labels.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "levels", "questPoints", "completedQuests", "diaries", "unlocks", "spellbook",
+    "inventory", "runePouch", "equipment", "bank", "plantedSpiritTrees"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "levels": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 1, "maximum": 99 }
+    },
+    "questPoints": { "type": "integer", "minimum": 0, "maximum": 32767 },
+    "completedQuests": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "diaries": {
+      "type": "object",
+      "additionalProperties": { "enum": ["NONE", "EASY", "MEDIUM", "HARD", "ELITE"] }
+    },
+    "unlocks": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "spellbook": { "enum": ["STANDARD", "ANCIENT", "LUNAR", "ARCEUUS"] },
+    "minigameTeleportUsedAt": {
+      "description": "When a minigame teleport was last used, in game minutes; absent means it is ready.",
+      "type": "integer", "minimum": 0
+    },
+    "nowMinutes": {
+      "description": "The game clock in minutes; absent means the wall clock.",
+      "type": "integer", "minimum": 0
+    },
+    "inventory": { "$ref": "#/$defs/items" },
+    "runePouch": { "$ref": "#/$defs/items" },
+    "equipment": { "$ref": "#/$defs/items" },
+    "bank": { "$ref": "#/$defs/items" },
+    "house": { "$ref": "#/$defs/house" },
+    "plantedSpiritTrees": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+  },
+  "$defs": {
+    "items": {
+      "description": "Quantities by item id.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[0-9]+$" },
+      "additionalProperties": { "type": "integer", "minimum": 1, "maximum": 2147483647 }
+    },
+    "house": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["location", "jewelleryBox", "fairyRing", "spiritTree", "obelisk", "mountedGlory",
+        "mountedXerics", "mountedDigsite", "mountedMythical"],
+      "properties": {
+        "location": { "type": "string", "minLength": 1 },
+        "jewelleryBox": { "enum": ["NONE", "FANCY", "ORNATE"] },
+        "fairyRing": { "type": "boolean" },
+        "spiritTree": { "type": "boolean" },
+        "obelisk": { "type": "boolean" },
+        "mountedGlory": { "type": "boolean" },
+        "mountedXerics": { "type": "boolean" },
+        "mountedDigsite": { "type": "boolean" },
+        "mountedMythical": { "type": "boolean" },
+        "portals": {
+          "description": "Nexus portal destinations; absent means every portal.",
+          "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

@@ -7,8 +7,7 @@ repository; its history was imported here.
 |---|---|
 | `corpus/routes-v1.json` | canonical routes, run by the `canonical` suite with every canonical account |
 | `corpus/excluded-routes-v1.json` | routes excluded from the corpus, with reasons |
-| `profiles/*.json` | the canonical accounts in the web's account format, the planner's presets |
-| `schemas/` | the route API, account, route policy and place JSON schemas the web planner and service share |
+| `schemas/` | the route API, account and place JSON schemas the web planner and service share |
 
 The canonical accounts themselves are Java: `accounts/…/canonical/CanonicalAccounts.java`.
 

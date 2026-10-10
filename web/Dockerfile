@@ -6,7 +6,6 @@ RUN npm ci
 COPY corpus /app/corpus
 COPY web/index.html web/tsconfig*.json web/vite.config.ts ./
 COPY web/scripts scripts
-COPY web/public public
 COPY web/src src
 RUN npm run build
 

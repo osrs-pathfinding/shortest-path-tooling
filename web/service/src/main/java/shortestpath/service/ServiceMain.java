@@ -3,6 +3,7 @@ package shortestpath.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
@@ -11,6 +12,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -21,11 +23,25 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import shortestpath.accounts.canonical.CanonicalAccounts;
+import shortestpath.routeapi.AccountJson;
+import shortestpath.routeapi.Catalog;
 import shortestpath.routeapi.RouteApi;
 
-/** The route service's HTTP API: {@code POST /v1/route}, {@code GET /v1/items}, health and metrics. */
+/**
+ * The route service's HTTP API: {@code POST /v1/route}, {@code GET /v1/presets}, {@code GET /v1/catalog},
+ * {@code GET /v1/items}, health and metrics.
+ */
 public final class ServiceMain {
+    /** The canonical accounts the planner offers as starting points. */
+    private static final List<RouteApi.Preset> PRESETS = List.of(
+        preset("early", "Early game"), preset("mid", "Mid game"), preset("end", "End game"), preset("maxed", "Maxed"));
+
     private ServiceMain() { }
+
+    private static RouteApi.Preset preset(String id, String name) {
+        return new RouteApi.Preset(id, name, AccountJson.of(name, CanonicalAccounts.account(id)));
+    }
 
     public static void main(String[] args) {
         ObjectMapper mapper = JsonMapper.builder().findAndAddModules().build();
@@ -58,6 +74,9 @@ public final class ServiceMain {
         app.get("/ready", ctx -> ctx.json(Map.of("status", "ready")));
         app.get("/metrics", ctx -> ctx.contentType("text/plain; version=0.0.4").result(metrics.scrape()));
         app.get("/v1/items", ctx -> ctx.json(ItemCatalog.find(ctx.queryParam("q"), ctx.queryParam("ids"))));
+        Catalog catalog = new Catalog();
+        app.get("/v1/catalog", ctx -> ctx.json(catalog));
+        app.get("/v1/presets", ctx -> ctx.json(PRESETS));
         app.post("/v1/route", ctx -> {
             JsonNode body = mapper.readTree(ctx.body());
             validator.validate(body);
@@ -73,6 +92,8 @@ public final class ServiceMain {
                             ctx.json(plan);
                         } else if (cause(error) instanceof TimeoutException) {
                             error(ctx, 504, "route calculation timed out");
+                        } else if (cause(error) instanceof IllegalArgumentException) {
+                            error(ctx, 400, cause(error).getMessage());
                         } else {
                             error(ctx, 500, "route calculation failed");
                         }
@@ -86,9 +107,23 @@ public final class ServiceMain {
             }
         });
         app.exception(IllegalArgumentException.class, (error, ctx) -> error(ctx, 400, error.getMessage()));
+        app.exception(InvalidFormatException.class, (error, ctx) -> error(ctx, 400,
+            "invalid value " + error.getValue() + " at " + path(error)));
         app.exception(JsonProcessingException.class, (error, ctx) -> error(ctx, 400, "request body is not valid JSON"));
         app.exception(Exception.class, (error, ctx) -> error(ctx, 500, "internal server error"));
         return app;
+    }
+
+    private static String path(InvalidFormatException error) {
+        StringBuilder path = new StringBuilder();
+        error.getPath().forEach(reference -> {
+            if (reference.getFieldName() != null) {
+                path.append(path.length() == 0 ? "" : ".").append(reference.getFieldName());
+            } else {
+                path.append('[').append(reference.getIndex()).append(']');
+            }
+        });
+        return path.toString();
     }
 
     private static Throwable cause(Throwable error) {

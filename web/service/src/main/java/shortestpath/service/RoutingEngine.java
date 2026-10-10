@@ -6,21 +6,26 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.Set;
 import shortestpath.accounts.Account;
-import shortestpath.accounts.AccountBuilds;
 import shortestpath.pathfinder.CollisionMap;
 import shortestpath.pathfinder.ExactPathfinder;
 import shortestpath.pathfinder.ExactRoutingStaticProvider;
+import shortestpath.pathfinder.Pathfinder;
+import shortestpath.pathfinder.PathfinderBackend;
 import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.PluginResources;
 import shortestpath.pathfinder.exact.ExactRoutingSession;
 import shortestpath.pathfinder.exact.RoutingStatic;
 import shortestpath.profiles.AccountPathfinderConfig;
 import shortestpath.profiles.CompiledAccount;
+import shortestpath.profiles.PluginSettings;
+import shortestpath.routeapi.PlannerSettings;
 import shortestpath.routeapi.RouteApi;
 import shortestpath.routeapi.RoutePlans;
-import shortestpath.routeapi.RoutePolicies;
 
-/** Plans routes on the exact pathfinder, caching each account's config and search session, and finished plans. */
+/**
+ * Plans routes on the backend the settings choose, caching each account's config and exact search
+ * session, and finished plans.
+ */
 final class RoutingEngine {
     private final ObjectMapper mapper;
     private final RoutingStatic routingStatic;
@@ -33,7 +38,7 @@ final class RoutingEngine {
     }
 
     RouteApi.RoutePlan route(RouteApi.RouteRequest request) {
-        String accountKey = json(request.account) + json(request.policy);
+        String accountKey = json(request.account) + json(request.settings);
         int start = RoutePlans.packed(request.start.coordinate);
         int target = RoutePlans.packed(request.destination.coordinate);
         String routeKey = accountKey + '|' + start + '|' + target;
@@ -43,16 +48,23 @@ final class RoutingEngine {
         }
 
         AccountSession account = accounts.get(accountKey, ignored -> new AccountSession(request));
-        ExactPathfinder pathfinder = new ExactPathfinder(account.config, routingStatic, account.session,
-            start, Set.of(target), null, account.config.getExactHeuristicWeight());
-        pathfinder.run();
-        PathfinderResult result = pathfinder.getResult();
+        PathfinderResult result;
+        if (account.backend == PathfinderBackend.LEGACY) {
+            Pathfinder pathfinder = new Pathfinder(account.config, start, Set.of(target));
+            pathfinder.run();
+            result = pathfinder.getResult();
+        } else {
+            ExactPathfinder pathfinder = new ExactPathfinder(account.config, routingStatic, account.session,
+                start, Set.of(target), null, account.config.getExactHeuristicWeight());
+            pathfinder.run();
+            result = pathfinder.getResult();
+        }
         if (result == null) {
-            throw new IllegalStateException("ExactPathfinder returned no result");
+            throw new IllegalStateException("the pathfinder returned no result");
         }
 
         RouteApi.RoutePlan plan = RoutePlans.plan(request.start, request.destination, result, account.config,
-            ItemCatalog::name);
+            account.backend, ItemCatalog::name);
         routes.put(routeKey, plan);
         return plan;
     }
@@ -65,14 +77,20 @@ final class RoutingEngine {
         }
     }
 
-    /** A request's account and policy compiled once, and the exact search state its routes share. */
+    /** A request's account and settings compiled once, and the exact search state its routes share. */
     private static final class AccountSession {
         private final AccountPathfinderConfig config;
+        private final PathfinderBackend backend;
         private final ExactRoutingSession session = new ExactRoutingSession();
 
         private AccountSession(RouteApi.RouteRequest request) {
-            Account account = AccountBuilds.toAccount(request.account);
-            config = CompiledAccount.of(account, RoutePolicies.toSettings(request.policy, account.poh())).getConfig();
+            Account account = request.account.toAccount();
+            PluginSettings settings = PlannerSettings.fromJson(request.settings);
+            if (account.poh() != null) {
+                settings.applyPoh(account.poh(), true);
+            }
+            config = CompiledAccount.of(account, settings).getConfig();
+            backend = settings.pathfinderBackend();
         }
     }
 }

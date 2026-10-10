@@ -18,10 +18,10 @@ around it.
 |------|----------|
 | `shortest-path/` | Git submodule (pinned commit). Plugin sources + data in `src/main/resources/` (`collision-map.zip`, `destinations/`, `transports/`, `leagues/`). |
 | `accounts/` | Gradle subproject: `Account` (an account as a player describes it: levels, quests, diaries, unlocks, items, house), `AccountCompiler` (the only place facts become the varbits/varplayers in a `ClientState`), `HeadlessClient` (a RuneLite `Client` answering from a `ClientState`), and the canonical profiles (`canonical/CanonicalAccounts`). |
-| `routing/` | Gradle subproject (main sources): `shortestpath.profiles` (profiles, `PluginSettings`, `Setup`, `AccountPathfinderConfig`), `shortestpath.pathfinder.PluginResources` (world data loaded once per JVM), and `shortestpath.routeapi` (route API classes; route policy → `PluginSettings`, `PathfinderResult` → route plan). Tooling tests and the route service both build on it. |
+| `routing/` | Gradle subproject (main sources): `shortestpath.profiles` (profiles, `PluginSettings`, `Setup`, `AccountPathfinderConfig`), `shortestpath.pathfinder.PluginResources` (world data loaded once per JVM), and `shortestpath.routeapi` (the web API: `AccountJson`, `PlannerSettings` (plugin settings as JSON, from the plugin's own `@ConfigItem`s), `Catalog`, `RoutePlans`). Tooling tests and the route service both build on it. |
 | `web/` | The public route planner: React + TypeScript + Vite frontend (npm project), deploy and infra files. See `web/README.md`. |
 | `web/service/` | Gradle subproject `:service`: the route service's HTTP layer (Javalin) on top of `routing/`. |
-| `corpus/` | Canonical routes, generated account fixtures, and the JSON schemas (route API, account build, route policy) the service and frontend share (see `corpus/README.md`). |
+| `corpus/` | Canonical routes and the JSON schemas (route API, account) the service and frontend share (see `corpus/README.md`). |
 | `src/test/java/shortestpath/` | The remaining tooling Java lives under *test* sources: `scenarios/` (scenario suites), `dashboard/` (site generator), `benchmark/` (benchmark adapter), `route/` (`route` CLI); model in `docs/scenarios.md`, `dump/` (cache dumpers), `pathfinder/` (profiling). |
 | `src/test/resources/` | Dashboard web assets, scenario data + expected lengths under `scenarios/`, region TSVs. |
 | `gradle/` | Task definitions: `dashboards.gradle`, `cache-dumpers.gradle`. |

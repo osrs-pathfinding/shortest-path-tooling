@@ -3,11 +3,13 @@ package shortestpath.routeapi;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.IntFunction;
 import net.runelite.api.Quest;
 import net.runelite.api.Skill;
 import shortestpath.WorldPointUtil;
 import shortestpath.pathfinder.PathStep;
+import shortestpath.pathfinder.PathfinderBackend;
 import shortestpath.pathfinder.PathfinderConfig;
 import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.TransportAvailability;
@@ -20,8 +22,6 @@ import shortestpath.transport.requirement.ItemRequirement;
  * step with the bank visited a bank segment.
  */
 public final class RoutePlans {
-    private static final String ROUTING_ENGINE_VERSION = "exact-v1";
-
     private static final Comparator<Transport> TRANSPORT_ORDER = Comparator
         .comparing((Transport value) -> value.getType() == null ? "TRANSPORT" : value.getType().name())
         .thenComparing(value -> value.getDisplayInfo() == null ? "" : value.getDisplayInfo())
@@ -31,10 +31,11 @@ public final class RoutePlans {
 
     /**
      * @param config the config the result was planned with, which identifies each step's transport
+     * @param backend the pathfinder that planned it
      * @param itemName names an item id in requirements
      */
     public static RouteApi.RoutePlan plan(RouteApi.Location start, RouteApi.Location destination,
-            PathfinderResult result, PathfinderConfig config, IntFunction<String> itemName) {
+            PathfinderResult result, PathfinderConfig config, PathfinderBackend backend, IntFunction<String> itemName) {
         RouteApi.RoutePlan plan = new RouteApi.RoutePlan();
         plan.reachable = result.isReached();
         plan.costTicks = result.isReached() ? result.getPathCost() : null;
@@ -42,7 +43,7 @@ public final class RoutePlans {
         plan.destination = destination;
         plan.metadata = new RouteApi.Metadata();
         plan.metadata.worldDataVersion = "shortest-path-resources";
-        plan.metadata.routingEngineVersion = ROUTING_ENGINE_VERSION;
+        plan.metadata.routingEngineVersion = backend.name().toLowerCase(Locale.ROOT) + "-v1";
         plan.segments = segments(result.getPathSteps(), config, itemName);
         return plan;
     }

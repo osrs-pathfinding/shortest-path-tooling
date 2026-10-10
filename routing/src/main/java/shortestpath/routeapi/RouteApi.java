@@ -2,17 +2,14 @@ package shortestpath.routeapi;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import shortestpath.accounts.AccountBuild;
 
 /**
- * The route API contract ({@code corpus/schemas/route-api-v1} and {@code route-policy-v1}) as
- * Jackson-bindable classes: a request names an {@link AccountBuild}, two locations and a route
- * policy; a plan is a list of walk, travel and bank segments.
+ * The route API contract ({@code corpus/schemas/route-api-v1}) as Jackson-bindable classes: a
+ * request names an account ({@link AccountJson}), the settings that differ from the planner's
+ * defaults, and two locations; a plan is a list of walk, travel and bank segments.
  */
 public final class RouteApi {
     private RouteApi() { }
@@ -38,24 +35,26 @@ public final class RouteApi {
         public WorldPoint coordinate;
     }
 
-    public static final class RoutePolicy {
-        public boolean avoidWilderness;
-        public String banking;
-        public String resources;
-        public List<String> avoidedTransportTypes = new ArrayList<>();
-        public String teleportItems = "owned";
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        public Integer currencyThreshold;
-        // Sorted so that equivalent policies share route and account cache keys.
-        public SortedMap<String, Integer> transportThresholds = new TreeMap<>();
-        public List<String> declaredUnlocks = new ArrayList<>();
-    }
-
     public static final class RouteRequest {
-        public AccountBuild account;
+        public AccountJson account;
+        /** The plugin settings that differ from the planner's defaults; see {@link PlannerSettings}. */
+        // Sorted so that equal settings share route and account cache keys.
+        public SortedMap<String, Object> settings = new TreeMap<>();
         public Location start;
         public Location destination;
-        public RoutePolicy policy;
+    }
+
+    /** A named starting account, as {@code GET /v1/presets} lists them. */
+    public static final class Preset {
+        public final String id;
+        public final String name;
+        public final AccountJson account;
+
+        public Preset(String id, String name, AccountJson account) {
+            this.id = id;
+            this.name = name;
+            this.account = account;
+        }
     }
 
     public static final class RoutePlan {

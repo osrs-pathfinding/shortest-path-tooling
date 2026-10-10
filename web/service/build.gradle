@@ -51,6 +51,5 @@ processResources {
 
 test {
     useJUnitPlatform()
-    systemProperty 'corpus.dir', corpusDir.absolutePath
     jvmArgs = ['-Xms512m', '-Xmx4g']
 }

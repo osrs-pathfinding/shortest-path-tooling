@@ -1,44 +1,33 @@
 import { useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { loadCatalog } from "../../api/catalog";
 import { loadPresets } from "../../api/presets";
 import { calculateRoute } from "../../api/routes";
 import { places } from "../../data/places";
-import { accountLabel } from "../../domain/accounts";
-import type { AccountBuild, Location, WorldPoint } from "../../domain/contracts";
+import type { PlannerAccount } from "../../domain/accounts";
+import type { Account, Location, WorldPoint } from "../../domain/contracts";
+import { asSettings, validSettings, type ChangedSettings } from "../../domain/settings";
 import { Itinerary } from "../itinerary/Itinerary";
 import { ShareRoute } from "./ShareRoute";
-import { RouteOptions } from "./RouteOptions";
-import { defaultPolicy, plannerUrlWarnings, policyParams, profileFromHash, readPlannerUrl, readStoredPolicy, SharedProfileError, writePlannerUrl, type PlannerPolicy, type PlannerUrlState } from "./plannerState";
+import { RouteSettings } from "./RouteSettings";
+import { plannerUrlWarnings, profileFromHash, readPlannerUrl, readStoredSettings, SharedProfileError, writePlannerUrl, type PlannerUrlState } from "./plannerState";
 
-const customAccountKey = "osrs-travel.custom-account.v1";
-const policyKey = "osrs-travel.route-policy.v1";
+const customAccountKey = "osrs-travel.custom-account.v2";
+const settingsKey = "osrs-travel.route-settings.v1";
 const AccountPanel = lazy(() => import("../../components/AccountPanel").then(module => ({ default: module.AccountPanel })));
 const OsrsMap = lazy(() => import("../../map/OsrsMap").then(module => ({ default: module.OsrsMap })));
 
-function loadCustomAccount(): AccountBuild | undefined {
+async function loadCustomAccount(): Promise<Account | undefined> {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(customAccountKey) || "null");
-    return isUsableStoredAccount(value) ? value : undefined;
+    const { validateAccount } = await import("../../domain/accountValidation");
+    return validateAccount(JSON.parse(localStorage.getItem(customAccountKey) || "null"));
   } catch { return undefined; }
 }
 
-function loadStoredPolicy(): PlannerPolicy {
-  try { return readStoredPolicy(localStorage.getItem(policyKey)); }
-  catch { return readStoredPolicy(null); }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function isUsableStoredAccount(value: unknown): value is AccountBuild {
-  if (!isRecord(value) || value.schemaVersion !== 1 || value.id !== "custom" || typeof value.name !== "string") return false;
-  return isRecord(value.levels) && Array.isArray(value.completedQuests) && isRecord(value.diaries)
-    && isRecord(value.inventory) && isRecord(value.equipment) && isRecord(value.runePouch) && isRecord(value.bank)
-    && Array.isArray(value.plantedSpiritTrees) && isRecord(value.poh) && isRecord(value.poh.portals)
-    && Array.isArray(value.poh.portals.destinations) && isRecord(value.runtime) && isRecord(value.runtime.minigameTeleport)
-    && isRecord(value.routingVariables);
+function loadStoredSettings(): ChangedSettings {
+  try { return readStoredSettings(localStorage.getItem(settingsKey)); }
+  catch { return {}; }
 }
 
 function PlaceInput({ label, location, onSelect }: { label: string; location?: Location; onSelect(location?: Location): void }) {
@@ -59,45 +48,46 @@ function customLocation(point: WorldPoint): Location {
   return { name: `${point.x}, ${point.y}${point.plane ? `, plane ${point.plane}` : ""}`, coordinate: point };
 }
 
-function hasExplicitPlannerState(params: URLSearchParams): boolean {
-  return ["from", "to", "account", ...policyParams].some(key => params.has(key));
-}
-
 export function RoutePlannerPage() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [customAccount, setCustomAccount] = useState(loadCustomAccount);
-  const [shared, setShared] = useState<{ account?: AccountBuild; error?: SharedProfileError; loading?: boolean }>({});
+  const [customAccount, setCustomAccount] = useState<Account>();
+  const [shared, setShared] = useState<{ account?: Account; error?: SharedProfileError; loading?: boolean }>({});
   const [accountPanel, setAccountPanel] = useState<"closed" | "open" | "hidden">("closed");
   const [selectedSegment, setSelectedSegment] = useState<number>();
   const [mobileItineraryOpen, setMobileItineraryOpen] = useState(false);
   const accountToggle = useRef<HTMLButtonElement>(null);
   const paramsKey = searchParams.toString();
-  const storedPolicy = useMemo(loadStoredPolicy, []);
-  const urlState = useMemo(() => readPlannerUrl(new URLSearchParams(paramsKey),
-    hasExplicitPlannerState(new URLSearchParams(paramsKey)) ? defaultPolicy : storedPolicy), [paramsKey, storedPolicy]);
+  const storedSettings = useMemo(loadStoredSettings, []);
+  const urlState = useMemo(() => readPlannerUrl(new URLSearchParams(paramsKey), storedSettings), [paramsKey, storedSettings]);
+
+  useEffect(() => { void loadCustomAccount().then(setCustomAccount); }, []);
 
   useEffect(() => {
     let current = true;
     if (urlState.accountId !== "shared") { setShared({}); return () => { current = false; }; }
     setShared({ loading: true });
     void profileFromHash(location.hash).then(account => { if (current) setShared({ account }); }, error => {
-      if (current) setShared({ error: error instanceof SharedProfileError ? error : new SharedProfileError("This route link contains an invalid account profile.") });
+      if (current) setShared({ error: error instanceof SharedProfileError ? error : new SharedProfileError("This route link contains an invalid account.") });
     });
     return () => { current = false; };
   }, [location.hash, urlState.accountId]);
 
   const presets = useQuery({ queryKey: ["account-presets"], queryFn: loadPresets });
-  const accounts = useMemo(() => [...presets.data || [], ...customAccount ? [customAccount] : [], ...shared.account ? [shared.account] : []],
-    [presets.data, customAccount, shared.account]);
-  const account = accounts.find(candidate => candidate.id === urlState.accountId)
+  const catalog = useQuery({ queryKey: ["catalog"], queryFn: loadCatalog });
+  const accounts = useMemo<PlannerAccount[]>(() => [...presets.data || [],
+    ...customAccount ? [{ id: "custom", name: customAccount.name, account: customAccount }] : [],
+    ...shared.account ? [{ id: "shared", name: `${shared.account.name} (shared)`, account: shared.account }] : []],
+  [presets.data, customAccount, shared.account]);
+  const selected = accounts.find(candidate => candidate.id === urlState.accountId)
     || (urlState.accountId !== "shared" ? presets.data?.find(candidate => candidate.id === "mid") || presets.data?.[0] : undefined);
-  const quests = useMemo(() => Array.from(new Set([
-    ...(presets.data?.flatMap(preset => preset.completedQuests) || []), ...(account?.completedQuests || []),
-  ])).sort(), [account, presets.data]);
-  const urlWarnings = useMemo(() => presets.data ? plannerUrlWarnings(new URLSearchParams(paramsKey),
-    [...accounts.map(candidate => candidate.id), "shared"]) : [], [accounts, paramsKey, presets.data]);
+  const settings = useMemo(() => catalog.data ? validSettings(urlState.settings, catalog.data.settings) : undefined,
+    [catalog.data, urlState.settings]);
+  const urlWarnings = useMemo(() => presets.data ? [...plannerUrlWarnings(new URLSearchParams(paramsKey),
+    [...accounts.map(candidate => candidate.id), "shared"]),
+  ...settings?.dropped.length ? [`Unknown or invalid settings were ignored: ${settings.dropped.join(", ")}.`] : []] : [],
+  [accounts, paramsKey, presets.data, settings]);
 
   const updateUrl = (state: PlannerUrlState, options?: { replace?: boolean; hash?: string }) => {
     const search = writePlannerUrl(state).toString();
@@ -108,16 +98,17 @@ export function RoutePlannerPage() {
   const chooseAccount = (id: string) => updateUrl({ ...urlState, accountId: id }, { hash: id === "shared" ? location.hash : "" });
 
   useEffect(() => {
-    try { localStorage.setItem(policyKey, JSON.stringify(urlState.policy)); }
-    catch { /* The URL still preserves the active policy when storage is unavailable. */ }
-  }, [urlState.policy]);
-  useEffect(() => { setSelectedSegment(undefined); }, [urlState.start, urlState.destination, account, urlState.policy]);
+    if (!settings) return;
+    try { localStorage.setItem(settingsKey, JSON.stringify(settings.settings)); }
+    catch { /* The URL still preserves the active settings when storage is unavailable. */ }
+  }, [settings]);
+  useEffect(() => { setSelectedSegment(undefined); }, [urlState.start, urlState.destination, selected, settings]);
 
-  const request = useMemo(() => account && urlState.start && urlState.destination
-    ? { account, start: urlState.start, destination: urlState.destination, policy: urlState.policy } : undefined,
-    [account, urlState.start, urlState.destination, urlState.policy]);
+  const request = useMemo(() => selected && settings && urlState.start && urlState.destination
+    ? { account: selected.account, settings: asSettings(settings.settings), start: urlState.start, destination: urlState.destination }
+    : undefined, [selected, settings, urlState.start, urlState.destination]);
   const route = useQuery({
-    queryKey: ["route", account, urlState.start?.coordinate, urlState.destination?.coordinate, urlState.policy],
+    queryKey: ["route", request],
     queryFn: ({ signal }) => calculateRoute(request!, signal), enabled: Boolean(request), retry: false,
     placeholderData: previous => previous,
   });
@@ -139,18 +130,18 @@ export function RoutePlannerPage() {
         <PlaceInput label="From" location={urlState.start} onSelect={chooseStart} /><span className="arrow" aria-hidden="true">→</span>
         <PlaceInput label="To" location={urlState.destination} onSelect={chooseDestination} />
       </div>
-      <button type="button" ref={accountToggle} className="account-toggle" disabled={!account}
+      <button type="button" ref={accountToggle} className="account-toggle" disabled={!selected || !catalog.data}
         aria-expanded={accountPanel === "open"} aria-controls="account-panel"
         onClick={() => accountPanel === "open" ? closeAccountPanel() : setAccountPanel("open")}>
-        <span>Account</span><strong>{account ? accountLabel(account) : "Loading…"}</strong>
+        <span>Account</span><strong>{selected ? selected.name : "Loading…"}</strong>
       </button>
     </header>
 
     {shared.error && <div className="link-error" role="alert"><strong>Shared account could not be opened.</strong> {shared.error.message}</div>}
     {urlWarnings.length > 0 && <div className="link-warning" role="status">{urlWarnings.map(warning => <span key={warning}>{warning}</span>)}</div>}
     <main className={accountPanel === "open" ? "workspace with-account" : "workspace"}>
-      {account && accountPanel !== "closed" && <Suspense fallback={<aside className="account-panel"><p className="panel-loading">Loading account…</p></aside>}>
-        <AccountPanel accounts={accounts} account={account} quests={quests} open={accountPanel === "open"}
+      {selected && catalog.data && accountPanel !== "closed" && <Suspense fallback={<aside className="account-panel"><p className="panel-loading">Loading account…</p></aside>}>
+        <AccountPanel accounts={accounts} selected={selected} catalog={catalog.data} open={accountPanel === "open"}
           onSelect={chooseAccount} onClose={closeAccountPanel} onSave={value => {
             try { localStorage.setItem(customAccountKey, JSON.stringify(value)); }
             catch { throw new Error("This browser could not save the custom build. Check its storage permissions and try again."); }
@@ -165,11 +156,14 @@ export function RoutePlannerPage() {
         {!urlState.start || !urlState.destination ? <p className="map-message">Search or click the map to choose two places</p> : null}
       </section>
       <Itinerary start={urlState.start} destination={urlState.destination} route={route.data} isFetching={route.isFetching}
-        error={presets.isError ? new Error("Account profiles could not be loaded.") : route.error} selectedSegment={selectedSegment}
+        error={presets.isError || catalog.isError ? new Error("The planner's accounts and options could not be loaded.") : route.error}
+        selectedSegment={selectedSegment}
         mobileOpen={mobileItineraryOpen} onMobileToggle={() => setMobileItineraryOpen(value => !value)}
-        onSelectSegment={setSelectedSegment} onRetry={() => void (presets.isError ? presets.refetch() : route.refetch())}
-        controls={<><RouteOptions policy={urlState.policy} onChange={policy => update({ policy })} />
-          {account && <ShareRoute state={urlState} account={account}
+        onSelectSegment={setSelectedSegment}
+        onRetry={() => void (presets.isError ? presets.refetch() : catalog.isError ? catalog.refetch() : route.refetch())}
+        controls={<>{catalog.data && settings && <RouteSettings settings={catalog.data.settings} changed={settings.settings}
+          onChange={changed => update({ settings: changed })} />}
+          {selected && <ShareRoute state={urlState} account={selected}
             disabled={!urlState.start || !urlState.destination || route.isFetching} />}</>} />
     </main>
   </div>;

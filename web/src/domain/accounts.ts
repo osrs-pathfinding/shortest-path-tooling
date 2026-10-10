@@ -1,30 +1,28 @@
-import type { AccountBuild } from "./contracts";
+import type { Account } from "./contracts";
 
-const presetLabels: Record<string, string> = {
-  early: "Early game", mid: "Mid game", end: "End game", maxed: "Maxed",
-};
+/** An account the planner can select: a preset, the saved custom build, or one opened from a link. */
+export interface PlannerAccount {
+  id: string;
+  name: string;
+  account: Account;
+}
 
 // The in-game skills tab order, read left to right.
 const skillOrder = [
-  "Attack", "Hitpoints", "Mining", "Strength", "Agility", "Smithing", "Defence", "Herblore",
-  "Fishing", "Ranged", "Thieving", "Cooking", "Prayer", "Crafting", "Firemaking", "Magic",
-  "Fletching", "Woodcutting", "Runecraft", "Slayer", "Farming", "Construction", "Hunter", "Sailing",
+  "ATTACK", "HITPOINTS", "MINING", "STRENGTH", "AGILITY", "SMITHING", "DEFENCE", "HERBLORE",
+  "FISHING", "RANGED", "THIEVING", "COOKING", "PRAYER", "CRAFTING", "FIREMAKING", "MAGIC",
+  "FLETCHING", "WOODCUTTING", "RUNECRAFT", "SLAYER", "FARMING", "CONSTRUCTION", "HUNTER", "SAILING",
 ];
-const derivedLevels = new Set(["Total", "Quest"]);
 
-export function accountLabel(account: AccountBuild): string {
-  return account.id === "custom" ? account.name : presetLabels[account.id] || account.name;
-}
-
-export function skillNames(levels: AccountBuild["levels"]): string[] {
+/** Skill ids in the in-game skills tab order; skills the tab does not list go last. */
+export function orderSkills(skills: string[]): string[] {
   const rank = (skill: string) => {
     const index = skillOrder.indexOf(skill);
     return index < 0 ? skillOrder.length : index;
   };
-  return Object.keys(levels).filter(name => !derivedLevels.has(name))
-    .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  return [...skills].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
 }
 
-export function totalLevel(levels: AccountBuild["levels"]): number {
-  return skillNames(levels).reduce((total, skill) => total + (Number(levels[skill]) || 0), 0);
+export function totalLevel(levels: Account["levels"]): number {
+  return Object.values(levels).reduce((total, level) => total + (Number(level) || 0), 0);
 }

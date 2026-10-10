@@ -14,7 +14,7 @@ what the plugin reads.
 - `canonical/CanonicalAccounts` defines the benchmark profiles `early`, `mid`, `end`, `maxed`.
 
 Profiles (accounts + plugin settings), presets and scenarios live in `../routing` and the tooling
-tests; the web planner's account format is read in `../routing` too.
+tests; the web planner's JSON form of an account is `../routing` `AccountJson`.
 
 ```sh
 ./gradlew :accounts:test
