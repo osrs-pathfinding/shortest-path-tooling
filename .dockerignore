@@ -1,0 +1,14 @@
+# Both web images build from the repository root (see web/compose.yaml); send only what they use.
+**/.git
+**/build
+**/.gradle
+**/node_modules
+web/dist
+web/src/generated
+web/public/data/profiles
+/cache
+/*.zip
+keys.json
+tests
+scripts
+docs

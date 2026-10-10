@@ -14,7 +14,7 @@ memory, frontend errors, and the external map-tile dependency.
 
 The current small datalist is intentional. A later place-search phase should:
 
-- publish a versioned place catalogue from `shortest-path-corpus` rather than extending the local
+- publish a versioned place catalogue from `corpus/` rather than extending the local
   array;
 - add an accessible keyboard combobox with aliases, categories, clear/swap controls, and recent
   places;

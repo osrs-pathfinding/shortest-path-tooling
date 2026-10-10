@@ -33,6 +33,8 @@ Everything here is development tooling. None of it ships with the plugin.
 | Orchestrator | `scripts/maintenance.py` — one CLI for the whole maintenance surface | `scripts/maintenance.py` |
 | Validators | Deterministic data checks (TSV shape, zip structure, walkability, regions, scenario grammar) | `scripts/validate_data.py` + friends |
 | Issue store | Local shadow copies of upstream bug reports with a lifecycle and replay machinery | `.planning/issues/` + `scripts/import_issues.py` |
+| Routing module | Plans a route for an account headlessly: profiles, `PluginSettings`, the pathfinder config, and the route API contract. Shared by the dashboard, benchmarks, route CLI and route service | `routing/` |
+| Route planner | The public web planner: a React frontend and a Java route service (`:service`) built on `routing/` | `web/`, `web/service/` |
 | CI gate | Compile + pytest + deterministic validate on every push/PR | `.github/workflows/ci.yml` |
 
 ## How data flows

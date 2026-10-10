@@ -16,8 +16,8 @@ if [[ ! $IMAGE_TAG =~ ^[A-Za-z0-9_.-]+$ ]]; then
   echo "IMAGE_TAG contains unsafe characters" >&2
   exit 1
 fi
-if [[ ! -d ../shortest-path ]]; then
-  echo "Expected the routing-engine checkout at ../shortest-path" >&2
+if [[ ! -f ../shortest-path/build.gradle ]]; then
+  echo "The shortest-path submodule is not checked out; run: git submodule update --init shortest-path" >&2
   exit 1
 fi
 
@@ -28,9 +28,10 @@ fi
 remote="${DEPLOY_USER}@${SERVER_IP}"
 
 echo "Building immutable images for ${IMAGE_TAG}..."
-docker build --pull -t "osrs-travel-web:${IMAGE_TAG}" .
-docker build --pull --build-context shortest-path=../shortest-path -f service/Dockerfile \
-  -t "osrs-travel-service:${IMAGE_TAG}" .
+# Both images build from the repository root.
+docker build --pull -f Dockerfile -t "osrs-travel-web:${IMAGE_TAG}" ..
+docker build --pull -f service/Dockerfile --build-arg "RUNELITE_VERSION=${RUNELITE_VERSION:-latest.release}" \
+  -t "osrs-travel-service:${IMAGE_TAG}" ..
 
 echo "Transferring images to ${remote}..."
 docker save "osrs-travel-web:${IMAGE_TAG}" "osrs-travel-service:${IMAGE_TAG}" | gzip -1 | \

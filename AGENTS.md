@@ -17,9 +17,12 @@ around it.
 | Path | Contents |
 |------|----------|
 | `shortest-path/` | Git submodule (pinned commit). Plugin sources + data in `src/main/resources/` (`collision-map.zip`, `destinations/`, `transports/`, `leagues/`). |
-| `accounts/` | Gradle subproject: the Java account profiles that generate `corpus/accounts/` and `corpus/profiles/`. |
-| `corpus/` | Canonical routes, generated account fixtures and schemas (see `corpus/README.md`). |
-| `src/test/java/shortestpath/` | All other Java lives under *test* sources: `profiles/` (every named profile, account compiler), `scenarios/` (scenario suites), `dashboard/` (site generator), `benchmark/` (benchmark adapter), `route/` (`route` CLI); model in `docs/scenarios.md`, `dump/` (cache dumpers), `pathfinder/` (profiling). |
+| `accounts/` | Gradle subproject: the `Account` model and the Java account profiles that generate `corpus/accounts/` and `corpus/profiles/`. No plugin dependency. |
+| `routing/` | Gradle subproject (main sources): `shortestpath.profiles` (profiles, `PluginSettings`, `Setup`, `AccountPathfinderConfig`), `shortestpath.pathfinder.PluginResources` (world data loaded once per JVM), and `shortestpath.routeapi` (route API classes; account build → `Account`, route policy → `PluginSettings`, `PathfinderResult` → route plan). Tooling tests and the route service both build on it. |
+| `web/` | The public route planner: React + TypeScript + Vite frontend (npm project), deploy and infra files. See `web/README.md`. |
+| `web/service/` | Gradle subproject `:service`: the route service's HTTP layer (Javalin) on top of `routing/`. |
+| `corpus/` | Canonical routes, generated account fixtures, and the JSON schemas (route API, account build, route policy) the service and frontend share (see `corpus/README.md`). |
+| `src/test/java/shortestpath/` | The remaining tooling Java lives under *test* sources: `scenarios/` (scenario suites), `dashboard/` (site generator), `benchmark/` (benchmark adapter), `route/` (`route` CLI); model in `docs/scenarios.md`, `dump/` (cache dumpers), `pathfinder/` (profiling). |
 | `src/test/resources/` | Dashboard web assets, scenario data + expected lengths under `scenarios/`, region TSVs. |
 | `gradle/` | Task definitions: `dashboards.gradle`, `cache-dumpers.gradle`. |
 | `scripts/` | Python orchestration (see Scripts map below). |
@@ -30,10 +33,13 @@ around it.
 ## Toolchain
 
 - Java 11 (CI: temurin 11). Gradle via `./gradlew` wrapper only — never a
-  system `gradle`.
+  system `gradle`. One build: the root project (tooling tests), `:accounts`,
+  `:routing` and `:service`, plus the plugin as an included build.
+- Node 24 + npm for `web/` only.
 - Python 3 + pytest for `tests/` and `scripts/`.
-- RuneLite deps resolve as `latest.release` — upstream RuneLite releases can
-  break compilation without any local change.
+- RuneLite deps resolve as `runeLiteVersion` from `gradle.properties`
+  (`latest.release`) — upstream RuneLite releases can break compilation
+  without any local change. `-PruneLiteVersion=<v>` pins one build.
 - `cache/` and `keys.json` are gitignored; the cache dumpers need a local
   OSRS cache. Get one with `python3 scripts/maintenance.py cache`.
 
@@ -48,6 +54,9 @@ python3 -m pip install -r requirements.txt   # pytest, pyyaml, tqdm (homebrew py
 python3 -m pytest tests/           # Python script tests (no network, all mocked)
 python3 scripts/maintenance.py verify    # full gate: compile → submodule test → dashboard sweep → edge diff
 python3 scripts/maintenance.py validate  # data validation: hard gate + advisory tiers
+./gradlew :routing:test :service:test    # routing module + route service
+./gradlew :service:run                   # route service on :8080 (PORT to change)
+(cd web && npm install && npm run dev)   # planner on :5173, proxies /api to the service
 ```
 
 Dashboard options are `-P` properties: `dashboardSuite` (default
@@ -153,8 +162,9 @@ belong to the submodule's branch/PR flow, not this repo.
   upstream by PR. Data-writing subcommands refuse `master`, detached HEAD,
   and dirty worktrees — keep the submodule clean before running them.
 - Plugin test helpers are shared, not copied: `build.gradle` pulls
-  `TestPathfinderConfig.java` and `TestShortestPathConfig.java` straight
-  from `shortest-path/src/test/java` into `compileTestJava`.
+  `TestShortestPathConfig.java` straight from `shortest-path/src/test/java`
+  into `compileTestJava` (`ConfigParityTest` compares defaults with it).
+  Main-source code (`routing/`, the service) never depends on plugin test sources.
 - Run submodule tests with `./gradlew -p shortest-path test`.
 
 ## Upstream PR workflow

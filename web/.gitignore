@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.tsbuildinfo
-service/.gradle/
-service/.gradle-home/
-service/build/
+
+# Generated from ../corpus by `npm run contracts` (run automatically before dev, build and test).
+src/generated/
+public/data/profiles/

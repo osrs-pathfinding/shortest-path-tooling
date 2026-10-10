@@ -37,6 +37,24 @@ The published dashboard is also available on GitHub Pages:
 
 `https://skretzo.github.io/shortest-path/`
 
+## Route planner
+
+[`web/`](web/README.md) is the public route planner: a React frontend and a Java route service
+(`web/service`, the Gradle project `:service`). The service plans routes with the same
+[`routing/`](routing/) module as the dashboard, benchmarks and route CLI, on the pinned plugin:
+
+```bash
+./gradlew :service:run                      # terminal 1: the route service on :8080
+cd web && npm install && npm run dev        # terminal 2: http://localhost:5173/route
+```
+
+| Project | Contents |
+|---|---|
+| `accounts/` | The `Account` model and the canonical account profiles (no plugin dependency) |
+| `routing/` | Profiles, plugin settings and pathfinder config, and the route API (account builds, route policies, route plans) |
+| `web/service/` | The route service's HTTP layer |
+| root project | Dashboard, benchmarks, route CLI, scenario suites and cache dumpers (test sources) |
+
 ## Using a separate shortest-path checkout
 
 Developers working on the plugin and tooling side by side can point the tooling
@@ -187,3 +205,5 @@ python3 scripts/rebuild_bank_tsv.py
 
 - [`shortest-path`](https://github.com/Skretzo/shortest-path) — the plugin
   itself (carried here as the `shortest-path/` submodule).
+- `shortest-path-web` and `shortest-path-corpus` were merged into this repository as `web/` and
+  `corpus/`, with their histories.

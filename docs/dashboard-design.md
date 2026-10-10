@@ -34,7 +34,7 @@ via `settings.gradle`, so `testImplementation 'shortestpath:shortest-path'` reso
 |---|---|
 | `src/test/java/shortestpath/dashboard/` | Dashboard test runner and report writing |
 | `src/test/java/shortestpath/scenarios/` | Scenario suites (Java) and the `Scenario` model |
-| `src/test/java/shortestpath/profiles/` | `Profiles`: every named profile (canonical accounts and dashboard presets) |
+| `routing/src/main/java/shortestpath/profiles/` | `Profiles`: every named profile (canonical accounts and dashboard presets), `PluginSettings` |
 | `src/test/java/shortestpath/pathfinder/` | `ProfilingPathfinder`, `PathfinderProfile` (test-only instrumented pathfinder) |
 | `src/test/java/shortestpath/dump/` | Cache dumpers |
 | `src/test/resources/scenarios/` | Data-only scenario CSVs and each suite's `expected-lengths/<suite>.json` |

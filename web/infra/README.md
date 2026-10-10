@@ -35,7 +35,9 @@ a maintenance operation.
 ## Prerequisites
 
 The operator machine needs OpenTofu 1.10 or later, Docker with BuildKit, `ssh`, `scp`, and `curl`.
-Keep this repository beside the routing engine as `shortest-path-web/` and `shortest-path/`.
+Check out the repository with its `shortest-path` submodule (`git submodule update --init shortest-path`);
+deploy from `web/`. `RUNELITE_VERSION` pins the RuneLite version the service image builds against
+(default `latest.release`).
 
 Create:
 
@@ -109,7 +111,7 @@ export SSH_IDENTITY_FILE="$HOME/.ssh/id_ed25519"
 ./deploy/deploy.sh
 ```
 
-The script builds both images from the checked-out commits, tags them with the web repository commit
+The script builds both images from the checked-out commits, tags them with the repository commit
 by default, streams them to the host, validates the Compose model, starts it, and checks both the
 private service and public reverse proxy. Override `IMAGE_TAG` with a release identifier in CI.
 

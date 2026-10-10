@@ -4,9 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "npm run contracts",
     "dev": "vite",
+    "prebuild": "npm run contracts",
     "build": "tsc -b && vite build",
     "contracts": "node scripts/sync-contracts.mjs",
+    "pretest": "npm run contracts",
     "test": "vitest run",
     "preview": "vite preview"
   },

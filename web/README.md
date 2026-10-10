@@ -1,22 +1,25 @@
-# shortest-path-web
+# Route planner
 
-Greenfield public frontend for the OSRS travel planner.
+The public frontend for the OSRS travel planner, and its route service in [`service/`](service/README.md).
 
 ```sh
+# From the repository root: the route service on :8080
+./gradlew :service:run
+# In another terminal, from web/:
 npm install
-cd service && ./gradlew run
-# In another terminal, from the repository root:
 npm run dev
 ```
 
-Open <http://localhost:5173/route>. `/` redirects there.
+Open <http://localhost:5173/route>. `/` redirects there. The dev server proxies `/api` to the service.
+`npm test` runs the frontend tests and `npm run build` type-checks and builds `dist/`.
 
 Choose and customize account presets from the planner's account sidebar. Custom builds contain semantic skills,
 quests, unlocks, and POH settings and are saved in the browser; raw routing variables remain hidden.
 
 **More route options** exposes the plugin's remaining routing settings: per-transport toggles and thresholds, the
 teleport item source, a fare limit, and unlocks the game does not report. They are part of the route policy
-(`service/src/main/resources/schemas/route-policy-v1.schema.json`), which this repository owns rather than the corpus.
+(`../corpus/schemas/route-policy-v1.schema.json`), which the service compiles into plugin settings
+(`routing/` `RoutePolicies`).
 
 Routes are URL-backed: endpoint, preset, and route-policy changes survive reload and browser navigation. Use
 **Copy route link** to share the current setup. Custom accounts are gzip-compressed into a versioned URL fragment,
@@ -39,12 +42,16 @@ choose and document a first-party hosting/cache policy before a public productio
 
 Use established ecosystem libraries for UI, routing, map rendering, forms, API state, validation, and server implementation where they are the idiomatic choice. Do not replace them with local substitutes merely because the first version looks small.
 
-`npm run contracts` regenerates TypeScript declarations and public presets from the adjacent
-`shortest-path-corpus` checkout. Override its location with `SHORTEST_PATH_CORPUS_DIR`.
+The API contracts live in `../corpus/schemas` and the preset accounts in `../corpus/profiles`
+(generated from the Java profiles in `../accounts`). `npm run contracts` copies them into
+`src/generated/` and `public/data/profiles/` and generates the TypeScript types; `dev`, `build` and
+`test` run it first, and its outputs are not committed. Override the corpus location with
+`SHORTEST_PATH_CORPUS_DIR`.
 
 ## Deploy
 
-Local Docker Compose deployment:
+Local Docker Compose deployment (both images build from the repository root, so the
+`shortest-path` submodule must be checked out):
 
 ```sh
 docker compose up --build -d

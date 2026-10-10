@@ -1,10 +1,8 @@
 services:
   service:
     build:
-      context: .
-      dockerfile: service/Dockerfile
-      additional_contexts:
-        shortest-path: ../shortest-path
+      context: ..
+      dockerfile: web/service/Dockerfile
     environment:
       JAVA_OPTS: "-Xms${SERVICE_HEAP_MIN:-512m} -Xmx${SERVICE_HEAP_MAX:-4g}"
       PORT: "8080"
@@ -12,7 +10,9 @@ services:
     stop_grace_period: 30s
 
   web:
-    build: .
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
     depends_on:
       - service
     ports:
