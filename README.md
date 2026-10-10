@@ -56,9 +56,11 @@ The default remains the `./shortest-path` Git submodule.
 
 | Task | Description |
 |------|-------------|
-| `./gradlew dashboard` | Build the pathfinder dashboard from the default routes dataset |
-| `./gradlew dashboard -PdashboardDataset=/dashboard/clue_locations_full.csv` | Build dashboard from a specific dataset |
+| `./gradlew dashboard` | Build the pathfinder dashboard from the default routes dataset and the sailing routes |
+| `./gradlew dashboard -PdashboardDataset=/dashboard/clue_locations_full.csv` | Build dashboard from a specific dataset (only that one) |
+| `./gradlew sailingDashboard -PshortestPathDir=../shortest-path` | Build only the sailing routes, with the experimental sailing search drawn next to the normal path (needs a plugin checkout with the sailing search) |
 | `./gradlew captureExpectedLengths` | Write actual path lengths back into the source CSV as `expected_length` |
+| `./gradlew sailingBenchmark -PshortestPathDir=../shortest-path` | Time the experimental sailing search against the existing search on routes at sea (needs a plugin checkout with the sailing search) |
 | `./gradlew bankTileDump -PbankTileCacheDir=<dir> -PbankTileXteaPath=<keys.json>` | Dump bank-object placements from an OSRS cache to TSV |
 | `./gradlew sailingAmenityVarbitDump -PsailingAmenityCacheDir=<dir> -PsailingAmenityXteaPath=<keys.json>` | Dump Sailing island amenity varbits from an OSRS cache |
 | `./gradlew routingCuts -PkahipNodeSeparator=<path>` | Generate the exact pathfinder's `routing-cuts.bin` with KaHIP (see below) |
@@ -104,6 +106,9 @@ never make exact routes wrong.
 `probes`, and `verify` subcommands wrap the cache download, Gradle
 dumpers, and verification tiers in one entry point. See
 [docs/maintenance.md](docs/maintenance.md) for the runbook.
+
+The sailing tools in `src/sailing/java` are only compiled when the plugin checkout (`-PshortestPathDir`) has
+the experimental sailing search.
 
 ## Dashboard options
 
