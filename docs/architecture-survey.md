@@ -83,6 +83,7 @@ Union: **107 unique files**. Branch deltas relative to
 | 21 | Transport TSV parser | deferred | `transport/parser/` (8 files) |
 | 22 | Leaf utilities | leaf | `WorldPointUtil`, `Util`, `PrimitiveIntHashMap`, `PrimitiveIntList`, `ItemVariations`, `TileCounter`, `TileStyle` |
 | 23 | Plugin shell residue | residual | lifecycle ordering, `@Subscribe` forwarding, overlay/key-listener registration rows on `ShortestPathPlugin` |
+| 24 | Sailing | extraction | `SailingService`, `SailingState`, `SailingChange` — boat-state producer + the overlay read seam's sailing surface |
 
 ## Partition table
 
@@ -113,6 +114,7 @@ branch.
 | shortestpath/ShortestPathPlugin.java (`transportsForEdge`, `formatTransportDisplay`) | transport presentation | contested — responsibility row |
 | shortestpath/ShortestPathPlugin.java (`getMinimapClipArea`, `getMinimapDrawWidget`, `bufferedImageToPolygon`, `mapWorldPointToGraphicsPointX`/`Y`, `calculateMapPoint`, `getSelectedWorldPoint`, `scrollFairyRingPanel`) | widget & UI geometry | contested — responsibility row |
 | shortestpath/ShortestPathPlugin.java (plugin lifecycle ordering, overlay/key-listener registration, event forwarding that stays) | plugin shell residue | contested — responsibility row |
+| shortestpath/ShortestPathPlugin.java (sailing residue — colour constant and delegations, removed) | plugin shell residue | contested — responsibility row; the sailing surface this phase deleted |
 | shortestpath/SpiritTreePatchState.java | spirit trees | `@Singleton` patch-state service |
 | shortestpath/TileCounter.java | leaf utilities | leaf listing |
 | shortestpath/TileStyle.java | leaf utilities | leaf listing |
@@ -135,6 +137,7 @@ branch.
 | shortestpath/overlay/SpellbookHighlightOverlay.java | highlight overlays | presentation seam |
 | shortestpath/pathfinder/AbstractNodeKind.java | pathfinder search core | deferred unit |
 | shortestpath/pathfinder/ActiveSearch.java | path scheduler | the scheduler's published handle |
+| shortestpath/pathfinder/BoatHull.java | pathfinder search core | deferred unit — per-search hull caches; never a service snapshot (dispatch-time `fromBounds`) |
 | shortestpath/pathfinder/CollisionMap.java | pathfinder search core | deferred unit |
 | shortestpath/pathfinder/ExactPathfinder.java | exact backend | `ActiveSearch` adapter for the exact core |
 | shortestpath/pathfinder/ExactRoutingStaticProvider.java | exact backend | builds static routing data for the exact core |
@@ -156,8 +159,11 @@ branch.
 | shortestpath/pathfinder/PathfinderConfig.java (availability views: `getTransportsPacked`, `getUsableTeleports`, `getTransportAvailability`, `TransportAvailabilities`) | pathfinder search core | contested — responsibility row; engine inputs |
 | shortestpath/pathfinder/PathfinderConfig.java (`requirements`/`eligibility`/`requirementHooks` wiring, `buildRoutingPolicy`) | requirement middleware | contested — responsibility row |
 | shortestpath/pathfinder/PathfinderConfig.java (`prepareExactRoutingAccount`) | exact backend | contested — responsibility row |
+| shortestpath/pathfinder/PathfinderConfig.java (sailing volatiles and accessors — `sailingMoves`/`sailingSpeed`/`isOnSailingBoat`) | sailing | contested — responsibility row; dispatch inputs derive from the `SailingService` snapshot |
 | shortestpath/pathfinder/PathfinderResult.java | pathfinder search core | deferred unit |
 | shortestpath/pathfinder/PathfinderStats.java | pathfinder search core | deferred unit; consumed by diagnostics |
+| shortestpath/pathfinder/SailingMoves.java | pathfinder search core | deferred unit — sailing move set |
+| shortestpath/pathfinder/SailingSearch.java | pathfinder search core | deferred unit — sailing search state |
 | shortestpath/pathfinder/SearchDeadline.java | pathfinder search core | deferred unit |
 | shortestpath/pathfinder/SplitFlagMap.java | pathfinder search core | deferred unit |
 | shortestpath/pathfinder/TransportAvailability.java | pathfinder search core | deferred unit |
@@ -202,6 +208,10 @@ branch.
 | shortestpath/requirement/model/Unlock.java | requirement middleware | requirement model |
 | shortestpath/requirement/model/VarCheckType.java | requirement middleware | requirement model |
 | shortestpath/requirement/model/VarRequirement.java | requirement middleware | requirement model |
+| shortestpath/sailing/SailingChange.java | sailing | typed change fact |
+| shortestpath/sailing/SailingService.java | sailing | the boat-state producer |
+| shortestpath/sailing/SailingState.java | sailing | immutable per-refresh snapshot |
+| shortestpath/scheduler/PathRenderState.java | path scheduler | the overlays' read seam over scheduler published state |
 | shortestpath/transport/LoadInterner.java | TSV data loading | load-scoped dedup pools |
 | shortestpath/transport/PohMountedItem.java | POH | POH domain type |
 | shortestpath/transport/PohNexusPortal.java | POH | POH domain type |
