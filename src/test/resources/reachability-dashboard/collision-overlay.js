@@ -2,7 +2,8 @@
  * Collision-map overlay
  * ---------------------
  * Renders fully-blocked tiles (all four edges impassable) on the current
- * plane as solid filled squares.
+ * plane as solid filled squares, and draws wall/door boundary flags as
+ * thin orange edge lines on top of the fill.
  *
  * Default: off. Mirrors the transport-layers toggle pattern via the
  * shared window.addMapLayerToggle({label, checked, onChange}) registry.
@@ -11,22 +12,28 @@
  * plugin (/collision-map.zip in plugin resources, copied next to the
  * dashboard's index.html by PathfinderDashboardAssetWriter). Each zip
  * entry is named "<regionX>_<regionY>" and contains the raw byte payload
- * of a Java BitSet (little-endian, byte-aligned) encoding two edge flags
+ * of a Java BitSet (little-endian, byte-aligned) encoding four edge flags
  * per tile per plane:
  *
- *   flag 0 (FLAG_NORTH) — edge between (x, y) and (x, y+1) is walkable
- *   flag 1 (FLAG_EAST)  — edge between (x, y) and (x+1, y) is walkable
+ *   flag 0 (FLAG_NORTH)      — movement edge (x, y) -> (x, y+1) is walkable
+ *   flag 1 (FLAG_EAST)       — movement edge (x, y) -> (x+1, y) is walkable
+ *   flag 2 (FLAG_WALL_NORTH) — north edge is a structural boundary written
+ *                              by walls/doors
+ *   flag 3 (FLAG_WALL_EAST)  — east edge is a structural boundary written
+ *                              by walls/doors
  *
- *   index = (z * 64 * 64 + (y - minY) * 64 + (x - minX)) * 2 + flag
+ *   index = (z * 64 * 64 + (y - minY) * 64 + (x - minX)) * 4 + flag
  *
- *   planeCount = bytes.length * 8 / (64 * 64 * 2)   (rounded up)
+ *   planeCount = bytes.length * 8 / (64 * 64 * 4)   (rounded up)
  *
- * A tile is considered "blocked" (filled) when none of its four incident
- * edges are walkable on the current plane:
+ * A tile is considered "blocked" (filled red) when none of its four
+ * incident edges are walkable on the current plane:
  *   N: flag(x,   y,   N),  S: flag(x,   y-1, N),
  *   E: flag(x,   y,   E),  W: flag(x-1, y,   E).
  * Walkable corridors such as bridges, doorways and roads remain visible
- * as gaps in the fill.
+ * as gaps in the fill. Wall/door boundary flags paint as orange lines
+ * along the tile's north or east edge; south/west walls surface through
+ * the neighbour's north/east flag.
  *
  * The overlay is locked to plane 0 because the dashboard base map only
  * ever renders plane 0 tiles.
@@ -37,7 +44,11 @@
   const REGION_SIZE = 64;
   const FLAG_NORTH = 0;
   const FLAG_EAST = 1;
+  const FLAG_WALL_NORTH = 2;
+  const FLAG_WALL_EAST = 3;
+  const FLAG_COUNT = 4;
   const FILL_COLOR = "rgba(220, 38, 38, 0.45)";
+  const WALL_COLOR = "rgba(245, 158, 11, 0.9)";
 
   // Minimum on-screen pixels per world tile before tiles are drawn;
   // below this the overlay would be a meaningless wash of colour.
@@ -63,13 +74,13 @@
   }
 
   function planeCount(bytes) {
-    const stride = REGION_SIZE * REGION_SIZE * 2;
+    const stride = REGION_SIZE * REGION_SIZE * FLAG_COUNT;
     return Math.ceil((bytes.length * 8) / stride);
   }
 
   /** Returns the flag bit for tile (x, y, z, flag) within a region's bytes. minX/minY are the region origin. */
   function flagBit(bytes, minX, minY, x, y, z, flag) {
-    const idx = ((z * REGION_SIZE * REGION_SIZE) + ((y - minY) * REGION_SIZE) + (x - minX)) * 2 + flag;
+    const idx = ((z * REGION_SIZE * REGION_SIZE) + ((y - minY) * REGION_SIZE) + (x - minX)) * FLAG_COUNT + flag;
     return bitGet(bytes, idx);
   }
 
@@ -197,6 +208,27 @@
             const px = (x - wxMin) * pxPerTileX;
             const py = (wyMax - (y + 1)) * pxPerTileY;
             ctx.fillRect(px, py, pxPerTileX, pxPerTileY);
+          }
+        }
+
+        // Second pass: wall/door boundary flags as thin orange edge lines,
+        // drawn after every fill so a later tile's translucent fill never
+        // dims an earlier tile's edge line. South/west walls need no code
+        // of their own: they are the neighbour's north/east flag and the
+        // ±1 tile margin already iterates those neighbours. Thin fillRects
+        // are used instead of strokes to avoid half-pixel stroke blur.
+        const wallT = Math.max(1, Math.min(3, Math.round(Math.min(pxPerTileX, pxPerTileY) / 4)));
+        ctx.fillStyle = WALL_COLOR;
+        for (let x = x0; x <= x1; x++) {
+          for (let y = y0; y <= y1; y++) {
+            const px = (x - wxMin) * pxPerTileX;
+            const py = (wyMax - (y + 1)) * pxPerTileY;
+            if (edge(x, y, FLAG_WALL_NORTH)) {
+              ctx.fillRect(px, py - wallT / 2, pxPerTileX, wallT);
+            }
+            if (edge(x, y, FLAG_WALL_EAST)) {
+              ctx.fillRect(px + pxPerTileX - wallT / 2, py, wallT, pxPerTileY);
+            }
           }
         }
 
