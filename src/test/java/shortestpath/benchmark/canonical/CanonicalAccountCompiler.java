@@ -25,12 +25,12 @@ import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.gameval.VarPlayerID;
 import shortestpath.ItemVariations;
-import shortestpath.JewelleryBoxTier;
+import shortestpath.poh.JewelleryBoxTier;
 import shortestpath.settings.TeleportationItem;
 import shortestpath.dashboard.DashboardPathfinderConfig;
 import shortestpath.pathfinder.TestPathfinderConfig;
-import shortestpath.transport.PohNexusPortal;
-import shortestpath.transport.PohMountedItem;
+import shortestpath.poh.PohNexusPortal;
+import shortestpath.poh.PohMountedItem;
 
 /** Compiles one language-neutral profile into the production legacy config shape. */
 public final class CanonicalAccountCompiler {

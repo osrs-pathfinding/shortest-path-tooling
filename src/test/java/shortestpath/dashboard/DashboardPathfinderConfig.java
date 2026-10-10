@@ -6,8 +6,8 @@ import shortestpath.poh.JewelleryBoxTier;
 import shortestpath.ShortestPathConfig;
 import shortestpath.settings.TeleportationItem;
 import shortestpath.pathfinder.PathfinderBackend;
-import shortestpath.transport.PohNexusPortal;
-import shortestpath.transport.PohMountedItem;
+import shortestpath.poh.PohNexusPortal;
+import shortestpath.poh.PohMountedItem;
 
 /**
  * Mutable POJO implementation of {@link ShortestPathConfig} for the dashboard test harness.
