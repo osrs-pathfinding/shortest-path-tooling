@@ -206,13 +206,6 @@ public class PluginDependencyRuleTest
 			"RefreshCoordinator reads ConfigChange/ShortestPathConfig through the config channel");
 		LEAF_EDGES.put("scheduler -> spirittree",
 			"RefreshCoordinator reads TreeChange through the spirit-tree channel");
-		// Integration-branch only: the merged tree carries consumption/re-plan
-		// machinery in PathScheduler that the stage stack does not.
-		LEAF_EDGES.put("scheduler -> requirement",
-			"PathScheduler reads TransportEligibility for the merged consumption/re-plan machinery");
-		LEAF_EDGES.put("scheduler -> transport",
-			"PathScheduler reads Transport records for the merged consumption/re-plan machinery");
-
 		// sailing package — the sailing service's seams. The outbound edges
 		// are the producer channel plus the service's reads of sibling leaf
 		// types; the inbound edges are the coordinator/scheduler/config
