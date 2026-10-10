@@ -21,7 +21,8 @@ import static org.junit.Assert.*;
 /**
  * Non-growth dependency-rule lint: the plugin's leaf packages
  * ({@code transport}, {@code pathfinder}, {@code requirement},
- * {@code leagues}, {@code overlay} — subtrees included) must not reference
+ * {@code leagues}, {@code overlay}, {@code settings} — subtrees included)
+ * must not reference
  * {@code ShortestPathPlugin}. Cross-cutting configuration and world-geometry
  * access goes through owned services (the effective-config settings service,
  * the POH service) or leaf utilities; any new coupling arrives through an
@@ -46,13 +47,34 @@ import static org.junit.Assert.*;
  * <p>{@link #observedSites(Path)} is factored out so
  * {@link #flagsUnlistedCoupling()} can prove both failure branches against
  * temporary fixture roots — the submodule tree is never written to.
+ *
+ * <p>Known gaps, by design. The scan token is the dotted form
+ * {@code ShortestPathPlugin.}, so instance coupling — a leaf class that
+ * accepts an injected {@code ShortestPathPlugin} and calls it through a
+ * field, as several overlay classes do today — is not counted. Those sites
+ * are documented in the architectural survey and migrate with their owning
+ * extractions; widening the token set is a future enhancement, not a
+ * silent rule change. And when the last allowlist entry is retired,
+ * {@link #scanHasReach()} intentionally fails: the empty-allowlist
+ * assertion exists to prevent a vacuous guard, so the change that removes
+ * the final coupling should delete this lint (or relax that assertion) in
+ * the same commit.
+ *
+ * <p>Two maintenance properties to know before touching allowlisted code.
+ * The match is a raw substring scan — comments and string literals
+ * containing {@code ShortestPathPlugin.} count as sites. And keys are
+ * {@code path:line}, so edits above an allowlisted reference shift its
+ * line number and must update the affected keys in the same change; that
+ * line-granularity is what lets the lint detect stale entries.
  */
 public class PluginDependencyRuleTest
 {
 	private static final Path MAIN_ROOT = Paths.get("shortest-path/src/main/java");
 
+	// New leaf packages must be added here — the lint only covers what it enumerates.
 	private static final List<String> LEAF_PACKAGES = List.of(
-		"transport", "pathfinder", "requirement", "leagues", "overlay");
+		"transport", "pathfinder", "requirement", "leagues", "overlay",
+		"settings");
 
 	private static final String PLUGIN_REFERENCE = "ShortestPathPlugin.";
 
@@ -86,48 +108,8 @@ public class PluginDependencyRuleTest
 		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:10",
 			"import static of POH_LANDING_Y — migrates to the POH service");
 
-		// override() config reads — migrate to the settings service.
-		ALLOWLIST.put("shortestpath/transport/TransportTypeConfig.java:66",
-			"override read of useTeleportationItems — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/transport/TransportTypeConfig.java:109",
-			"override read of a per-type config value — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/transport/TransportTypeConfig.java:125",
-			"override read of a per-type config value — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:324",
-			"override read of unreachableTargetDistanceThreshold — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:327",
-			"override read of exactHeuristicWeight — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:328",
-			"override read of avoidWilderness — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:329",
-			"override read of usePoh — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:335",
-			"override read of usePohFairyRing — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:336",
-			"override read of usePohSpiritTree — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:337",
-			"override read of usePohObelisk — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:341",
-			"override read of pohJewelleryBoxTier — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:344",
-			"override read of currencyThreshold — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:349",
-			"override read of includeBankPath — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:352",
-			"override read of respawnPrifddinas — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:356",
-			"override read of unlockCanoeAxe — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:360",
-			"override read of unlockXericsHonour — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:364",
-			"override read of unlockDragontoothPassage — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:371",
-			"override read of costConsumableTeleportationItems — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:372",
-			"override read of costBankVisit — migrates to the settings service");
-
 		// isInsidePoh world-geometry reads — migrate to the POH service.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:660",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:661",
 			"isInsidePoh redirect filter — migrates to the POH service");
 		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:100",
 			"isInsidePoh origin check — migrates to the POH service");
@@ -135,17 +117,17 @@ public class PluginDependencyRuleTest
 			"isInsidePoh POH gate — migrates to the POH service");
 		ALLOWLIST.put("shortestpath/requirement/Requirements.java:262",
 			"isInsidePoh POH-variant gate — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:251",
+		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:254",
 			"isInsidePoh marker filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:286",
+		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:289",
 			"isInsidePoh tracer filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:321",
+		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:324",
 			"isInsidePoh marker filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:365",
+		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:368",
 			"isInsidePoh marker filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:763",
+		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:766",
 			"isInsidePoh transport-tile check — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:764",
+		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:767",
 			"isInsidePoh player-tile check — migrates to the POH service");
 	}
 
@@ -172,7 +154,7 @@ public class PluginDependencyRuleTest
 			try (Stream<Path> stream = Files.walk(dir))
 			{
 				sources = stream
-					.filter(p -> p.toString().endsWith(".java"))
+					.filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".java"))
 					.collect(Collectors.toList());
 			}
 			for (Path source : sources)
@@ -233,7 +215,7 @@ public class PluginDependencyRuleTest
 			long sources;
 			try (Stream<Path> stream = Files.walk(dir))
 			{
-				sources = stream.filter(p -> p.toString().endsWith(".java")).count();
+				sources = stream.filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".java")).count();
 			}
 			assertTrue("leaf package scanned no .java files: " + dir, sources > 0);
 		}
