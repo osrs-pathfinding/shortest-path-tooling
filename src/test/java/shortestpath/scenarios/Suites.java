@@ -17,8 +17,9 @@ import shortestpath.profiles.Profiles;
 
 /**
  * Every scenario suite, by name. Suites with account or settings overrides are Java;
- * {@code clue-locations-full} and {@code canonical} ({@link CanonicalCorpus}) are route data
- * ({@link Route}) run with a list of profiles. A suite's optional exact lengths are in
+ * {@code clue-locations-full} ({@link ClueLocationScenarios}, with item overrides for a few steps)
+ * and {@code canonical} ({@link CanonicalCorpus}) are route data ({@link Route}) run with a list of
+ * profiles. A suite's optional exact lengths are in
  * {@code /scenarios/expected-lengths/<suite>.json}.
  */
 public final class Suites {
@@ -37,8 +38,7 @@ public final class Suites {
         SUITES.put("f2p-routes", F2pRouteScenarios::define);
         SUITES.put("seasonal-briefcase-routes", SeasonalBriefcaseScenarios::define);
         SUITES.put("quetzal-whistle-routes", QuetzalWhistleScenarios::define);
-        SUITES.put("clue-locations-full", suite -> addRoutes(suite,
-            Route.loadResource("/scenarios/clue-locations.json"), List.of("ALL")));
+        SUITES.put("clue-locations-full", ClueLocationScenarios::define);
         SUITES.put("canonical", suite -> addRoutes(suite,
             CanonicalCorpus.routes(CanonicalCorpus.dir()), List.copyOf(Profiles.canonicalNames())));
     }
