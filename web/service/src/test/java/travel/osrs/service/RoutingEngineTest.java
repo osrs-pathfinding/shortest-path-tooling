@@ -104,7 +104,7 @@ class RoutingEngineTest
 		assertTrue(ItemCatalog.find("teleport to house", null).stream()
 			.anyMatch(item -> "8013".equals(item.key) && "Teleport to house".equals(item.name)));
 		assertFalse(ItemCatalog.find("teleporttohouse", null).stream().anyMatch(item -> "8013".equals(item.key)));
-		assertTrue(ItemCatalog.find("bronze dagger", null).isEmpty());
+		assertTrue(ItemCatalog.find("dwarf remains", null).isEmpty());
 	}
 
 	@Test

@@ -2,6 +2,10 @@ rootProject.name = 'shortest-path-tooling'
 
 include 'accounts'
 
+// The public route service; its frontend is the npm project in web/.
+include 'service'
+project(':service').projectDir = file('web/service')
+
 def shortestPathDir = providers.gradleProperty('shortestPathDir')
         .orElse('shortest-path')
         .get()
