@@ -1,0 +1,25 @@
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	# Service metrics are for host-local collection only.
+	handle /api/metrics {
+		respond 404
+	}
+
+	handle_path /api/* {
+		reverse_proxy service:8080
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+}

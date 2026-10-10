@@ -1,0 +1,73 @@
+plugins {
+    id 'application'
+    id 'java'
+}
+
+repositories {
+    maven {
+        url = 'https://repo.runelite.net'
+        content { includeGroupByRegex('net\\.runelite.*') }
+    }
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'shortestpath:shortest-path'
+    implementation 'net.runelite:client:1.12.39'
+    implementation 'io.javalin:javalin:5.6.5'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.3'
+    implementation 'com.networknt:json-schema-validator:1.5.9'
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.2.3'
+    implementation 'io.micrometer:micrometer-registry-prometheus:1.13.6'
+    runtimeOnly 'ch.qos.logback:logback-classic:1.5.21'
+    runtimeOnly 'net.logstash.logback:logstash-logback-encoder:8.1'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testImplementation 'io.javalin:javalin-testtools:5.6.5'
+}
+
+group = 'travel.osrs'
+version = '0.1.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release.set(11)
+}
+
+application {
+    mainClass = 'travel.osrs.service.ServiceMain'
+}
+
+// The item catalog lists exactly the items the current transport data can require. Its names are
+// regenerated from Chisel whenever the service is built, including the deploy image build.
+// Pass -PitemNamesSource=/path/to/itemsmin.js to build offline.
+def itemNamesSource = providers.gradleProperty('itemNamesSource')
+    .orElse('https://chisel.weirdgloop.org/moid/data_files/itemsmin.js')
+def routeItemNamesDir = layout.buildDirectory.dir('generated/route-item-names')
+def generateRouteItemNames = tasks.register('generateRouteItemNames', JavaExec) {
+    description = 'Writes route-item-names.tsv for every item the current transports can require.'
+    classpath = sourceSets.main.output.classesDirs + configurations.runtimeClasspath
+    mainClass = 'travel.osrs.service.RouteItemNames'
+    maxHeapSize = '1g'
+    // Use the service's logging rather than the RuneLite client's, which writes to ~/.runelite.
+    systemProperty 'logback.configurationFile', file('src/main/resources/logback.xml').path
+    inputs.property('itemNamesSource', itemNamesSource)
+    outputs.dir(routeItemNamesDir)
+    argumentProviders.add({
+        [itemNamesSource.get(), routeItemNamesDir.get().file('route-item-names.tsv').asFile.path]
+    } as CommandLineArgumentProvider)
+}
+
+processResources {
+    from(generateRouteItemNames)
+}
+
+test {
+    useJUnitPlatform()
+    jvmArgs = ['-Xms512m', '-Xmx4g']
+}

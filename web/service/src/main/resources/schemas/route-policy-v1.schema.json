@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://osrs.travel/schemas/route-policy-v1.schema.json",
+  "title": "RoutePolicy v1",
+  "description": "The routing settings of the shortest-path plugin that are not facts about the account. Optional fields default to the behaviour of clients that omit them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["avoidWilderness", "banking", "resources", "avoidedTransportTypes"],
+  "properties": {
+    "avoidWilderness": { "type": "boolean" },
+    "banking": {
+      "description": "Whether routes may withdraw items from the bank. avoid only banks when it saves a lot of time.",
+      "enum": ["allow", "avoid", "never"]
+    },
+    "resources": {
+      "description": "How consumable teleports (tablets, charged jewellery, whistles) are treated. permanent-only never uses them.",
+      "enum": ["fastest", "preserve-consumables", "permanent-only"]
+    },
+    "avoidedTransportTypes": {
+      "description": "Transport types the route must not use. TELEPORTATION_ITEM also disables teleport boxes.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/avoidableTransportType" }
+    },
+    "teleportItems": {
+      "description": "owned uses only the account's items; any assumes every teleport item is available.",
+      "enum": ["owned", "any"],
+      "default": "owned"
+    },
+    "currencyThreshold": {
+      "description": "The most coins, trading sticks, ecto-tokens or warrior guild tokens spent on one transport. Omit for no limit.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "transportThresholds": {
+      "description": "How many ticks a transport type must save over the alternatives to be used.",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/thresholdTransportType" },
+      "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 10000 },
+      "default": {}
+    },
+    "declaredUnlocks": {
+      "description": "Account state the game does not report to the plugin, declared without verification.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["PRIFDDINAS_RESPAWN", "CANOE_AXE", "XERICS_HONOUR", "DRAGONTOOTH_PASSAGE"] },
+      "default": []
+    }
+  },
+  "$defs": {
+    "avoidableTransportType": {
+      "enum": [
+        "AGILITY_SHORTCUT", "GRAPPLE_SHORTCUT", "BOAT", "CANOE", "CHARTER_SHIP", "SHIP", "FAIRY_RING",
+        "GNOME_GLIDER", "HOT_AIR_BALLOON", "MAGIC_CARPET", "MAGIC_MUSHTREE", "MINECART", "QUETZAL",
+        "SPIRIT_TREE", "TELEPORTATION_ITEM", "TELEPORTATION_LEVER", "TELEPORTATION_MINIGAME",
+        "TELEPORTATION_PORTAL", "TELEPORTATION_SPELL", "TELEPORTATION_SPELL_HOME", "WILDERNESS_OBELISK"
+      ]
+    },
+    "thresholdTransportType": {
+      "enum": [
+        "AGILITY_SHORTCUT", "GRAPPLE_SHORTCUT", "BOAT", "CANOE", "CHARTER_SHIP", "SHIP", "FAIRY_RING",
+        "GNOME_GLIDER", "HOT_AIR_BALLOON", "MAGIC_CARPET", "MAGIC_MUSHTREE", "MINECART", "QUETZAL",
+        "SPIRIT_TREE", "TELEPORTATION_BOX", "TELEPORTATION_ITEM", "TELEPORTATION_LEVER",
+        "TELEPORTATION_MINIGAME", "TELEPORTATION_PORTAL", "TELEPORTATION_SPELL", "TELEPORTATION_SPELL_HOME",
+        "WILDERNESS_OBELISK"
+      ]
+    }
+  }
+}

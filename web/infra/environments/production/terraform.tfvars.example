@@ -1,0 +1,13 @@
+server_name     = "osrs-travel-production"
+server_type     = "ccx13" # or cpx32 after representative load testing
+location        = "fsn1"
+ssh_public_key  = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... operator@example"
+admin_ipv4_cidr = "198.51.100.20/32"
+enable_backups  = true
+ptr_hostname    = "travel.example.com"
+
+manage_dns      = true
+create_dns_zone = false
+dns_zone_name   = "example.com"
+dns_record_name = "travel"
+dns_ttl         = 300

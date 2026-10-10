@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.tsbuildinfo
+service/.gradle/
+service/.gradle-home/
+service/build/

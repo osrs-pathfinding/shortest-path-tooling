@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://osrs.travel/schemas/account-build-v1.schema.json",
+  "title": "AccountBuild v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "id", "name", "benchmarkNowMinutes", "levels", "completedQuests",
+    "diaries", "inventory", "equipment", "runePouch", "bank", "fairyRingsUnlocked",
+    "plantedSpiritTrees", "poh", "runtime", "routingVariables"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "benchmarkNowMinutes": { "type": "integer", "minimum": 0 },
+    "levels": { "$ref": "#/$defs/levelMap" },
+    "completedQuests": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "diaries": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "enum": ["NoDiary", "Easy", "Medium", "Hard", "Elite"] }
+    },
+    "inventory": { "$ref": "#/$defs/itemMap" },
+    "equipment": { "$ref": "#/$defs/itemMap" },
+    "runePouch": { "$ref": "#/$defs/itemMap" },
+    "bank": { "$ref": "#/$defs/itemMap" },
+    "fairyRingsUnlocked": { "type": "boolean" },
+    "plantedSpiritTrees": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "poh": { "$ref": "#/$defs/poh" },
+    "runtime": { "$ref": "#/$defs/runtime" },
+    "routingVariables": { "$ref": "#/$defs/routingVariables" }
+  },
+  "$defs": {
+    "levelMap": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 32767 }
+    },
+    "itemMap": {
+      "type": "object",
+      "propertyNames": { "pattern": "^(?:[0-9]+|[A-Z][A-Z0-9_]*)$" },
+      "additionalProperties": { "type": "integer", "minimum": 1, "maximum": 2147483647 }
+    },
+    "integerMap": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[0-9]+$" },
+      "additionalProperties": { "type": "integer", "minimum": -2147483648, "maximum": 2147483647 }
+    },
+    "poh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "location", "jewelleryBox", "portals", "fairyRing", "spiritTree", "obelisk",
+        "mountedGlory", "mountedXerics", "mountedDigsite", "mountedMythical"
+      ],
+      "properties": {
+        "location": { "type": "string", "minLength": 1 },
+        "jewelleryBox": { "enum": ["NoJewelleryBox", "FancyJewelleryBox", "OrnateJewelleryBox"] },
+        "portals": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "destinations"],
+          "properties": {
+            "mode": { "enum": ["all", "selected"] },
+            "destinations": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "fairyRing": { "type": "boolean" },
+        "spiritTree": { "type": "boolean" },
+        "obelisk": { "type": "boolean" },
+        "mountedGlory": { "type": "boolean" },
+        "mountedXerics": { "type": "boolean" },
+        "mountedDigsite": { "type": "boolean" },
+        "mountedMythical": { "type": "boolean" }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arriveInsidePoh", "minigameTeleport", "spellbook"],
+      "properties": {
+        "arriveInsidePoh": { "type": "boolean" },
+        "spellbook": { "enum": ["Standard", "Ancient", "Lunar", "Arceuus"] },
+        "minigameTeleport": {
+          "oneOf": [
+            { "type": "object", "additionalProperties": false, "required": ["state"], "properties": { "state": { "const": "ready" } } },
+            { "type": "object", "additionalProperties": false, "required": ["state", "minutes"], "properties": { "state": { "const": "usedAt" }, "minutes": { "type": "integer", "minimum": 0 } } }
+          ]
+        }
+      }
+    },
+    "routingVariables": {
+      "description": "Compiled compatibility state. Public editors must not expose these raw identifiers.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["varbits", "varplayers"],
+      "properties": {
+        "varbits": { "$ref": "#/$defs/integerMap" },
+        "varplayers": { "$ref": "#/$defs/integerMap" }
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+rootProject.name = 'shortest-path-service'
+
+def shortestPathDir = providers.gradleProperty('shortestPathDir')
+    .orElse('../../shortest-path')
+    .get()
+def shortestPathProjectDir = file(shortestPathDir)
+
+if (!new File(shortestPathProjectDir, 'build.gradle').isFile()) {
+    throw new GradleException("shortest-path checkout not found at ${shortestPathProjectDir.canonicalPath}; "
+        + 'set -PshortestPathDir=/path/to/shortest-path')
+}
+
+includeBuild(shortestPathProjectDir) {
+    dependencySubstitution {
+        substitute module('shortestpath:shortest-path') using project(':')
+    }
+}

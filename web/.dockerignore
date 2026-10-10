@@ -1,0 +1,12 @@
+.git
+.github
+dist
+node_modules
+service/.gradle
+service/.gradle-home
+service/build
+infra/**/.terraform
+infra/**/*.tfstate*
+infra/**/terraform.tfvars
+infra/**/state-backend.hcl
+*.log
