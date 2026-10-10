@@ -5,10 +5,11 @@ import { loadPresets } from "../../api/presets";
 import { calculateRoute } from "../../api/routes";
 import { places } from "../../data/places";
 import { accountLabel } from "../../domain/accounts";
-import type { AccountBuild, Location, RoutePolicy, WorldPoint } from "../../domain/contracts";
+import type { AccountBuild, Location, WorldPoint } from "../../domain/contracts";
 import { Itinerary } from "../itinerary/Itinerary";
 import { ShareRoute } from "./ShareRoute";
-import { defaultPolicy, isDefaultPolicy, plannerUrlWarnings, profileFromHash, readPlannerUrl, readStoredPolicy, SharedProfileError, writePlannerUrl, type PlannerUrlState } from "./plannerState";
+import { RouteOptions } from "./RouteOptions";
+import { defaultPolicy, plannerUrlWarnings, policyParams, profileFromHash, readPlannerUrl, readStoredPolicy, SharedProfileError, writePlannerUrl, type PlannerPolicy, type PlannerUrlState } from "./plannerState";
 
 const customAccountKey = "osrs-travel.custom-account.v1";
 const policyKey = "osrs-travel.route-policy.v1";
@@ -22,7 +23,7 @@ function loadCustomAccount(): AccountBuild | undefined {
   } catch { return undefined; }
 }
 
-function loadStoredPolicy(): RoutePolicy {
+function loadStoredPolicy(): PlannerPolicy {
   try { return readStoredPolicy(localStorage.getItem(policyKey)); }
   catch { return readStoredPolicy(null); }
 }
@@ -54,29 +55,12 @@ function PlaceInput({ label, location, onSelect }: { label: string; location?: L
     onBlur={() => { if (!places.some(place => place.name?.toLowerCase() === text.toLowerCase())) setText(location?.name || ""); }} /></label>;
 }
 
-function PolicyControls({ policy, onChange }: { policy: RoutePolicy; onChange(policy: RoutePolicy): void }) {
-  return <div className="route-options">
-    <label><input type="checkbox" checked={policy.avoidWilderness}
-      onChange={event => onChange({ ...policy, avoidWilderness: event.target.checked })} /> Avoid wilderness</label>
-    <label>Banking <select value={policy.banking}
-      onChange={event => onChange({ ...policy, banking: event.target.value as RoutePolicy["banking"] })}>
-      <option value="allow">Allow</option><option value="never">Never</option>
-    </select></label>
-    <label>Resources <select value={policy.resources}
-      onChange={event => onChange({ ...policy, resources: event.target.value as RoutePolicy["resources"] })}>
-      <option value="fastest">Fastest</option><option value="preserve-consumables">Preserve consumables</option>
-    </select></label>
-    {!isDefaultPolicy(policy) && <button type="button" className="text-button reset-policy"
-      onClick={() => onChange({ ...defaultPolicy, avoidedTransportTypes: [] })}>Reset route policy</button>}
-  </div>;
-}
-
 function customLocation(point: WorldPoint): Location {
   return { name: `${point.x}, ${point.y}${point.plane ? `, plane ${point.plane}` : ""}`, coordinate: point };
 }
 
 function hasExplicitPlannerState(params: URLSearchParams): boolean {
-  return ["from", "to", "account", "wilderness", "banking", "resources", "avoid"].some(key => params.has(key));
+  return ["from", "to", "account", ...policyParams].some(key => params.has(key));
 }
 
 export function RoutePlannerPage() {
@@ -184,7 +168,7 @@ export function RoutePlannerPage() {
         error={presets.isError ? new Error("Account profiles could not be loaded.") : route.error} selectedSegment={selectedSegment}
         mobileOpen={mobileItineraryOpen} onMobileToggle={() => setMobileItineraryOpen(value => !value)}
         onSelectSegment={setSelectedSegment} onRetry={() => void (presets.isError ? presets.refetch() : route.refetch())}
-        controls={<><PolicyControls policy={urlState.policy} onChange={policy => update({ policy })} />
+        controls={<><RouteOptions policy={urlState.policy} onChange={policy => update({ policy })} />
           {account && <ShareRoute state={urlState} account={account}
             disabled={!urlState.start || !urlState.destination || route.isFetching} />}</>} />
     </main>

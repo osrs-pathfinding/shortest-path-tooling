@@ -14,6 +14,10 @@ Open <http://localhost:5173/route>. `/` redirects there.
 Choose and customize account presets from the planner's account sidebar. Custom builds contain semantic skills,
 quests, unlocks, and POH settings and are saved in the browser; raw routing variables remain hidden.
 
+**More route options** exposes the plugin's remaining routing settings: per-transport toggles and thresholds, the
+teleport item source, a fare limit, and unlocks the game does not report. They are part of the route policy
+(`service/src/main/resources/schemas/route-policy-v1.schema.json`), which this repository owns rather than the corpus.
+
 Routes are URL-backed: endpoint, preset, and route-policy changes survive reload and browser navigation. Use
 **Copy route link** to share the current setup. Custom accounts are gzip-compressed into a versioned URL fragment,
 so one link carries both the route and profile without depending on the recipient's browser storage. Received

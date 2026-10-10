@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.io.InputStream;
+import java.util.List;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,38 @@ class RoutingEngineTest
 		assertTrue(plan.segments.stream().filter(ApiModels.TravelSegment.class::isInstance)
 			.map(ApiModels.TravelSegment.class::cast).anyMatch(segment -> !segment.requirements.isEmpty()),
 			"semantic travel steps should expose their player-facing requirements");
+	}
+
+	@Test
+	void routePolicyOptionsReachTheExactPathfinder() throws Exception
+	{
+		ObjectMapper mapper = JsonMapper.builder().findAndAddModules().build();
+		ApiModels.RouteRequest request = new ApiModels.RouteRequest();
+		try (InputStream profile = getClass().getResourceAsStream("/profiles/maxed.json"))
+		{
+			request.account = mapper.readValue(profile, ApiModels.AccountBuild.class);
+		}
+		request.policy = new ApiModels.RoutePolicy();
+		request.policy.avoidWilderness = true;
+		request.policy.banking = "never";
+		request.policy.resources = "fastest";
+		request.start = location(3222, 3218, 0);
+		request.destination = location(2757, 3477, 0);
+		RoutingEngine engine = new RoutingEngine(mapper);
+
+		ApiModels.RoutePlan fastest = engine.route(request);
+		request.policy.avoidedTransportTypes = List.of("TELEPORTATION_ITEM", "TELEPORTATION_SPELL",
+			"TELEPORTATION_SPELL_HOME", "TELEPORTATION_MINIGAME", "TELEPORTATION_PORTAL", "FAIRY_RING", "SPIRIT_TREE");
+		ApiModels.RoutePlan restricted = engine.route(request);
+
+		assertTrue(fastest.reachable && restricted.reachable);
+		assertTrue(restricted.costTicks > fastest.costTicks, "avoiding teleports should make the route longer");
+		for (ApiModels.RoutePlan plan : List.of(fastest, restricted))
+			assertFalse(plan.segments.stream().anyMatch(ApiModels.BankSegment.class::isInstance),
+				"banking \"never\" must not visit a bank");
+		assertFalse(restricted.segments.stream().filter(ApiModels.TravelSegment.class::isInstance)
+			.map(segment -> ((ApiModels.TravelSegment) segment).transportId.split(":")[0])
+			.anyMatch(request.policy.avoidedTransportTypes::contains));
 	}
 
 	@Test

@@ -106,6 +106,26 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .share-route input { width: 100%; padding: 6px; color: #31463d; background: #fffdf7; border: 1px solid #aaa08b; border-radius: 4px; font-size: 11px; }
 .share-button:disabled { opacity: .5; cursor: default; }
 .reset-policy { justify-self: end; }
+.route-options input[type="number"] { width: 92px; padding: 4px 7px; color: #284338; background: #fffdf6; border: 1px solid #bcb39d; border-radius: 4px; text-align: right; }
+.route-options input[type="number"]:disabled { opacity: .45; }
+.route-options input[aria-invalid="true"] { border-color: #a5483a; }
+.more-options > summary { display: flex; align-items: center; gap: 8px; color: #315748; font-weight: 800; cursor: pointer; }
+.more-options > summary:focus-visible { outline: 3px solid #d6ac5880; outline-offset: 2px; border-radius: 4px; }
+.option-count { padding: 1px 7px; color: #6b4d18; background: #f1e3c2; border-radius: 9px; font-size: 11px; }
+.more-options-body { display: grid; gap: 12px; margin-top: 12px; }
+.option-help { margin: -6px 0 0; color: #717973; font-size: 11px; }
+.transport-options { width: 100%; border-collapse: collapse; }
+.transport-options caption { margin-bottom: 4px; color: #31463d; font-weight: 800; text-align: left; }
+.transport-options caption span { display: block; color: #717973; font-size: 11px; font-weight: 400; }
+.transport-options thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.transport-options th, .transport-options td { padding: 3px 0; font-weight: 400; text-align: left; }
+.transport-options td { text-align: right; }
+.transport-options .route-options label, .route-options .transport-options label { justify-content: flex-start; }
+.transport-options .transport-group th { padding-top: 10px; color: #976f28; font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.dependent-option { padding-left: 24px; color: #626c66; }
+.unlock-options { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.unlock-options legend { margin-bottom: 8px; padding: 0; color: #31463d; font-weight: 800; }
+.route-options .unlock-options label { justify-content: flex-start; }
 .empty-step { display: flex; align-items: center; gap: 14px; margin-top: 34px; padding: 20px; border: 1px dashed #aca58f; border-radius: 6px; background: #fbf8ee; }
 .empty-step > span { color: #a77d31; font-size: 29px; }
 .empty-step p { margin: 0; color: #72766f; font-size: 14px; line-height: 1.5; }

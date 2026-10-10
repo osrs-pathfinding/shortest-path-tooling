@@ -3,7 +3,7 @@ import early from "../../../public/data/profiles/early.json";
 import type { AccountBuild } from "../../domain/contracts";
 import {
   buildShareUrl, decodeSharedProfile, defaultPolicy, encodeSharedProfile, profileFromHash,
-  isDefaultPolicy, plannerUrlWarnings, readPlannerUrl, readStoredPolicy, SharedProfileError, writePlannerUrl,
+  isDefaultPolicy, normalizePolicy, plannerUrlWarnings, readPlannerUrl, readStoredPolicy, SharedProfileError, writePlannerUrl,
 } from "./plannerState";
 
 const account = early as AccountBuild;
@@ -49,6 +49,33 @@ describe("planner URL state", () => {
       .toEqual({ ...defaultPolicy, avoidWilderness: false, avoidedTransportTypes: ["BOAT"] });
     expect(readStoredPolicy("broken")).toEqual(defaultPolicy);
     expect(isDefaultPolicy(readStoredPolicy(null))).toBe(true);
+  });
+
+  it("round trips every plugin option through the URL in canonical form", () => {
+    const policy = normalizePolicy({
+      ...defaultPolicy, banking: "avoid", resources: "permanent-only", teleportItems: "any", currencyThreshold: 0,
+      avoidedTransportTypes: ["SPIRIT_TREE", "CANOE"], declaredUnlocks: ["XERICS_HONOUR", "CANOE_AXE"],
+      transportThresholds: { TELEPORTATION_BOX: 10000, FAIRY_RING: 12, BOAT: 0 },
+    });
+    const params = writePlannerUrl({ accountId: "mid", policy });
+    expect(params.get("avoid")).toBe("CANOE,SPIRIT_TREE");
+    expect(params.get("thresholds")).toBe("FAIRY_RING:12,TELEPORTATION_BOX:10000");
+    expect(params.get("fare")).toBe("0");
+    expect(readPlannerUrl(params).policy).toEqual(policy);
+    expect(plannerUrlWarnings(params, ["mid"])).toEqual([]);
+    expect(isDefaultPolicy(readPlannerUrl(new URLSearchParams()).policy)).toBe(true);
+  });
+
+  it("drops and reports invalid plugin options from shared links", () => {
+    const params = new URLSearchParams("avoid=BOAT,TELEPORTATION_BOX&thresholds=BOAT:5,SHIP:-1,SEASONAL_TRANSPORTS:2,MINECART:10001"
+      + "&fare=lots&unlocks=CANOE_AXE,EVERYTHING&items=some");
+    expect(readPlannerUrl(params).policy).toEqual({
+      ...defaultPolicy, avoidedTransportTypes: ["BOAT"], transportThresholds: { BOAT: 5 }, declaredUnlocks: ["CANOE_AXE"],
+    });
+    expect(plannerUrlWarnings(params, ["mid"])).toEqual([
+      "Unknown avoided transports were ignored.", "An invalid teleport item setting was ignored.",
+      "An invalid fare limit was ignored.", "Invalid transport thresholds were ignored.", "Unknown unlocks were ignored.",
+    ]);
   });
 
   it("rejects coordinates outside the public route contract", () => {

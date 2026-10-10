@@ -12,9 +12,13 @@ import shortestpath.transport.PohNexusPortal;
 /** Headless equivalent of shortest-path-tooling's DashboardPathfinderConfig. */
 final class ServiceRoutingConfig implements ShortestPathConfig
 {
+	/** The threshold, in ticks, behind the policy's "avoid" and "preserve" choices. */
+	static final int AVOID_THRESHOLD = 1000;
+
 	private final ApiModels.AccountBuild account;
 	private final ApiModels.RoutePolicy policy;
 	private final Set<String> avoided;
+	private final Set<String> unlocks;
 	private String builtBoxes = "";
 	private String builtPortals = "";
 
@@ -23,11 +27,22 @@ final class ServiceRoutingConfig implements ShortestPathConfig
 		this.account = account;
 		this.policy = policy;
 		this.avoided = new HashSet<>(policy.avoidedTransportTypes);
+		this.unlocks = new HashSet<>(policy.declaredUnlocks);
 	}
 
 	private boolean use(String type)
 	{
 		return !avoided.contains(type);
+	}
+
+	private int cost(String type)
+	{
+		return policy.transportThresholds.getOrDefault(type, 0);
+	}
+
+	private boolean banks()
+	{
+		return !"never".equals(policy.banking);
 	}
 
 	@Override public boolean avoidWilderness() { return policy.avoidWilderness; }
@@ -43,10 +58,18 @@ final class ServiceRoutingConfig implements ShortestPathConfig
 	@Override public boolean useMagicCarpets() { return use("MAGIC_CARPET"); }
 	@Override public boolean useMagicMushtrees() { return use("MAGIC_MUSHTREE"); }
 	@Override public boolean useMinecarts() { return use("MINECART"); }
-	@Override public boolean useQuetzals() { return use("QUETZAL") && use("QUETZAL_WHISTLE"); }
+	@Override public boolean useQuetzals() { return use("QUETZAL"); }
 	@Override public boolean useSpiritTrees() { return use("SPIRIT_TREE"); }
-	@Override public TeleportationItem useTeleportationItems() {
-		return use("TELEPORTATION_ITEM") ? TeleportationItem.INVENTORY_AND_BANK : TeleportationItem.NONE;
+	@Override public TeleportationItem useTeleportationItems()
+	{
+		if (!use("TELEPORTATION_ITEM")) return TeleportationItem.NONE;
+		boolean permanent = "permanent-only".equals(policy.resources);
+		if ("any".equals(policy.teleportItems))
+			return permanent ? TeleportationItem.ALL_NON_CONSUMABLE : TeleportationItem.ALL;
+		// The bank modes force bank paths on, so banking "never" must use the carried-only modes.
+		if (!banks())
+			return permanent ? TeleportationItem.INVENTORY_NON_CONSUMABLE : TeleportationItem.INVENTORY;
+		return permanent ? TeleportationItem.INVENTORY_AND_BANK_NON_CONSUMABLE : TeleportationItem.INVENTORY_AND_BANK;
 	}
 	@Override public boolean useTeleportationLevers() { return use("TELEPORTATION_LEVER"); }
 	@Override public boolean useTeleportationPortals() { return use("TELEPORTATION_PORTAL"); }
@@ -54,10 +77,19 @@ final class ServiceRoutingConfig implements ShortestPathConfig
 	@Override public boolean useTeleportationSpellsHome() { return use("TELEPORTATION_SPELL_HOME"); }
 	@Override public boolean useTeleportationMinigames() { return use("TELEPORTATION_MINIGAME"); }
 	@Override public boolean useWildernessObelisks() { return use("WILDERNESS_OBELISK"); }
+	// Seasonal transports also need a seasonal world, which a public account never has.
 	@Override public boolean useSeasonalTransports() { return false; }
-	@Override public boolean includeBankPath() { return !"never".equals(policy.banking); }
-	@Override public int currencyThreshold() { return Integer.MAX_VALUE; }
+	@Override public boolean includeBankPath() { return banks(); }
+	@Override public int currencyThreshold()
+	{
+		return policy.currencyThreshold == null ? Integer.MAX_VALUE : policy.currencyThreshold;
+	}
 	@Override public int calculationCutoff() { return 25; }
+
+	@Override public boolean respawnPrifddinas() { return unlocks.contains("PRIFDDINAS_RESPAWN"); }
+	@Override public boolean unlockCanoeAxe() { return unlocks.contains("CANOE_AXE"); }
+	@Override public boolean unlockXericsHonour() { return unlocks.contains("XERICS_HONOUR"); }
+	@Override public boolean unlockDragontoothPassage() { return unlocks.contains("DRAGONTOOTH_PASSAGE"); }
 
 	@Override public boolean usePoh() { return account.poh != null; }
 	@Override public boolean usePohFairyRing() { return account.poh.fairyRing; }
@@ -96,12 +128,34 @@ final class ServiceRoutingConfig implements ShortestPathConfig
 		return items;
 	}
 
-	@Override public int costConsumableTeleportationItems() {
-		return "preserve-consumables".equals(policy.resources) ? 1000 : 0;
+	@Override public int costAgilityShortcuts() { return cost("AGILITY_SHORTCUT"); }
+	@Override public int costGrappleShortcuts() { return cost("GRAPPLE_SHORTCUT"); }
+	@Override public int costBoats() { return cost("BOAT"); }
+	@Override public int costCanoes() { return cost("CANOE"); }
+	@Override public int costCharterShips() { return cost("CHARTER_SHIP"); }
+	@Override public int costShips() { return cost("SHIP"); }
+	@Override public int costFairyRings() { return cost("FAIRY_RING"); }
+	@Override public int costGnomeGliders() { return cost("GNOME_GLIDER"); }
+	@Override public int costHotAirBalloons() { return cost("HOT_AIR_BALLOON"); }
+	@Override public int costMagicCarpets() { return cost("MAGIC_CARPET"); }
+	@Override public int costMagicMushtrees() { return cost("MAGIC_MUSHTREE"); }
+	@Override public int costMinecarts() { return cost("MINECART"); }
+	@Override public int costQuetzals() { return cost("QUETZAL"); }
+	@Override public int costSpiritTrees() { return cost("SPIRIT_TREE"); }
+	@Override public int costNonConsumableTeleportationItems() { return cost("TELEPORTATION_ITEM"); }
+	@Override public int costTeleportationBoxes() { return cost("TELEPORTATION_BOX"); }
+	@Override public int costTeleportationLevers() { return cost("TELEPORTATION_LEVER"); }
+	@Override public int costTeleportationPortals() { return cost("TELEPORTATION_PORTAL"); }
+	@Override public int costTeleportationSpells() { return cost("TELEPORTATION_SPELL"); }
+	@Override public int costTeleportationSpellsHome() { return cost("TELEPORTATION_SPELL_HOME"); }
+	@Override public int costTeleportationMinigames() { return cost("TELEPORTATION_MINIGAME"); }
+	@Override public int costWildernessObelisks() { return cost("WILDERNESS_OBELISK"); }
+	// Consumable teleport items pay only this threshold, and quetzal whistles pay it on top of QUETZAL's.
+	@Override public int costConsumableTeleportationItems()
+	{
+		return "preserve-consumables".equals(policy.resources) ? AVOID_THRESHOLD : 0;
 	}
-	@Override public int costQuetzalWhistle() {
-		return "preserve-consumables".equals(policy.resources) ? 1000 : 0;
-	}
+	@Override public int costBankVisit() { return "avoid".equals(policy.banking) ? AVOID_THRESHOLD : 0; }
 	@Override public String builtTeleportationBoxes() { return builtBoxes; }
 	@Override public void setBuiltTeleportationBoxes(String content) { builtBoxes = content == null ? "" : content; }
 	@Override public String builtTeleportationPortalsPoh() { return builtPortals; }

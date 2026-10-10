@@ -1,4 +1,4 @@
-/* Generated from shortest-path-corpus. Do not edit. */
+/* Generated from shortest-path-corpus and service/src/main/resources/schemas. Do not edit. */
 
 export type RouteAPIV1 = RouteRequest | RoutePlan;
 
@@ -81,11 +81,63 @@ export interface WorldPoint {
   y: number;
   plane: number;
 }
+/**
+ * The routing settings of the shortest-path plugin that are not facts about the account. Optional fields default to the behaviour of clients that omit them.
+ */
 export interface RoutePolicyV1 {
   avoidWilderness: boolean;
+  /**
+   * Whether routes may withdraw items from the bank. avoid only banks when it saves a lot of time.
+   */
   banking: "allow" | "avoid" | "never";
-  resources: "fastest" | "preserve-consumables";
-  avoidedTransportTypes: string[];
+  /**
+   * How consumable teleports (tablets, charged jewellery, whistles) are treated. permanent-only never uses them.
+   */
+  resources: "fastest" | "preserve-consumables" | "permanent-only";
+  /**
+   * Transport types the route must not use. TELEPORTATION_ITEM also disables teleport boxes.
+   */
+  avoidedTransportTypes: (
+    | "AGILITY_SHORTCUT"
+    | "GRAPPLE_SHORTCUT"
+    | "BOAT"
+    | "CANOE"
+    | "CHARTER_SHIP"
+    | "SHIP"
+    | "FAIRY_RING"
+    | "GNOME_GLIDER"
+    | "HOT_AIR_BALLOON"
+    | "MAGIC_CARPET"
+    | "MAGIC_MUSHTREE"
+    | "MINECART"
+    | "QUETZAL"
+    | "SPIRIT_TREE"
+    | "TELEPORTATION_ITEM"
+    | "TELEPORTATION_LEVER"
+    | "TELEPORTATION_MINIGAME"
+    | "TELEPORTATION_PORTAL"
+    | "TELEPORTATION_SPELL"
+    | "TELEPORTATION_SPELL_HOME"
+    | "WILDERNESS_OBELISK"
+  )[];
+  /**
+   * owned uses only the account's items; any assumes every teleport item is available.
+   */
+  teleportItems?: "owned" | "any";
+  /**
+   * The most coins, trading sticks, ecto-tokens or warrior guild tokens spent on one transport. Omit for no limit.
+   */
+  currencyThreshold?: number;
+  /**
+   * How many ticks a transport type must save over the alternatives to be used.
+   */
+  transportThresholds?: {
+    [k: string]: number;
+  };
+  /**
+   * Account state the game does not report to the plugin, declared without verification.
+   */
+  declaredUnlocks?: ("PRIFDDINAS_RESPAWN" | "CANOE_AXE" | "XERICS_HONOUR" | "DRAGONTOOTH_PASSAGE")[];
 }
 export interface RoutePlan {
   apiVersion: "v1";

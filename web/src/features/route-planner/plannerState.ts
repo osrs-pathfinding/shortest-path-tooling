@@ -1,13 +1,29 @@
 import { gzipSync, gunzipSync, strFromU8, strToU8 } from "fflate";
 import type { AccountBuild, Location, RoutePolicy } from "../../domain/contracts";
 import { locationFromParam, locationParam } from "../../data/places";
+import {
+  isAvoidableTransportType, isCurrencyThreshold, isDeclaredUnlock, isThresholdTransportType, isTransportThreshold,
+  type ThresholdTransportType,
+} from "../../domain/routeOptions";
 
-export const defaultPolicy: RoutePolicy = {
+/** A route policy with every optional setting filled in, in a canonical order. */
+export type PlannerPolicy = Required<Omit<RoutePolicy, "currencyThreshold">> & Pick<RoutePolicy, "currencyThreshold">;
+
+export const defaultPolicy: PlannerPolicy = {
   avoidWilderness: true,
   banking: "allow",
   resources: "fastest",
   avoidedTransportTypes: [],
+  teleportItems: "owned",
+  transportThresholds: {},
+  declaredUnlocks: [],
 };
+
+/** The URL search parameters that hold route policy. */
+export const policyParams = ["wilderness", "banking", "resources", "avoid", "items", "fare", "thresholds", "unlocks"];
+const bankingValues: PlannerPolicy["banking"][] = ["allow", "avoid", "never"];
+const resourceValues: PlannerPolicy["resources"][] = ["fastest", "preserve-consumables", "permanent-only"];
+const teleportItemValues: PlannerPolicy["teleportItems"][] = ["owned", "any"];
 
 const profilePrefix = "v1.";
 export const maxShareProfileLength = 8 * 1024;
@@ -19,71 +35,122 @@ export interface PlannerUrlState {
   start?: Location;
   destination?: Location;
   accountId: string;
-  policy: RoutePolicy;
+  policy: PlannerPolicy;
 }
 
-export function readStoredPolicy(value: string | null): RoutePolicy {
-  if (!value) return { ...defaultPolicy, avoidedTransportTypes: [] };
-  try {
-    const stored = JSON.parse(value) as Partial<RoutePolicy>;
-    return {
-      avoidWilderness: typeof stored.avoidWilderness === "boolean" ? stored.avoidWilderness : defaultPolicy.avoidWilderness,
-      banking: stored.banking === "never" || stored.banking === "allow" ? stored.banking : defaultPolicy.banking,
-      resources: stored.resources === "preserve-consumables" || stored.resources === "fastest"
-        ? stored.resources : defaultPolicy.resources,
-      avoidedTransportTypes: Array.isArray(stored.avoidedTransportTypes)
-        ? Array.from(new Set(stored.avoidedTransportTypes
-          .filter(value => typeof value === "string" && value.trim())
-          .map(value => value.trim()))).sort()
-        : [],
-    };
-  } catch {
-    return { ...defaultPolicy, avoidedTransportTypes: [] };
-  }
+function oneOf<T extends string>(values: readonly T[], value: unknown, fallback: T): T {
+  return values.includes(value as T) ? value as T : fallback;
 }
 
-export function isDefaultPolicy(policy: RoutePolicy): boolean {
-  return policy.avoidWilderness === defaultPolicy.avoidWilderness
-    && policy.banking === defaultPolicy.banking
-    && policy.resources === defaultPolicy.resources
-    && policy.avoidedTransportTypes.length === 0;
+function uniqueSorted<T extends string>(values: unknown[], guard: (value: unknown) => value is T): T[] {
+  return Array.from(new Set(values.filter(guard))).sort();
 }
 
-export function readPlannerUrl(params: URLSearchParams, fallbackPolicy: RoutePolicy = defaultPolicy): PlannerUrlState {
+function canonicalThresholds(entries: [unknown, unknown][]): PlannerPolicy["transportThresholds"] {
+  return Object.fromEntries(entries
+    .filter((entry): entry is [ThresholdTransportType, number] =>
+      isThresholdTransportType(entry[0]) && isTransportThreshold(entry[1]) && entry[1] > 0)
+    .sort(([left], [right]) => left.localeCompare(right)));
+}
+
+/** Builds a complete, canonical policy from untrusted input, using defaults for anything invalid. */
+export function normalizePolicy(value: unknown): PlannerPolicy {
+  const stored = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const thresholds = stored.transportThresholds;
+  return {
+    avoidWilderness: typeof stored.avoidWilderness === "boolean" ? stored.avoidWilderness : defaultPolicy.avoidWilderness,
+    banking: oneOf(bankingValues, stored.banking, defaultPolicy.banking),
+    resources: oneOf(resourceValues, stored.resources, defaultPolicy.resources),
+    avoidedTransportTypes: Array.isArray(stored.avoidedTransportTypes)
+      ? uniqueSorted(stored.avoidedTransportTypes, isAvoidableTransportType) : [],
+    teleportItems: oneOf(teleportItemValues, stored.teleportItems, defaultPolicy.teleportItems),
+    ...isCurrencyThreshold(stored.currencyThreshold) ? { currencyThreshold: stored.currencyThreshold } : {},
+    transportThresholds: thresholds && typeof thresholds === "object" && !Array.isArray(thresholds)
+      ? canonicalThresholds(Object.entries(thresholds)) : {},
+    declaredUnlocks: Array.isArray(stored.declaredUnlocks) ? uniqueSorted(stored.declaredUnlocks, isDeclaredUnlock) : [],
+  };
+}
+
+export function readStoredPolicy(value: string | null): PlannerPolicy {
+  if (!value) return normalizePolicy(null);
+  try { return normalizePolicy(JSON.parse(value)); }
+  catch { return normalizePolicy(null); }
+}
+
+export function isDefaultPolicy(policy: PlannerPolicy): boolean {
+  return JSON.stringify(normalizePolicy(policy)) === JSON.stringify(defaultPolicy);
+}
+
+function splitList(value: string | null): string[] {
+  return value ? value.split(",").map(item => item.trim()).filter(Boolean) : [];
+}
+
+function parseThresholds(value: string | null): [string, number][] {
+  return splitList(value).map(item => {
+    const [type, amount = ""] = item.split(":");
+    return [type, /^\d+$/.test(amount) ? Number(amount) : Number.NaN];
+  });
+}
+
+function parseFare(value: string | null): number | undefined {
+  return value && /^\d+$/.test(value) && isCurrencyThreshold(Number(value)) ? Number(value) : undefined;
+}
+
+export function readPlannerUrl(params: URLSearchParams, fallbackPolicy: PlannerPolicy = defaultPolicy): PlannerUrlState {
+  const read = <T,>(key: string, parse: (value: string | null) => T, fallback: T) => params.has(key) ? parse(params.get(key)) : fallback;
+  const fare = read("fare", parseFare, fallbackPolicy.currencyThreshold);
   return {
     start: locationFromParam(params.get("from")),
     destination: locationFromParam(params.get("to")),
     accountId: params.get("account") || "mid",
-    policy: {
-      avoidWilderness: params.has("wilderness") ? params.get("wilderness") !== "allow" : fallbackPolicy.avoidWilderness,
-      banking: params.has("banking") ? params.get("banking") === "never" ? "never" : "allow" : fallbackPolicy.banking,
-      resources: params.has("resources") ? params.get("resources") === "preserve-consumables" ? "preserve-consumables" : "fastest" : fallbackPolicy.resources,
-      avoidedTransportTypes: params.has("avoid") ? parseAvoidedTypes(params.get("avoid")) : fallbackPolicy.avoidedTransportTypes,
-    },
+    policy: normalizePolicy({
+      avoidWilderness: read("wilderness", value => value !== "allow", fallbackPolicy.avoidWilderness),
+      banking: read("banking", value => value, fallbackPolicy.banking),
+      resources: read("resources", value => value, fallbackPolicy.resources),
+      avoidedTransportTypes: read("avoid", splitList, fallbackPolicy.avoidedTransportTypes),
+      teleportItems: read("items", value => value, fallbackPolicy.teleportItems),
+      currencyThreshold: fare,
+      transportThresholds: read("thresholds", value => Object.fromEntries(parseThresholds(value)), fallbackPolicy.transportThresholds),
+      declaredUnlocks: read("unlocks", splitList, fallbackPolicy.declaredUnlocks),
+    }),
   };
 }
 
 export function plannerUrlWarnings(params: URLSearchParams, validAccountIds: string[]): string[] {
   const warnings: string[] = [];
+  const invalid = (key: string, valid: (value: string) => boolean) => params.has(key) && !valid(params.get(key) || "");
   if (params.has("from") && !locationFromParam(params.get("from"))) warnings.push("The shared start location was invalid and has been ignored.");
   if (params.has("to") && !locationFromParam(params.get("to"))) warnings.push("The shared destination was invalid and has been ignored.");
   const account = params.get("account");
   if (account && !validAccountIds.includes(account)) warnings.push("The requested account was unavailable; the Mid game preset is being used.");
-  if (params.has("wilderness") && !["avoid", "allow"].includes(params.get("wilderness") || "")) warnings.push("An invalid Wilderness policy was ignored.");
-  if (params.has("banking") && !["allow", "never"].includes(params.get("banking") || "")) warnings.push("An invalid banking policy was ignored.");
-  if (params.has("resources") && !["fastest", "preserve-consumables"].includes(params.get("resources") || "")) warnings.push("An invalid resource policy was ignored.");
+  if (invalid("wilderness", value => ["avoid", "allow"].includes(value))) warnings.push("An invalid Wilderness policy was ignored.");
+  if (invalid("banking", value => bankingValues.includes(value as PlannerPolicy["banking"]))) warnings.push("An invalid banking policy was ignored.");
+  if (invalid("resources", value => resourceValues.includes(value as PlannerPolicy["resources"]))) warnings.push("An invalid resource policy was ignored.");
+  if (invalid("avoid", value => splitList(value).every(isAvoidableTransportType))) warnings.push("Unknown avoided transports were ignored.");
+  if (invalid("items", value => teleportItemValues.includes(value as PlannerPolicy["teleportItems"]))) warnings.push("An invalid teleport item setting was ignored.");
+  if (invalid("fare", value => parseFare(value) !== undefined)) warnings.push("An invalid fare limit was ignored.");
+  if (invalid("thresholds", value => parseThresholds(value).every(([type, amount]) => isThresholdTransportType(type) && isTransportThreshold(amount)))) {
+    warnings.push("Invalid transport thresholds were ignored.");
+  }
+  if (invalid("unlocks", value => splitList(value).every(isDeclaredUnlock))) warnings.push("Unknown unlocks were ignored.");
   return warnings;
 }
 
 export function writePlannerUrl(state: PlannerUrlState): URLSearchParams {
   const params = new URLSearchParams();
+  const policy = normalizePolicy(state.policy);
   if (state.start) params.set("from", locationParam(state.start));
   if (state.destination) params.set("to", locationParam(state.destination));
   if (state.accountId !== "mid") params.set("account", state.accountId);
-  if (!state.policy.avoidWilderness) params.set("wilderness", "allow");
-  if (state.policy.banking !== defaultPolicy.banking) params.set("banking", state.policy.banking);
-  if (state.policy.resources !== defaultPolicy.resources) params.set("resources", state.policy.resources);
-  if (state.policy.avoidedTransportTypes.length) params.set("avoid", [...state.policy.avoidedTransportTypes].sort().join(","));
+  if (!policy.avoidWilderness) params.set("wilderness", "allow");
+  if (policy.banking !== defaultPolicy.banking) params.set("banking", policy.banking);
+  if (policy.resources !== defaultPolicy.resources) params.set("resources", policy.resources);
+  if (policy.avoidedTransportTypes.length) params.set("avoid", policy.avoidedTransportTypes.join(","));
+  if (policy.teleportItems !== defaultPolicy.teleportItems) params.set("items", policy.teleportItems);
+  if (policy.currencyThreshold !== undefined) params.set("fare", String(policy.currencyThreshold));
+  const thresholds = Object.entries(policy.transportThresholds);
+  if (thresholds.length) params.set("thresholds", thresholds.map(([type, amount]) => `${type}:${amount}`).join(","));
+  if (policy.declaredUnlocks.length) params.set("unlocks", policy.declaredUnlocks.join(","));
   return params;
 }
 
@@ -133,10 +200,6 @@ export function buildShareUrl(base: string, state: PlannerUrlState, account: Acc
     : "";
   if (url.href.length > maxShareProfileLength) throw new SharedProfileError("This route is too large to share as a single link.");
   return url.href;
-}
-
-function parseAvoidedTypes(value: string | null): string[] {
-  return value ? Array.from(new Set(value.split(",").map(item => item.trim()).filter(Boolean))).sort() : [];
 }
 
 function sortObject(value: unknown): unknown {

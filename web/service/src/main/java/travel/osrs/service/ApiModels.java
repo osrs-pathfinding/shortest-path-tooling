@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 public final class ApiModels
 {
@@ -104,6 +106,12 @@ public final class ApiModels
 		public String banking;
 		public String resources;
 		public List<String> avoidedTransportTypes = new ArrayList<>();
+		public String teleportItems = "owned";
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		public Integer currencyThreshold;
+		// Sorted so that equivalent policies share route and account cache keys.
+		public SortedMap<String, Integer> transportThresholds = new TreeMap<>();
+		public List<String> declaredUnlocks = new ArrayList<>();
 	}
 
 	public static final class RouteRequest
