@@ -1,0 +1,81 @@
+package shortestpath.pathfinder.exact;
+
+import java.util.*;
+import org.junit.Assume;
+import org.junit.Test;
+import shortestpath.Destination;
+import shortestpath.WorldPointUtil;
+import shortestpath.pathfinder.CollisionMap;
+import shortestpath.pathfinder.SplitFlagMap;
+import shortestpath.transport.Transport;
+import shortestpath.transport.TransportLoader;
+import shortestpath.transport.TransportType;
+
+public class SeasonalOnlyAreasScratchTest
+{
+	@Test
+	public void report() throws Exception
+	{
+		Assume.assumeTrue(System.getenv("SEASONAL_SCRATCH") != null);
+		CollisionMap map = new CollisionMap(SplitFlagMap.fromResources());
+		Map<Integer, Set<Transport>> all = TransportLoader.loadAllFromResources();
+		Map<Integer, Set<Transport>> noSeasonal = new HashMap<>();
+		List<Transport> seasonal = new ArrayList<>();
+		for (Map.Entry<Integer, Set<Transport>> e : all.entrySet())
+		{
+			Set<Transport> kept = new HashSet<>();
+			for (Transport t : e.getValue())
+			{
+				if (t.getType() == TransportType.SEASONAL_TRANSPORTS) seasonal.add(t); else kept.add(t);
+			}
+			noSeasonal.put(e.getKey(), kept);
+		}
+		Set<Integer> banks = Destination.loadAllFromResources().get("bank");
+		Set<Integer> a = tiles(RoutingStaticBuilder.build(map, all, banks, new int[0]).routingStatic);
+		Set<Integer> b = tiles(RoutingStaticBuilder.build(map, noSeasonal, banks, new int[0]).routingStatic);
+		Set<Integer> only = new HashSet<>(a);
+		only.removeAll(b);
+		Set<Integer> seen = new HashSet<>();
+		List<int[]> rows = new ArrayList<>();
+		StringBuilder out = new StringBuilder();
+		for (int t : only)
+		{
+			if (!seen.add(t)) continue;
+			List<Integer> c = new ArrayList<>(List.of(t));
+			ArrayDeque<Integer> q = new ArrayDeque<>(List.of(t));
+			while (!q.isEmpty())
+				for (int n : map.ordinaryWalkingNeighbors(q.poll()))
+					if (only.contains(n) && seen.add(n)) { c.add(n); q.add(n); }
+			int x1 = 1 << 20, y1 = x1, x2 = -1, y2 = -1, rep = c.get(0);
+			for (int p : c)
+			{
+				int x = WorldPointUtil.unpackWorldX(p), y = WorldPointUtil.unpackWorldY(p);
+				x1 = Math.min(x1, x); y1 = Math.min(y1, y); x2 = Math.max(x2, x); y2 = Math.max(y2, y);
+			}
+			Set<String> via = new TreeSet<>();
+			for (Transport s : seasonal)
+				if (c.contains(s.getDestination()) || near(c, s.getDestination())) via.add(s.getDisplayInfo());
+			out.append(String.format("%d tiles\tplane %d\tx %d-%d y %d-%d\trep %s\tvia %s%n", c.size(),
+				WorldPointUtil.unpackWorldPlane(rep), x1, x2, y1, y2, WorldPointUtil.unpackWorldPoint(rep), via));
+		}
+		System.out.println("SEASONAL-ONLY TOTAL " + only.size());
+		System.out.println(out);
+	}
+
+	private static boolean near(List<Integer> c, int d)
+	{
+		if (d == WorldPointUtil.UNDEFINED) return false;
+		int dx = WorldPointUtil.unpackWorldX(d), dy = WorldPointUtil.unpackWorldY(d), dz = WorldPointUtil.unpackWorldPlane(d);
+		for (int p : c)
+			if (WorldPointUtil.unpackWorldPlane(p) == dz && Math.abs(WorldPointUtil.unpackWorldX(p) - dx) <= 1
+				&& Math.abs(WorldPointUtil.unpackWorldY(p) - dy) <= 1) return true;
+		return false;
+	}
+
+	private static Set<Integer> tiles(RoutingStatic rs)
+	{
+		Set<Integer> s = new HashSet<>();
+		for (int i = 0; i < rs.searchTileCount(); i++) s.add(rs.searchTile(i));
+		return s;
+	}
+}
