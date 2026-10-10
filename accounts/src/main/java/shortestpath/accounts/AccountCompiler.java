@@ -141,7 +141,7 @@ public final class AccountCompiler {
         int totalLevel = account.totalLevel() != null ? account.totalLevel()
             : account.levels().values().stream().mapToInt(Integer::intValue).sum();
 
-        return new ClientState(account.levels(), account.defaultLevel(), totalLevel, account.reportsRealLevels(),
+        return new ClientState(account.levels(), account.defaultLevel(), totalLevel,
             varbits, varplayers, account.quests(), account.defaultQuestState(),
             inventory, account.equipment(), account.bank(), account.worldTypes(), account.location(),
             account.nowMinutes(), trees);

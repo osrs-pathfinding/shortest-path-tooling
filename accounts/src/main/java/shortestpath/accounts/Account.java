@@ -23,7 +23,6 @@ public final class Account {
     private final Map<Skill, Integer> levels;
     private final int defaultLevel;
     private final Integer totalLevel;
-    private final boolean reportsRealLevels;
     private final int questPoints;
     private final Map<Quest, QuestState> quests;
     private final QuestState defaultQuestState;
@@ -47,7 +46,6 @@ public final class Account {
         levels = Collections.unmodifiableMap(new EnumMap<>(builder.levels));
         defaultLevel = builder.defaultLevel;
         totalLevel = builder.totalLevel;
-        reportsRealLevels = builder.reportsRealLevels;
         questPoints = builder.questPoints;
         quests = Collections.unmodifiableMap(new EnumMap<>(builder.quests));
         defaultQuestState = builder.defaultQuestState;
@@ -86,8 +84,6 @@ public final class Account {
     public int level(Skill skill) { return levels.getOrDefault(skill, defaultLevel); }
     /** The reported total level when set; otherwise the sum of {@link #levels()}. */
     public Integer totalLevel() { return totalLevel; }
-    /** See {@link ClientState#reportsRealLevels()}. */
-    public boolean reportsRealLevels() { return reportsRealLevels; }
     public int questPoints() { return questPoints; }
     /** Quest states; quests not listed have {@link #defaultQuestState()}. */
     public Map<Quest, QuestState> quests() { return quests; }
@@ -142,7 +138,6 @@ public final class Account {
         private final Map<Skill, Integer> levels = new EnumMap<>(Skill.class);
         private int defaultLevel = 1;
         private Integer totalLevel;
-        private boolean reportsRealLevels = true;
         private int questPoints;
         private final Map<Quest, QuestState> quests = new EnumMap<>(Quest.class);
         private QuestState defaultQuestState = QuestState.NOT_STARTED;
@@ -168,7 +163,6 @@ public final class Account {
             levels.putAll(account.levels);
             defaultLevel = account.defaultLevel;
             totalLevel = account.totalLevel;
-            reportsRealLevels = account.reportsRealLevels;
             questPoints = account.questPoints;
             quests.putAll(account.quests);
             defaultQuestState = account.defaultQuestState;
@@ -195,7 +189,6 @@ public final class Account {
         /** The level of every skill not set with {@link #level}. */
         public Builder defaultLevel(int level) { defaultLevel = level; return this; }
         public Builder totalLevel(int level) { totalLevel = level; return this; }
-        public Builder reportsRealLevels(boolean value) { reportsRealLevels = value; return this; }
         public Builder questPoints(int value) { questPoints = value; return this; }
         public Builder quest(Quest quest, QuestState state) { quests.put(quest, state); return this; }
         /** The state of every quest not set with {@link #quest}. */

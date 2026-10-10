@@ -106,10 +106,7 @@ public final class Profiles {
             @Override public String name() { return name; }
             @Override public Setup setup(ProfileContext context) {
                 Account account = CanonicalAccounts.account(name);
-                // Benchmark parity: the profiles have always reported real skill levels as 0 (combat
-                // level 3). Drop this to plan with the real levels, as the route service does.
-                return new Setup(account.toBuilder().reportsRealLevels(false),
-                    canonicalSettings(account.poh(), context.allowTransports));
+                return new Setup(account.toBuilder(), canonicalSettings(account.poh(), context.allowTransports));
             }
         };
         CANONICAL.put(name, profile);
@@ -190,8 +187,6 @@ public final class Profiles {
         return Account.builder()
             .defaultLevel(99)
             .totalLevel(2277)
-            // Benchmark parity, as for the canonical profiles.
-            .reportsRealLevels(false)
             .defaultQuestState(QuestState.FINISHED)
             .unlock(Unlock.FAIRY_RINGS)
             .location(WorldPointUtil.unpackWorldX(context.start),

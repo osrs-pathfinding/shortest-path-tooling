@@ -23,7 +23,6 @@ public final class ClientState {
     private final Map<Skill, Integer> levels;
     private final int defaultLevel;
     private final int totalLevel;
-    private final boolean reportsRealLevels;
     private final Map<Integer, Integer> varbits;
     private final Map<Integer, Integer> varplayers;
     private final Map<Quest, QuestState> questStates;
@@ -36,7 +35,7 @@ public final class ClientState {
     private final Long nowMinutes;
     private final Set<String> plantedSpiritTrees;
 
-    ClientState(Map<Skill, Integer> levels, int defaultLevel, int totalLevel, boolean reportsRealLevels,
+    ClientState(Map<Skill, Integer> levels, int defaultLevel, int totalLevel,
             Map<Integer, Integer> varbits, Map<Integer, Integer> varplayers,
             Map<Quest, QuestState> questStates, QuestState defaultQuestState,
             Map<Integer, Integer> inventory, Map<Integer, Integer> equipment, Map<Integer, Integer> bank,
@@ -44,7 +43,6 @@ public final class ClientState {
         this.levels = Collections.unmodifiableMap(copy(Skill.class, levels));
         this.defaultLevel = defaultLevel;
         this.totalLevel = totalLevel;
-        this.reportsRealLevels = reportsRealLevels;
         this.varbits = Collections.unmodifiableMap(new LinkedHashMap<>(varbits));
         this.varplayers = Collections.unmodifiableMap(new LinkedHashMap<>(varplayers));
         this.questStates = Collections.unmodifiableMap(copy(Quest.class, questStates));
@@ -74,11 +72,6 @@ public final class ClientState {
     public int defaultLevel() { return defaultLevel; }
     public int level(Skill skill) { return levels.getOrDefault(skill, defaultLevel); }
     public int totalLevel() { return totalLevel; }
-    /**
-     * Whether the client reports {@link #level} as the real skill level too. Otherwise it reports
-     * 0, so the plugin computes combat level 3: the tooling profiles keep that for benchmark parity.
-     */
-    public boolean reportsRealLevels() { return reportsRealLevels; }
     public Map<Integer, Integer> varbits() { return varbits; }
     public Map<Integer, Integer> varplayers() { return varplayers; }
     public Map<Quest, QuestState> questStates() { return questStates; }

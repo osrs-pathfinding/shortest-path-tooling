@@ -26,8 +26,7 @@ import net.runelite.api.gameval.InventoryID;
  *
  * <p>Only the calls the pathfinder makes while refreshing its config are answered from the
  * state. Every other method returns an empty value (0, {@code false}, an empty collection or
- * {@code null}). {@code getRealSkillLevel} answers 0, so the plugin computes combat level 3,
- * unless the state {@link ClientState#reportsRealLevels()}.
+ * {@code null}). Boosted and real skill levels are both the state's levels.
  */
 public final class HeadlessClient {
     private HeadlessClient() { }
@@ -46,9 +45,8 @@ public final class HeadlessClient {
                     ? EnumSet.noneOf(WorldType.class) : EnumSet.copyOf(state.worldTypes());
                 case "getVarbitValue": return state.varbits().getOrDefault((Integer) args[0], 0);
                 case "getVarpValue": return state.varplayers().getOrDefault((Integer) args[0], 0);
-                case "getBoostedSkillLevel": return state.level((Skill) args[0]);
-                case "getRealSkillLevel":
-                    return state.reportsRealLevels() ? state.level((Skill) args[0]) : EMPTY;
+                case "getBoostedSkillLevel":
+                case "getRealSkillLevel": return state.level((Skill) args[0]);
                 case "getTotalLevel": return totalLevel;
                 case "getLocalPlayer": return player;
                 case "getItemContainer":
