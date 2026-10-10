@@ -81,7 +81,7 @@ public class PluginDependencyRuleTest
 	// New leaf packages must be added here — the lint only covers what it enumerates.
 	private static final List<String> LEAF_PACKAGES = List.of(
 		"transport", "pathfinder", "requirement", "leagues", "overlay",
-		"settings", "items", "spirittree", "poh", "scheduler");
+		"settings", "items", "spirittree", "poh", "scheduler", "sailing");
 
 	private static final String PLUGIN_REFERENCE = "ShortestPathPlugin.";
 
@@ -100,7 +100,7 @@ public class PluginDependencyRuleTest
 		// data loader anchors on its own class.
 		ALLOWLIST.put("shortestpath/transport/TransportLoader.java:33",
 			"resource anchor — transport TSV read; the loader migrates self-anchored");
-		ALLOWLIST.put("shortestpath/pathfinder/SplitFlagMap.java:92",
+		ALLOWLIST.put("shortestpath/pathfinder/SplitFlagMap.java:100",
 			"resource anchor — collision-map resource read; the loader migrates self-anchored");
 		ALLOWLIST.put("shortestpath/leagues/LeagueRegionChecker.java:105",
 			"resource anchor — league-region TSV read; the loader migrates self-anchored");
@@ -206,6 +206,20 @@ public class PluginDependencyRuleTest
 			"RefreshCoordinator reads ConfigChange/ShortestPathConfig through the config channel");
 		LEAF_EDGES.put("scheduler -> spirittree",
 			"RefreshCoordinator reads TreeChange through the spirit-tree channel");
+		// sailing package — the sailing service's seams. The outbound edges
+		// are the producer channel plus the service's reads of sibling leaf
+		// types; the inbound edges are the coordinator/scheduler/config
+		// consumers.
+		LEAF_EDGES.put("pathfinder -> sailing",
+			"PathfinderConfig holds the SailingService seam and derives dispatch inputs from SailingState");
+		LEAF_EDGES.put("sailing -> scheduler",
+			"SailingService declares SailingChange facts to the injected RefreshCoordinator");
+		LEAF_EDGES.put("sailing -> requirement",
+			"SailingService reads PlayerStateSource and builds a ClientPlayerStateSource on the event arm");
+		LEAF_EDGES.put("sailing -> settings",
+			"SailingChange carries Effect values");
+		LEAF_EDGES.put("scheduler -> sailing",
+			"RefreshCoordinator admits SailingChange; PathScheduler/PathRenderState read SailingService/SailingState");
 
 		// Pre-existing edges frozen at lint introduction.
 		LEAF_EDGES.put("leagues -> requirement",
