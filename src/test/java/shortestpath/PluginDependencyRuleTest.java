@@ -100,7 +100,7 @@ public class PluginDependencyRuleTest
 		// data loader anchors on its own class.
 		ALLOWLIST.put("shortestpath/transport/TransportLoader.java:33",
 			"resource anchor — transport TSV read; the loader migrates self-anchored");
-		ALLOWLIST.put("shortestpath/pathfinder/SplitFlagMap.java:92",
+		ALLOWLIST.put("shortestpath/pathfinder/SplitFlagMap.java:100",
 			"resource anchor — collision-map resource read; the loader migrates self-anchored");
 		ALLOWLIST.put("shortestpath/leagues/LeagueRegionChecker.java:105",
 			"resource anchor — league-region TSV read; the loader migrates self-anchored");
