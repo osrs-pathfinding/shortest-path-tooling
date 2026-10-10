@@ -81,7 +81,7 @@ public class PluginDependencyRuleTest
 	// New leaf packages must be added here — the lint only covers what it enumerates.
 	private static final List<String> LEAF_PACKAGES = List.of(
 		"transport", "pathfinder", "requirement", "leagues", "overlay",
-		"settings", "items", "spirittree");
+		"settings", "items", "spirittree", "poh");
 
 	private static final String PLUGIN_REFERENCE = "ShortestPathPlugin.";
 
@@ -104,38 +104,6 @@ public class PluginDependencyRuleTest
 			"resource anchor — collision-map resource read; the loader migrates self-anchored");
 		ALLOWLIST.put("shortestpath/leagues/LeagueRegionChecker.java:105",
 			"resource anchor — league-region TSV read; the loader migrates self-anchored");
-
-		// Static imports of the POH landing-tile constants.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:29",
-			"import static of POH_LANDING_X — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:30",
-			"import static of POH_LANDING_Y — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:9",
-			"import static of POH_LANDING_X — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:10",
-			"import static of POH_LANDING_Y — migrates to the POH service");
-
-		// isInsidePoh world-geometry reads — migrate to the POH service.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:679",
-			"isInsidePoh redirect filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:100",
-			"isInsidePoh origin check — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/requirement/Requirements.java:194",
-			"isInsidePoh POH gate — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/requirement/Requirements.java:262",
-			"isInsidePoh POH-variant gate — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:254",
-			"isInsidePoh marker filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:289",
-			"isInsidePoh tracer filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:324",
-			"isInsidePoh marker filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:368",
-			"isInsidePoh marker filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:766",
-			"isInsidePoh transport-tile check — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/overlay/PathTileOverlay.java:767",
-			"isInsidePoh player-tile check — migrates to the POH service");
 	}
 
 	/**
@@ -193,6 +161,26 @@ public class PluginDependencyRuleTest
 			"SpiritTreeService reads PlayerStateSource for the availability refresh");
 		LEAF_EDGES.put("spirittree -> settings",
 			"TreeChange/SpiritTreeService read Effect facts and the teleportation settings");
+
+		// poh package — the extraction's seams. The inbound edges are the
+		// consumers that used to read the shell statics; the outbound edges
+		// are the service's reads of sibling leaf types.
+		LEAF_EDGES.put("overlay -> poh",
+			"PathTileOverlay reads PohService display/exit-info output");
+		LEAF_EDGES.put("pathfinder -> poh",
+			"PathfinderConfig/TransportAvailability delegate POH destination and transport remaps to PohService");
+		LEAF_EDGES.put("poh -> pathfinder",
+			"PohService exit-info walks PathStep positions");
+		LEAF_EDGES.put("poh -> settings",
+			"PohChange/PohService carry Effect facts and share the Settings config-group constant");
+		LEAF_EDGES.put("poh -> transport",
+			"PohService remap signatures read Transport/TransportType");
+		LEAF_EDGES.put("requirement -> poh",
+			"RoutingPolicy/Requirements delegate the POH gates' enablement reads to PohService");
+		LEAF_EDGES.put("settings -> poh",
+			"Settings/EffectiveConfig expose POH-facing effective-config reads");
+		LEAF_EDGES.put("transport -> poh",
+			"TransportTypeConfig reads POH-facing config types");
 
 		// Pre-existing edges frozen at lint introduction.
 		LEAF_EDGES.put("leagues -> requirement",
