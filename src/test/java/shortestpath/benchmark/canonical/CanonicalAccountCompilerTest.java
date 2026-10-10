@@ -20,6 +20,7 @@ import net.runelite.api.Quest;
 import net.runelite.api.Skill;
 import org.junit.Test;
 import shortestpath.ItemVariations;
+import shortestpath.pathfinder.BankVisitState;
 import shortestpath.poh.PohNexusPortal;
 import shortestpath.poh.PohMountedItem;
 
@@ -34,7 +35,7 @@ public class CanonicalAccountCompilerTest {
             corpus().resolve("accounts/account-profiles-v1.json")).get("mid");
         CanonicalAccountCompiler.CompiledAccount compiled = new CanonicalAccountCompiler()
             .compile("mid", profile, true);
-        assertNotNull(compiled.getConfig().bank);
+        assertNotNull(compiled.getConfig().getItemState().getBank());
         assertEquals(80, compiled.getClient().getBoostedSkillLevel(Skill.ATTACK));
         assertEquals(Integer.valueOf(profile.getVarbits().get(10449)),
             Integer.valueOf(compiled.getClient().getVarbitValue(10449)));
@@ -65,11 +66,11 @@ public class CanonicalAccountCompilerTest {
         CanonicalAccountCompiler.CompiledAccount end = compiler.compile("end", profiles.get("end"), true);
         CanonicalAccountCompiler.CompiledAccount maxed = compiler.compile("maxed", profiles.get("maxed"), true);
 
-        assertEquals(Set.of(), early.getConfig().availableSpiritTrees);
-        assertEquals(Set.of("Farming Guild"), mid.getConfig().availableSpiritTrees);
-        assertEquals(Set.of("Farming Guild", "Port Sarim"), end.getConfig().availableSpiritTrees);
+        assertEquals(Set.of(), early.getConfig().getSpiritTrees().getAvailableSpiritTrees());
+        assertEquals(Set.of("Farming Guild"), mid.getConfig().getSpiritTrees().getAvailableSpiritTrees());
+        assertEquals(Set.of("Farming Guild", "Port Sarim"), end.getConfig().getSpiritTrees().getAvailableSpiritTrees());
         assertEquals(Set.of("Farming Guild", "Port Sarim", "Etceteria", "Brimhaven", "Hosidius"),
-            maxed.getConfig().availableSpiritTrees);
+            maxed.getConfig().getSpiritTrees().getAvailableSpiritTrees());
         assertFalse(CanonicalAccountCompiler.canonicalConfig(profiles.get("mid"), true).usePohSpiritTree());
         assertTrue(CanonicalAccountCompiler.canonicalConfig(profiles.get("end"), true).usePohSpiritTree());
     }
@@ -118,9 +119,9 @@ public class CanonicalAccountCompilerTest {
         CanonicalAccountCompiler.CompiledAccount cooldown = compiler.compileAtTime(
             "early", profile, true, 99999990L);
 
-        assertTrue(Arrays.stream(ready.getConfig().getUsableTeleports(false))
+        assertTrue(Arrays.stream(ready.getConfig().getUsableTeleports(BankVisitState.CARRIED))
             .anyMatch(transport -> "Fishing Trawler Minigame Teleport".equals(transport.getDisplayInfo())));
-        assertTrue(Arrays.stream(cooldown.getConfig().getUsableTeleports(false))
+        assertTrue(Arrays.stream(cooldown.getConfig().getUsableTeleports(BankVisitState.CARRIED))
             .noneMatch(transport -> "Fishing Trawler Minigame Teleport".equals(transport.getDisplayInfo())));
     }
 
