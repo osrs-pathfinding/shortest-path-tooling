@@ -3,25 +3,12 @@ plugins {
     id 'checkstyle'
 }
 
-repositories {
-    mavenLocal()
-    maven {
-        url = 'https://repo.runelite.net'
-        content {
-            includeGroupByRegex("net\\.runelite.*")
-        }
-    }
-    mavenCentral()
-}
-
 dependencies {
     // Plugin main sources via composite build (shortest-path is included in settings.gradle)
     testImplementation 'shortestpath:shortest-path'
-    testImplementation project(':accounts')
     testImplementation project(':routing')
 
-    // RuneLite — needed directly because the plugin declares client as compileOnly
-    testImplementation group: 'net.runelite', name: 'client', version: runeLiteVersion
+    // RuneLite: the client comes with :routing; the cache dumpers also need these.
     testImplementation group: 'net.runelite', name: 'jshell', version: runeLiteVersion
     testImplementation(group: 'net.runelite', name: 'cache', version: runeLiteVersion) {
         exclude group: 'org.slf4j', module: 'slf4j-simple'
@@ -29,14 +16,14 @@ dependencies {
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'com.google.code.gson:gson:2.10.1'
-
-    testCompileOnly 'org.projectlombok:lombok:1.18.30'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    options.release.set(11)
+// Every Java project in this build targets Java 11, like the plugin.
+allprojects {
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.release.set(11)
+    }
 }
 
 tasks.withType(Checkstyle).configureEach {
@@ -60,8 +47,8 @@ test {
     }
 }
 
-// Pull in the plugin's test helpers that the dashboard/dump code depends on.
-// These files stay in shortest-path/src/test/java (no changes to the plugin build).
+// ConfigParityTest compares PluginSettings' defaults with the plugin's own test config, which stays
+// in shortest-path/src/test/java (no changes to the plugin build).
 def shortestPathProjectDir = gradle.ext.shortestPathProjectDir
 
 compileTestJava.source fileTree(

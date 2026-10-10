@@ -11,9 +11,10 @@ import shortestpath.transport.PohNexusPortal;
 import shortestpath.transport.PohMountedItem;
 
 /**
- * The plugin settings a scenario runs with: a mutable {@link ShortestPathConfig}. Every
- * {@link Profiles profile} starts from one, and scenarios override it with
- * {@code .settings(s -> s.setUseFairyRings(true))}.
+ * The plugin settings a route is planned with: a mutable {@link ShortestPathConfig}. Every
+ * {@link Profiles profile} starts from one, scenarios override it with
+ * {@code .settings(s -> s.setUseFairyRings(true))}, and the route service builds one from a route
+ * policy ({@code RoutePolicies}).
  * <p>
  * Every functionally relevant setting has a field and a setter ({@code ConfigParityTest} keeps
  * them in step with the plugin's config items).
@@ -231,7 +232,7 @@ public class PluginSettings implements ShortestPathConfig {
     }
 
     // =========================================================================
-    // Setters (called by shortestpath.profiles.Profiles and scenario overrides)
+    // Setters
     // =========================================================================
 
     public void setAvoidWilderness(boolean v) { avoidWilderness = v; }

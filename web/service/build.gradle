@@ -1,14 +1,5 @@
 plugins {
     id 'application'
-    id 'java'
-}
-
-repositories {
-    maven {
-        url = 'https://repo.runelite.net'
-        content { includeGroupByRegex('net\\.runelite.*') }
-    }
-    mavenCentral()
 }
 
 dependencies {
@@ -25,22 +16,9 @@ dependencies {
     testImplementation 'io.javalin:javalin-testtools:5.6.5'
 }
 
-group = 'travel.osrs'
-version = '0.1.0'
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    options.release.set(11)
-}
-
 application {
     applicationName = 'shortest-path-service'
-    mainClass = 'travel.osrs.service.ServiceMain'
+    mainClass = 'shortestpath.service.ServiceMain'
 }
 
 // The item catalog lists exactly the items the current transport data can require. Its names are
@@ -52,7 +30,7 @@ def routeItemNamesDir = layout.buildDirectory.dir('generated/route-item-names')
 def generateRouteItemNames = tasks.register('generateRouteItemNames', JavaExec) {
     description = 'Writes route-item-names.tsv for every item the current transports can require.'
     classpath = sourceSets.main.output.classesDirs + configurations.runtimeClasspath
-    mainClass = 'travel.osrs.service.RouteItemNames'
+    mainClass = 'shortestpath.service.RouteItemNames'
     maxHeapSize = '1g'
     // Use the service's logging rather than the RuneLite client's, which writes to ~/.runelite.
     systemProperty 'logback.configurationFile', file('src/main/resources/logback.xml').path
@@ -76,7 +54,6 @@ processTestResources {
 }
 
 test {
-    if (System.getProperty('parity.out')) systemProperty 'parity.out', System.getProperty('parity.out')
     useJUnitPlatform()
     jvmArgs = ['-Xms512m', '-Xmx4g']
 }

@@ -20,7 +20,7 @@ import shortestpath.transport.requirement.ItemRequirement;
  * step with the bank visited a bank segment.
  */
 public final class RoutePlans {
-    public static final String ROUTING_ENGINE_VERSION = "exact-v1";
+    private static final String ROUTING_ENGINE_VERSION = "exact-v1";
 
     private static final Comparator<Transport> TRANSPORT_ORDER = Comparator
         .comparing((Transport value) -> value.getType() == null ? "TRANSPORT" : value.getType().name())
@@ -51,7 +51,7 @@ public final class RoutePlans {
         return WorldPointUtil.packWorldPoint(point.x, point.y, point.plane);
     }
 
-    public static RouteApi.WorldPoint point(int packed) {
+    private static RouteApi.WorldPoint point(int packed) {
         return new RouteApi.WorldPoint(WorldPointUtil.unpackWorldX(packed),
             WorldPointUtil.unpackWorldY(packed), WorldPointUtil.unpackWorldPlane(packed));
     }

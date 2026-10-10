@@ -2,16 +2,6 @@ plugins {
     id 'java-library'
 }
 
-repositories {
-    maven {
-        url = 'https://repo.runelite.net'
-        content {
-            includeGroupByRegex("net\\.runelite.*")
-        }
-    }
-    mavenCentral()
-}
-
 // Headless route planning for an account: profiles, plugin settings, the pathfinder config, and the
 // route API contract (corpus/schemas) that the route service serves. Tooling tests and the service
 // both build on it, so they plan routes the same way.
@@ -24,11 +14,6 @@ dependencies {
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.17.3'
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    options.release.set(11)
 }
 
 test {

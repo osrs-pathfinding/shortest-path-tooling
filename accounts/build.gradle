@@ -2,16 +2,6 @@ plugins {
     id 'java-library'
 }
 
-repositories {
-    maven {
-        url = 'https://repo.runelite.net'
-        content {
-            includeGroupByRegex("net\\.runelite.*")
-        }
-    }
-    mavenCentral()
-}
-
 // The account model compiles against the same RuneLite API as the tooling tests that consume it.
 dependencies {
     api group: 'net.runelite', name: 'runelite-api', version: runeLiteVersion
@@ -22,11 +12,6 @@ dependencies {
 
 test {
     systemProperty 'corpus.dir', rootProject.file('corpus').absolutePath
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    options.release.set(11)
 }
 
 def corpusDir = rootProject.file('corpus')
