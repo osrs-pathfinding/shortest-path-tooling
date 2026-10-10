@@ -276,6 +276,8 @@ final class RoutingIssueScenarios {
             .settings(s -> {
                 s.setUseTeleportationMinigames(true);
                 s.setBypassVarbitChecks(false);
+                // Its walking route reaches Kourend through the Abyss soul rift (#693).
+                s.setUnlockSoulRift(true);
             })
             .minimumLength(100);
 
@@ -1351,5 +1353,31 @@ final class RoutingIssueScenarios {
                 s.setBypassVarPlayerChecks(false);
                 s.setCostBankVisit(20);
             });
+
+        // Areas that only seasonal transports used to reach (#674); each must reach a tile inside
+        // the area, from the Grand Exchange unless noted.
+        seasonalOnlyArea(suite, "Inner Mor Ul Rek (#675) through a hot vent door", "routing-issue-675", 2433, 5120, 0)
+            .account(a -> a.equipment(ItemID.TZHAAR_CAPE_FIRE, 1));
+        seasonalOnlyArea(suite, "Giant Mole lair (#676) by digging a mole hill", "routing-issue-676", 1760, 5184, 0)
+            .account(a -> a.inventory(ItemID.SPADE, 1));
+        // UNIT_TEST reaches neither the Kharazi Jungle nor Aldarin, so these start nearby. The winch is
+        // reached by the 96 Agility crevice; the obstacle route through the Shaman Caves is not modelled.
+        seasonalOnlyArea(suite, "Viyeldi caves (#677) by the Shaman Caves winch", "routing-issue-677", 2407, 4673, 0)
+            .from(2781, 2932, 0)
+            .settings(s -> s.setUseAgilityShortcuts(true));
+        seasonalOnlyArea(suite, "Ruins of Camdozaal (#678) through the Ice Mountain cave", "routing-issue-678", 2922, 5824, 0);
+        seasonalOnlyArea(suite, "Hueycoatl arena (#684) down the Darkfrost slope", "routing-issue-684", 1514, 3269, 0);
+        seasonalOnlyArea(suite, "Kourend Castle second floor (#685) by the stairs", "routing-issue-685", 1614, 3657, 2);
+        seasonalOnlyArea(suite, "Alchemical Society basement (#686) by the stairs", "routing-issue-686", 1388, 9310, 0)
+            .from(1388, 2925, 0);
+        seasonalOnlyArea(suite, "Gauntlet lobby (#687) through the Gauntlet Portal", "routing-issue-687", 3027, 6118, 1);
+        seasonalOnlyArea(suite, "Woodcutting Guild Ent dungeon bank (#688) over the roots", "routing-issue-688", 1554, 9871, 0);
+        seasonalOnlyArea(suite, "Legends' Guild top floor (#689) by the ladder", "routing-issue-689", 2733, 3375, 2);
+    }
+
+    private static Scenario.Builder seasonalOnlyArea(Suite suite, String name, String category, int x, int y, int plane) {
+        return suite.scenario(name, category)
+            .from(3164, 3485, 0).to(x, y, plane)
+            .profile(UNIT_TEST);
     }
 }

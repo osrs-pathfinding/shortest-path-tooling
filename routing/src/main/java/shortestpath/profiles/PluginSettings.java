@@ -132,6 +132,7 @@ public class PluginSettings implements ShortestPathConfig {
     private boolean unlockCanoeAxe = false;
     private boolean unlockXericsHonour = false;
     private boolean unlockDragontoothPassage = false;
+    private boolean unlockSoulRift = false;
 
     // =========================================================================
     // Getters (implements ShortestPathConfig)
@@ -218,6 +219,8 @@ public class PluginSettings implements ShortestPathConfig {
     public boolean unlockXericsHonour() { return unlockXericsHonour; }
     // Same in-flight state as unlockCanoeAxe — no @Override until merge + re-pin.
     public boolean unlockDragontoothPassage() { return unlockDragontoothPassage; }
+    // Same in-flight state as unlockCanoeAxe — no @Override until merge + re-pin.
+    public boolean unlockSoulRift() { return unlockSoulRift; }
 
     // =========================================================================
     // Abstract void setters required by the interface
@@ -325,6 +328,7 @@ public class PluginSettings implements ShortestPathConfig {
     public void setUnlockCanoeAxe(boolean v) { unlockCanoeAxe = v; }
     public void setUnlockXericsHonour(boolean v) { unlockXericsHonour = v; }
     public void setUnlockDragontoothPassage(boolean v) { unlockDragontoothPassage = v; }
+    public void setUnlockSoulRift(boolean v) { unlockSoulRift = v; }
 
     /**
      * Sets the POH settings from the account's facilities: the POH is used, and its fairy ring,

@@ -124,17 +124,19 @@ public class PluginDependencyRuleTest
 			"override read of unlockXericsHonour — migrates to the settings service");
 		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:383",
 			"override read of unlockDragontoothPassage — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:390",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:387",
+			"override read of unlockSoulRift — migrates to the settings service");
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:394",
 			"override read of costConsumableTeleportationItems — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:391",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:395",
 			"override read of costBankVisit — migrates to the settings service");
 
 		// isInsidePoh world-geometry reads — migrate to the POH service.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:787",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:791",
 			"isInsidePoh redirect filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:853",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:857",
 			"isInsidePoh transport filter — migrates to the POH service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:1102",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:1106",
 			"isInsidePoh POH-transport classification — migrates to the POH service");
 		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:104",
 			"isInsidePoh origin check — migrates to the POH service");
@@ -160,7 +162,7 @@ public class PluginDependencyRuleTest
 			"sailing path colour constant — migrates to the settings service");
 		ALLOWLIST.put("shortestpath/overlay/PathMinimapOverlay.java:82",
 			"sailing path colour constant — migrates to the settings service");
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:401",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:405",
 			"override read of useSailingMoves — migrates to the settings service");
 	}
 
