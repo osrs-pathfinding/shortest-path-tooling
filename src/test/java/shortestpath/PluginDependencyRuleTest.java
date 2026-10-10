@@ -81,7 +81,7 @@ public class PluginDependencyRuleTest
 	// New leaf packages must be added here — the lint only covers what it enumerates.
 	private static final List<String> LEAF_PACKAGES = List.of(
 		"transport", "pathfinder", "requirement", "leagues", "overlay",
-		"settings", "items", "spirittree", "poh");
+		"settings", "items", "spirittree", "poh", "scheduler");
 
 	private static final String PLUGIN_REFERENCE = "ShortestPathPlugin.";
 
@@ -181,6 +181,16 @@ public class PluginDependencyRuleTest
 			"Settings/EffectiveConfig expose POH-facing effective-config reads");
 		LEAF_EDGES.put("transport -> poh",
 			"TransportTypeConfig reads POH-facing config types");
+
+		// scheduler package — the extraction's seams. The outbound edges are
+		// the engine inputs and the attach seam; the inbound edge is the
+		// debug overlay reading the injectable diagnostics state.
+		LEAF_EDGES.put("overlay -> scheduler",
+			"DebugOverlayPanel injects and reads DebugState directly");
+		LEAF_EDGES.put("scheduler -> items",
+			"PathScheduler.attach takes the ItemStateService for refresh routing");
+		LEAF_EDGES.put("scheduler -> pathfinder",
+			"PathScheduler drives Pathfinder/ActiveSearch/PathfinderConfig/PathStep");
 
 		// Pre-existing edges frozen at lint introduction.
 		LEAF_EDGES.put("leagues -> requirement",
