@@ -8,10 +8,19 @@ import java.util.List;
 import org.junit.Test;
 import shortestpath.TeleportationItem;
 import shortestpath.accounts.Account;
+import shortestpath.accounts.canonical.CanonicalAccounts;
 import shortestpath.profiles.PluginSettings;
 
 public class RoutePoliciesTest {
-    private static final Account.Poh POH = AccountBuilds.toAccount(Fixtures.profile("mid")).poh();
+    private static final Account.Poh POH = CanonicalAccounts.account("mid").poh();
+
+    private static RouteApi.RoutePolicy policy() {
+        RouteApi.RoutePolicy policy = new RouteApi.RoutePolicy();
+        policy.avoidWilderness = true;
+        policy.banking = "allow";
+        policy.resources = "fastest";
+        return policy;
+    }
 
     private static PluginSettings settings(RouteApi.RoutePolicy policy) {
         return RoutePolicies.toSettings(policy, POH);
@@ -19,7 +28,7 @@ public class RoutePoliciesTest {
 
     @Test
     public void minimalPoliciesKeepTheirPreviousBehaviour() {
-        PluginSettings settings = settings(Fixtures.policy());
+        PluginSettings settings = settings(policy());
 
         assertEquals(TeleportationItem.INVENTORY_AND_BANK, settings.useTeleportationItems());
         assertTrue(settings.includeBankPath());
@@ -35,7 +44,7 @@ public class RoutePoliciesTest {
 
     @Test
     public void teleportItemModeFollowsBankingResourcesAndItemSource() {
-        RouteApi.RoutePolicy policy = Fixtures.policy();
+        RouteApi.RoutePolicy policy = policy();
         policy.banking = "never";
         assertEquals(TeleportationItem.INVENTORY, settings(policy).useTeleportationItems());
         assertFalse(settings(policy).includeBankPath());
@@ -59,7 +68,7 @@ public class RoutePoliciesTest {
 
     @Test
     public void thresholdsUnlocksAndCurrencyReachThePluginSettings() {
-        RouteApi.RoutePolicy policy = Fixtures.policy();
+        RouteApi.RoutePolicy policy = policy();
         policy.transportThresholds.put("FAIRY_RING", 12);
         policy.transportThresholds.put("TELEPORTATION_BOX", 3);
         policy.currencyThreshold = 5000;

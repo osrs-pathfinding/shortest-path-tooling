@@ -17,8 +17,8 @@ around it.
 | Path | Contents |
 |------|----------|
 | `shortest-path/` | Git submodule (pinned commit). Plugin sources + data in `src/main/resources/` (`collision-map.zip`, `destinations/`, `transports/`, `leagues/`). |
-| `accounts/` | Gradle subproject: the `Account` model and the Java account profiles that generate `corpus/accounts/` and `corpus/profiles/`. No plugin dependency. |
-| `routing/` | Gradle subproject (main sources): `shortestpath.profiles` (profiles, `PluginSettings`, `Setup`, `AccountPathfinderConfig`), `shortestpath.pathfinder.PluginResources` (world data loaded once per JVM), and `shortestpath.routeapi` (route API classes; account build → `Account`, route policy → `PluginSettings`, `PathfinderResult` → route plan). Tooling tests and the route service both build on it. |
+| `accounts/` | Gradle subproject: accounts. `AccountBuild` (the account-build-v1 document the web planner edits), `AccountBuilds` (the one compiler from a build to an `Account`, i.e. the varbits/varplayers the plugin reads), and the canonical profiles, which are written as builds and generate `corpus/accounts/` and `corpus/profiles/`. |
+| `routing/` | Gradle subproject (main sources): `shortestpath.profiles` (profiles, `PluginSettings`, `Setup`, `AccountPathfinderConfig`), `shortestpath.pathfinder.PluginResources` (world data loaded once per JVM), and `shortestpath.routeapi` (route API classes; route policy → `PluginSettings`, `PathfinderResult` → route plan). Tooling tests and the route service both build on it. |
 | `web/` | The public route planner: React + TypeScript + Vite frontend (npm project), deploy and infra files. See `web/README.md`. |
 | `web/service/` | Gradle subproject `:service`: the route service's HTTP layer (Javalin) on top of `routing/`. |
 | `corpus/` | Canonical routes, generated account fixtures, and the JSON schemas (route API, account build, route policy) the service and frontend share (see `corpus/README.md`). |

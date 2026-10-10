@@ -1,4 +1,4 @@
-package shortestpath.routeapi;
+package shortestpath.accounts;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -12,20 +12,20 @@ import net.runelite.api.Skill;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import shortestpath.ItemVariations;
-import shortestpath.accounts.Account;
 
 /**
- * Compiles an {@code account-build-v1} document into an {@link Account}.
+ * Compiles an {@link AccountBuild} into an {@link Account}: the only place an account's semantic
+ * state becomes the varbits and varplayers the plugin reads.
  *
- * <p>A build states an account semantically (levels, quests, diaries, POH, spellbook) and carries
- * compatibility {@code routingVariables}. The semantic state wins: the varbits and varplayers it
- * implies overwrite the routing variables, so editing a quest or diary in a build changes the
- * route even when the variables say otherwise.
+ * <p>The semantic state wins over the build's compatibility {@code routingVariables}: the variables
+ * it implies ({@link #semanticVarbits}, {@link #semanticVarplayers}) overwrite them, so editing a
+ * quest or diary in the web planner changes the route even when the variables say otherwise. The
+ * canonical profile generator writes the same implied values into the variables it publishes.
  */
 public final class AccountBuilds {
     private AccountBuilds() { }
 
-    public static Account toAccount(RouteApi.AccountBuild build) {
+    public static Account toAccount(AccountBuild build) {
         Account.Builder account = Account.builder().reportsRealLevels(true)
             .nowMinutes(build.benchmarkNowMinutes)
             .defaultQuestState(QuestState.NOT_STARTED)
@@ -51,6 +51,7 @@ public final class AccountBuilds {
 
         build.routingVariables.varbits.forEach(account::varbit);
         build.routingVariables.varplayers.forEach(account::varplayer);
+        account.varbit(VarbitID.FAIRY2_QUEENCURE_QUEST, build.fairyRingsUnlocked ? 100 : 0);
         semanticVarbits(build).forEach(account::varbit);
         semanticVarplayers(build).forEach(account::varplayer);
         if (!build.routingVariables.varplayers.containsKey(VarPlayerID.QP)) {
@@ -64,9 +65,9 @@ public final class AccountBuilds {
         return account.build();
     }
 
-    static Map<Integer, Integer> semanticVarbits(RouteApi.AccountBuild build) {
+    /** The varbits a build's diaries, quests, spellbook and POH location imply. */
+    public static Map<Integer, Integer> semanticVarbits(AccountBuild build) {
         Map<Integer, Integer> bits = new HashMap<>();
-        bits.put(VarbitID.FAIRY2_QUEENCURE_QUEST, build.fairyRingsUnlocked ? 100 : 0);
         bits.put(VarbitID.SPELLBOOK, spellbook(build.runtime.spellbook));
         bits.put(VarbitID.POH_HOUSE_LOCATION, pohLocation(build.poh.location));
         diary(bits, build, "Ardougne", VarbitID.ARDOUGNE_DIARY_EASY_COMPLETE, VarbitID.ARDOUGNE_DIARY_MEDIUM_COMPLETE, VarbitID.ARDOUGNE_DIARY_HARD_COMPLETE, VarbitID.ARDOUGNE_DIARY_ELITE_COMPLETE);
@@ -106,7 +107,8 @@ public final class AccountBuilds {
         return bits;
     }
 
-    static Map<Integer, Integer> semanticVarplayers(RouteApi.AccountBuild build) {
+    /** The varplayers a build's quests and minigame teleport cooldown imply. */
+    public static Map<Integer, Integer> semanticVarplayers(AccountBuild build) {
         Map<Integer, Integer> players = new HashMap<>();
         players.put(VarPlayerID.SLUG2_REGIONUID, "ready".equals(build.runtime.minigameTeleport.state)
             ? Math.toIntExact(build.benchmarkNowMinutes - 21)
@@ -126,12 +128,12 @@ public final class AccountBuilds {
         return players;
     }
 
-    private static void questProgress(Map<Integer, Integer> target, RouteApi.AccountBuild build, int id,
+    private static void questProgress(Map<Integer, Integer> target, AccountBuild build, int id,
             String quest, int complete) {
         target.put(id, build.completedQuests.contains(quest) ? complete : 0);
     }
 
-    private static void diary(Map<Integer, Integer> target, RouteApi.AccountBuild build, String region,
+    private static void diary(Map<Integer, Integer> target, AccountBuild build, String region,
             int easy, int medium, int hard, int elite) {
         String tier = build.diaries.getOrDefault(region, "NoDiary");
         int level = List.of("NoDiary", "Easy", "Medium", "Hard", "Elite").indexOf(tier);
@@ -169,7 +171,7 @@ public final class AccountBuilds {
         }
     }
 
-    private static Account.Poh poh(RouteApi.Poh poh) {
+    private static Account.Poh poh(AccountBuild.Poh poh) {
         return new Account.Poh(poh.fairyRing, poh.spiritTree, poh.obelisk, jewelleryBox(poh.jewelleryBox),
             poh.mountedGlory, poh.mountedXerics, poh.mountedDigsite, poh.mountedMythical,
             "all".equals(poh.portals.mode) ? null : poh.portals.destinations);

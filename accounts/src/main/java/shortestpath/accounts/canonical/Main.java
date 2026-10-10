@@ -1,7 +1,7 @@
 package shortestpath.accounts.canonical;
 
-import com.google.gson.JsonElement;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
@@ -12,6 +12,8 @@ import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import shortestpath.accounts.AccountBuild;
 
 public final class Main {
     private Main() { }
@@ -22,27 +24,28 @@ public final class Main {
         }
         List<ProfileSpec> profiles = CanonicalProfiles.all();
         validate(profiles);
-        String generated = ProfileJsonRenderer.render(profiles);
+        List<AccountBuild> builds = builds(profiles);
+        String generated = ProfileJsonRenderer.render(builds);
         Path output = Paths.get(args[1]);
         Path presetDirectory = Paths.get(args[2]);
         if (args[0].equals("generate")) {
             if (output.getParent() != null) Files.createDirectories(output.getParent());
             Files.writeString(output, generated, StandardCharsets.UTF_8);
             Files.createDirectories(presetDirectory);
-            for (ProfileSpec profile : profiles) {
-                Files.writeString(presetDirectory.resolve(profile.name() + ".json"),
-                    ProfileJsonRenderer.preset(profile), StandardCharsets.UTF_8);
+            for (AccountBuild build : builds) {
+                Files.writeString(presetDirectory.resolve(build.id + ".json"),
+                    ProfileJsonRenderer.preset(build), StandardCharsets.UTF_8);
             }
             return;
         }
         verifyAccountProfiles(output, generated);
-        for (ProfileSpec profile : profiles) {
-            verify(presetDirectory.resolve(profile.name() + ".json"), ProfileJsonRenderer.preset(profile));
+        for (AccountBuild build : builds) {
+            verify(presetDirectory.resolve(build.id + ".json"), ProfileJsonRenderer.preset(build));
         }
     }
 
     static void verifyAccountProfiles(Path output) throws IOException {
-        verifyAccountProfiles(output, ProfileJsonRenderer.render(CanonicalProfiles.all()));
+        verifyAccountProfiles(output, ProfileJsonRenderer.render(builds(CanonicalProfiles.all())));
     }
 
     private static void verifyAccountProfiles(Path output, String generated) throws IOException {
@@ -93,6 +96,10 @@ public final class Main {
             return null;
         }
         return committed.equals(generated) ? null : path + " committed=" + committed + ", generated=" + generated;
+    }
+
+    private static List<AccountBuild> builds(List<ProfileSpec> profiles) {
+        return profiles.stream().map(ProfileCompiler::build).collect(Collectors.toList());
     }
 
     private static void validate(List<ProfileSpec> profiles) {

@@ -11,7 +11,8 @@ public class MainTest {
     @Test public void staleFixtureFailsWithoutWritingCandidate() throws Exception {
         Path directory = Files.createTempDirectory("profile-verification");
         Path fixture = directory.resolve("account-profiles-v1.json");
-        String current = ProfileJsonRenderer.render(CanonicalProfiles.all());
+        String current = ProfileJsonRenderer.render(CanonicalAccounts.NAMES.stream().map(CanonicalAccounts::build)
+            .collect(java.util.stream.Collectors.toList()));
         Files.writeString(fixture, current.replace("\"formatVersion\": 1", "\"formatVersion\": 2"), StandardCharsets.UTF_8);
         try {
             Main.verifyAccountProfiles(fixture);

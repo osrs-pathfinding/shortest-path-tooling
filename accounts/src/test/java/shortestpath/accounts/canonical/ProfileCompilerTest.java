@@ -8,7 +8,7 @@ import static org.junit.Assert.assertTrue;
 
 public class ProfileCompilerTest {
     @Test public void readyCooldownUsesSyntheticClock() {
-        assertEquals(99_999_979, RoutingVariables.compile(CanonicalProfiles.mid()).varplayers.get(888).intValue());
+        assertEquals(99_999_979, CanonicalAccounts.build("mid").routingVariables.varplayers.get(888).intValue());
     }
 
     @Test public void conflictFailsWithSource() {
@@ -32,8 +32,8 @@ public class ProfileCompilerTest {
     }
 
     @Test public void changingOnlyProfileNameChangesNoCompiledAccountState() {
-        assertEquals(ProfileJsonRenderer.profile(CanonicalProfiles.early()),
-            ProfileJsonRenderer.profile(CanonicalProfiles.early().renamed("renamed")));
+        assertEquals(ProfileJsonRenderer.profile(ProfileCompiler.build(CanonicalProfiles.early())),
+            ProfileJsonRenderer.profile(ProfileCompiler.build(CanonicalProfiles.early().renamed("renamed"))));
     }
 
     @Test public void spiritTreeProgressionIsCanonical() {

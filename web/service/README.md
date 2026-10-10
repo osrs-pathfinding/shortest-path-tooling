@@ -5,7 +5,8 @@ directly; it does not depend on the GPS plugin.
 
 The service is the Gradle project `:service` in the repository's root build, so it compiles against
 the pinned `shortest-path` submodule like the rest of the tooling. Route planning itself lives in
-[`routing/`](../../routing): `AccountBuilds` compiles an account build into an `Account`,
+[`accounts/`](../../accounts) and [`routing/`](../../routing): `AccountBuilds` compiles the
+request's account build into an `Account` (the same compiler the canonical profiles go through),
 `RoutePolicies` turns a route policy into plugin settings, and `RoutePlans` turns the pathfinder
 result into a route plan. This project adds request validation (against `corpus/schemas`),
 caching, metrics and the item catalog.

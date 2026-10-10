@@ -1,43 +1,21 @@
-package shortestpath.routeapi;
+package shortestpath.accounts;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
-import java.util.List;
 import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
 import net.runelite.api.Skill;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import org.junit.Test;
-import shortestpath.accounts.Account;
 import shortestpath.accounts.canonical.CanonicalAccounts;
 
 public class AccountBuildsTest {
-    /** The generated corpus/profiles documents describe the same accounts as the Java profiles. */
-    @Test
-    public void canonicalBuildsCompileToTheCanonicalAccounts() {
-        for (String name : List.of("early", "mid", "end", "maxed")) {
-            Account build = AccountBuilds.toAccount(Fixtures.profile(name));
-            Account canonical = CanonicalAccounts.account(name);
-            assertEquals(name, canonical.varbits(), build.varbits());
-            assertEquals(name, canonical.varplayers(), build.varplayers());
-            assertEquals(name, canonical.levels(), build.levels());
-            assertEquals(name, canonical.totalLevel(), build.totalLevel());
-            assertEquals(name, canonical.questStates(), build.questStates());
-            assertEquals(name, canonical.defaultQuestState(), build.defaultQuestState());
-            assertEquals(name, canonical.inventory(), build.inventory());
-            assertEquals(name, canonical.equipment(), build.equipment());
-            assertEquals(name, canonical.bank(), build.bank());
-            assertEquals(name, canonical.nowMinutes(), build.nowMinutes());
-            assertEquals(name, canonical.plantedSpiritTrees(), build.plantedSpiritTrees());
-            assertEquals(name, canonical.poh().portals, build.poh().portals);
-        }
-    }
-
     @Test
     public void semanticAccountStateOverridesCompatibilityVariables() {
-        RouteApi.AccountBuild build = Fixtures.profile("mid");
+        AccountBuild build = CanonicalAccounts.build("mid");
         build.diaries.put("Ardougne", "Easy");
         build.runtime.spellbook = "Ancient";
         build.runtime.minigameTeleport.state = "usedAt";
@@ -55,19 +33,19 @@ public class AccountBuildsTest {
 
     @Test
     public void levelsAreRealLevelsAndTheTotalIgnoresDerivedEntries() {
-        RouteApi.AccountBuild build = Fixtures.profile("mid");
+        AccountBuild build = CanonicalAccounts.build("mid");
         Account account = AccountBuilds.toAccount(build);
         int total = build.levels.entrySet().stream()
             .filter(entry -> !entry.getKey().equals("Quest") && !entry.getKey().equals("Total"))
             .mapToInt(entry -> entry.getValue()).sum();
         assertEquals(total, account.totalLevel());
         assertEquals(build.levels.get("Attack").intValue(), account.level(Skill.ATTACK));
-        assertEquals(true, account.reportsRealLevels());
+        assertTrue(account.reportsRealLevels());
     }
 
     @Test
     public void itemsMayBeNamedByTheirPluginVariation() {
-        RouteApi.AccountBuild build = Fixtures.profile("early");
+        AccountBuild build = CanonicalAccounts.build("early");
         build.inventory.clear();
         build.inventory.put("COINS", 100);
         build.runePouch.clear();
@@ -80,7 +58,7 @@ public class AccountBuildsTest {
 
     @Test
     public void unknownSkillsAreRejected() {
-        RouteApi.AccountBuild build = Fixtures.profile("early");
+        AccountBuild build = CanonicalAccounts.build("early");
         build.levels.put("Overall", 50);
         assertThrows(IllegalArgumentException.class, () -> AccountBuilds.toAccount(build));
     }

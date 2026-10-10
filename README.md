@@ -50,8 +50,8 @@ cd web && npm install && npm run dev        # terminal 2: http://localhost:5173/
 
 | Project | Contents |
 |---|---|
-| `accounts/` | The `Account` model and the canonical account profiles (no plugin dependency) |
-| `routing/` | Profiles, plugin settings and pathfinder config, and the route API (account builds, route policies, route plans) |
+| `accounts/` | Account builds (the web's account format), the one compiler from a build to an `Account`, and the canonical profiles |
+| `routing/` | Profiles, plugin settings and pathfinder config, and the route API (route policies, route plans) |
 | `web/service/` | The route service's HTTP layer |
 | root project | Dashboard, benchmarks, route CLI, scenario suites and cache dumpers (test sources) |
 

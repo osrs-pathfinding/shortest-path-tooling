@@ -1,13 +1,14 @@
 package shortestpath.accounts.canonical;
 
-import net.runelite.api.Quest;
-import net.runelite.api.gameval.VarPlayerID;
-import net.runelite.api.gameval.VarbitID;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.runelite.api.gameval.VarPlayerID;
+import net.runelite.api.gameval.VarbitID;
+import shortestpath.accounts.AccountBuild;
+import shortestpath.accounts.AccountBuilds;
 
-/** Translates semantic profile state into the routing variables consumed by v1. */
+/** The routing variables a canonical profile publishes in the corpus. */
 final class RoutingVariables {
     static final int BENCHMARK_NOW_MINUTES = 100_000_000;
 
@@ -169,26 +170,29 @@ final class RoutingVariables {
 
     private RoutingVariables() { }
 
-    static CompiledVariables compile(ProfileSpec profile) {
+    /**
+     * The variables a profile publishes: its baseline, the unlocks the account-build format has no
+     * semantic field for, and the values {@link AccountBuilds} derives from the build's semantic
+     * state. A value that disagrees with the baseline is a conflict.
+     */
+    static AccountBuild.RoutingVariables compile(ProfileSpec profile, AccountBuild build) {
         Map<Integer, Integer> bits = new LinkedHashMap<>();
         apply(bits, profile.routingVarbits(), "profile varbit baseline");
-        compileDiary(bits, profile);
-        assign(bits, VarbitID.SPELLBOOK, profile.runtime().spellbook.ordinal(), "SPELLBOOK", "runtime");
-        assign(bits, VarbitID.POH_HOUSE_LOCATION, pohLocation(profile.poh().location()), "POH_HOUSE_LOCATION", "POH");
         Map<Integer, Integer> players = new LinkedHashMap<>();
         apply(players, profile.routingVarplayers(), "profile varplayer baseline");
         if (profile.includeProgressionRouting()) {
-            compileQuestBits(bits, profile);
-            compileQuestPlayers(players, profile);
+            compileMilestones(bits, profile);
             compileUnlocks(bits, profile);
             compileBalloonBits(bits, profile);
             compileCatacombsBits(bits, profile);
             compileQuetzal(players, profile);
         }
-        assign(players, VarPlayerID.SLUG2_REGIONUID,
-            profile.runtime().cooldown.usedAt == null ? BENCHMARK_NOW_MINUTES - 21 : profile.runtime().cooldown.usedAt,
-            "SLUG2_REGIONUID", "runtime cooldown");
-        return new CompiledVariables(bits, players);
+        apply(bits, AccountBuilds.semanticVarbits(build), "account build");
+        apply(players, AccountBuilds.semanticVarplayers(build), "account build");
+        AccountBuild.RoutingVariables variables = new AccountBuild.RoutingVariables();
+        variables.varbits.putAll(bits);
+        variables.varplayers.putAll(players);
+        return variables;
     }
 
     private static void apply(Map<Integer, Integer> target, Map<Integer, Integer> values, String source) {
@@ -197,46 +201,9 @@ final class RoutingVariables {
         }
     }
 
-    private static void compileQuestBits(Map<Integer, Integer> bits, ProfileSpec profile) {
-        assign(bits, VarbitID.LOVAQUEST, done(profile, Quest.THE_FORSAKEN_TOWER, 11), "LOVAQUEST", "The Forsaken Tower");
-        assign(bits, VarbitID.MY2ARM_STATUS, done(profile, Quest.MAKING_FRIENDS_WITH_MY_ARM, 207), "MY2ARM_STATUS", "Making Friends with My Arm");
-        assign(bits, VarbitID.THZFE_BLOCKING_BARRICADE, done(profile, Quest.ZOGRE_FLESH_EATERS, 1), "THZFE_BLOCKING_BARRICADE", "Zogre Flesh Eaters");
-        assign(bits, VarbitID.HOSIDIUSQUEST, done(profile, Quest.THE_DEPTHS_OF_DESPAIR, 7), "HOSIDIUSQUEST", "The Depths of Despair");
+    private static void compileMilestones(Map<Integer, Integer> bits, ProfileSpec profile) {
         assign(bits, VarbitID.MYQ5, profile.questMilestones().contains(QuestMilestone.SINS_OF_THE_FATHER_SLEPE_BOAT_ACCESS) ? 88 : 0, "MYQ5", "Sins of the Father");
         assign(bits, VarbitID.LOTG, profile.questMilestones().contains(QuestMilestone.LAND_OF_THE_GOBLINS_YU_BIUSK_ACCESS) ? 50 : 0, "LOTG", "Land of the Goblins");
-        assign(bits, VarbitID.DRAGONSLAYER_CRANDOR_FOUND_SECRET_DOOR, done(profile, Quest.DRAGON_SLAYER_I, 1), "DRAGONSLAYER_CRANDOR_FOUND_SECRET_DOOR", "Dragon Slayer I");
-        assign(bits, VarbitID.MYQ3_MAIN_QUEST, done(profile, Quest.DARKNESS_OF_HALLOWVALE, 320), "MYQ3_MAIN_QUEST", "Darkness of Hallowvale");
-        assign(bits, VarbitID.MDAUGHTER_QUEST_VAR, done(profile, Quest.MOUNTAIN_DAUGHTER, 70), "MDAUGHTER_QUEST_VAR", "Mountain Daughter");
-        assign(bits, VarbitID.DWARFROCK_QUEST, done(profile, Quest.BETWEEN_A_ROCK, 10), "DWARFROCK_QUEST", "Between a Rock...");
-        assign(bits, VarbitID.GOLEM_A, done(profile, Quest.THE_GOLEM, 10), "GOLEM_A", "The Golem");
-        assign(bits, VarbitID.ICS_LITTLE_VAR, done(profile, Quest.ICTHLARINS_LITTLE_HELPER, 26), "ICS_LITTLE_VAR", "Icthlarin's Little Helper");
-        assign(bits, VarbitID.TOG_JUNA_BOWL, done(profile, Quest.TEARS_OF_GUTHIX, 2), "TOG_JUNA_BOWL", "Tears of Guthix");
-        assign(bits, VarbitID.ZOGRE, done(profile, Quest.ZOGRE_FLESH_EATERS, 14), "ZOGRE", "Zogre Flesh Eaters");
-        assign(bits, VarbitID.LOST_TRIBE_QUEST, done(profile, Quest.THE_LOST_TRIBE, 12), "LOST_TRIBE_QUEST", "The Lost Tribe");
-        assign(bits, VarbitID.SWANSONG, done(profile, Quest.SWAN_SONG, 200), "SWANSONG", "Swan Song");
-        assign(bits, VarbitID.FRIS_QUEST, done(profile, Quest.THE_FREMENNIK_ISLES, 340), "FRIS_QUEST", "The Fremennik Isles");
-        assign(bits, VarbitID.VEOS_PROGRESS, done(profile, Quest.CLIENT_OF_KOUREND, 1), "VEOS_PROGRESS", "Client of Kourend");
-        assign(bits, VarbitID.HOSIDIUSQUEST_REWARD, done(profile, Quest.THE_DEPTHS_OF_DESPAIR, 1), "HOSIDIUSQUEST_REWARD", "The Depths of Despair");
-        assign(bits, VarbitID.PISCQUEST_REWARD, done(profile, Quest.THE_QUEEN_OF_THIEVES, 1), "PISCQUEST_REWARD", "The Queen of Thieves");
-        assign(bits, VarbitID.SHAYZIENQUEST_REWARD, done(profile, CorpusQuest.TALE_OF_THE_RIGHTEOUS, 1), "SHAYZIENQUEST_REWARD", "The Tale of the Righteous");
-        assign(bits, VarbitID.LOVAQUEST_REWARD, done(profile, Quest.THE_FORSAKEN_TOWER, 1), "LOVAQUEST_REWARD", "The Forsaken Tower");
-        assign(bits, VarbitID.ARCQUEST_REWARD, done(profile, CorpusQuest.ARCHITECTURAL_ALLIANCE, 1), "ARCQUEST_REWARD", "Architectural Alliance");
-        assign(bits, VarbitID.BCS, done(profile, Quest.BENEATH_CURSED_SANDS, 108), "BCS", "Beneath Cursed Sands");
-    }
-
-    private static void compileQuestPlayers(Map<Integer, Integer> players, ProfileSpec profile) {
-        assign(players, VarPlayerID.LEGENDSQUEST, player(profile, Quest.LEGENDS_QUEST, 75), "LEGENDSQUEST", "Legends' Quest");
-        assign(players, VarPlayerID.ZOMBIEQUEEN, player(profile, Quest.SHILO_VILLAGE, 15), "ZOMBIEQUEEN", "Shilo Village");
-        assign(players, VarPlayerID.WATERFALL_QUEST, player(profile, Quest.WATERFALL_QUEST, 10), "WATERFALL_QUEST", "Waterfall Quest");
-        assign(players, VarPlayerID.FISHINGCOMPO, player(profile, Quest.FISHING_CONTEST, 5), "FISHINGCOMPO", "Fishing Contest");
-        assign(players, VarPlayerID.TREEQUEST, player(profile, Quest.TREE_GNOME_VILLAGE, 9), "TREEQUEST", "Tree Gnome Village");
-        assign(players, VarPlayerID.GRANDTREE, player(profile, Quest.THE_GRAND_TREE, 160), "GRANDTREE", "The Grand Tree");
-        assign(players, VarPlayerID.ELENAQUEST, player(profile, Quest.PLAGUE_CITY, 30), "ELENAQUEST", "Plague City");
-        assign(players, VarPlayerID.DRAGONQUEST, player(profile, Quest.DRAGON_SLAYER_I, 10), "DRAGONQUEST", "Dragon Slayer I");
-        assign(players, VarPlayerID.ITWATCHTOWER, player(profile, Quest.WATCHTOWER, 14), "ITWATCHTOWER", "Watchtower");
-        assign(players, VarPlayerID.REGICIDE_QUEST, player(profile, Quest.REGICIDE, 15), "REGICIDE_QUEST", "Regicide");
-        assign(players, VarPlayerID.MISC_QUEST, player(profile, Quest.THRONE_OF_MISCELLANIA, 100), "MISC_QUEST", "Throne of Miscellania");
-        assign(players, VarPlayerID.MOURNING_QUEST, player(profile, Quest.MOURNINGS_END_PART_I, 9), "MOURNING_QUEST", "Mourning's End Part I");
     }
 
     private static void compileUnlocks(Map<Integer, Integer> bits, ProfileSpec profile) {
@@ -330,64 +297,6 @@ final class RoutingVariables {
         assign(players, VarPlayerID.QUETZALS_UNLOCKED, mask, "QUETZALS_UNLOCKED", "Quetzal platforms");
     }
 
-    private static int pohLocation(PohLocation location) {
-        switch (location) {
-            case RIMMINGTON: return 1;
-            case TAVERLEY: return 2;
-            case POLLNIVNEACH: return 3;
-            case RELLEKKA: return 4;
-            case BRIMHAVEN: return 5;
-            case YANILLE: return 6;
-            case PRIFDDINAS: return 7;
-            case HOSIDIUS: return 8;
-            case ALDARIN: return 9;
-            default: throw new AssertionError(location);
-        }
-    }
-
-    private static int done(ProfileSpec profile, Quest quest, int value) {
-        return profile.completedQuests().contains(quest) ? value : 0;
-    }
-
-    private static int player(ProfileSpec profile, Quest quest, int value) { return done(profile, quest, value); }
-
-    private static int done(ProfileSpec profile, CorpusQuest quest, int value) {
-        return profile.completedCorpusQuests().contains(quest) ? value : 0;
-    }
-
-    static void compileDiary(Map<Integer, Integer> bits, ProfileSpec profile) {
-        for (Diary diary : Diary.values()) {
-            DiaryTier tier = profile.diaries().getOrDefault(diary, DiaryTier.NONE);
-            compileDiary(bits, diary, tier);
-        }
-    }
-
-    private static void compileDiary(Map<Integer, Integer> bits, Diary diary, DiaryTier tier) {
-        switch (diary) {
-            case ARDOUGNE: diary(bits, tier, "ARDOUGNE", VarbitID.ARDOUGNE_DIARY_EASY_COMPLETE, VarbitID.ARDOUGNE_DIARY_MEDIUM_COMPLETE, VarbitID.ARDOUGNE_DIARY_HARD_COMPLETE, VarbitID.ARDOUGNE_DIARY_ELITE_COMPLETE); break;
-            case DESERT: diary(bits, tier, "DESERT", VarbitID.DESERT_DIARY_EASY_COMPLETE, VarbitID.DESERT_DIARY_MEDIUM_COMPLETE, VarbitID.DESERT_DIARY_HARD_COMPLETE, VarbitID.DESERT_DIARY_ELITE_COMPLETE); break;
-            case FALADOR: diary(bits, tier, "FALADOR", VarbitID.FALADOR_DIARY_EASY_COMPLETE, VarbitID.FALADOR_DIARY_MEDIUM_COMPLETE, VarbitID.FALADOR_DIARY_HARD_COMPLETE, VarbitID.FALADOR_DIARY_ELITE_COMPLETE); break;
-            case FREMENNIK: diary(bits, tier, "FREMENNIK", VarbitID.FREMENNIK_DIARY_EASY_COMPLETE, VarbitID.FREMENNIK_DIARY_MEDIUM_COMPLETE, VarbitID.FREMENNIK_DIARY_HARD_COMPLETE, VarbitID.FREMENNIK_DIARY_ELITE_COMPLETE); break;
-            case KANDARIN: diary(bits, tier, "KANDARIN", VarbitID.KANDARIN_DIARY_EASY_COMPLETE, VarbitID.KANDARIN_DIARY_MEDIUM_COMPLETE, VarbitID.KANDARIN_DIARY_HARD_COMPLETE, VarbitID.KANDARIN_DIARY_ELITE_COMPLETE); break;
-            case KARAMJA: diary(bits, tier, "KARAMJA", VarbitID.ATJUN_EASY_DONE, VarbitID.ATJUN_MED_DONE, VarbitID.ATJUN_HARD_DONE, VarbitID.KARAMJA_DIARY_ELITE_COMPLETE); break;
-            case KOUREND_KEBOS: diary(bits, tier, "KOUREND_KEBOS", VarbitID.KOUREND_DIARY_EASY_COMPLETE, VarbitID.KOUREND_DIARY_MEDIUM_COMPLETE, VarbitID.KOUREND_DIARY_HARD_COMPLETE, VarbitID.KOUREND_DIARY_ELITE_COMPLETE); break;
-            case LUMBRIDGE_DRAYNOR: diary(bits, tier, "LUMBRIDGE_DRAYNOR", VarbitID.LUMBRIDGE_DIARY_EASY_COMPLETE, VarbitID.LUMBRIDGE_DIARY_MEDIUM_COMPLETE, VarbitID.LUMBRIDGE_DIARY_HARD_COMPLETE, VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE); break;
-            case MORYTANIA: diary(bits, tier, "MORYTANIA", VarbitID.MORYTANIA_DIARY_EASY_COMPLETE, VarbitID.MORYTANIA_DIARY_MEDIUM_COMPLETE, VarbitID.MORYTANIA_DIARY_HARD_COMPLETE, VarbitID.MORYTANIA_DIARY_ELITE_COMPLETE); break;
-            case VARROCK: diary(bits, tier, "VARROCK", VarbitID.VARROCK_DIARY_EASY_COMPLETE, VarbitID.VARROCK_DIARY_MEDIUM_COMPLETE, VarbitID.VARROCK_DIARY_HARD_COMPLETE, VarbitID.VARROCK_DIARY_ELITE_COMPLETE); break;
-            case WESTERN_PROVINCES: diary(bits, tier, "WESTERN_PROVINCES", VarbitID.WESTERN_DIARY_EASY_COMPLETE, VarbitID.WESTERN_DIARY_MEDIUM_COMPLETE, VarbitID.WESTERN_DIARY_HARD_COMPLETE, VarbitID.WESTERN_DIARY_ELITE_COMPLETE); break;
-            case WILDERNESS: diary(bits, tier, "WILDERNESS", VarbitID.WILDERNESS_DIARY_EASY_COMPLETE, VarbitID.WILDERNESS_DIARY_MEDIUM_COMPLETE, VarbitID.WILDERNESS_DIARY_HARD_COMPLETE, VarbitID.WILDERNESS_DIARY_ELITE_COMPLETE); break;
-            default: throw new AssertionError(diary);
-        }
-    }
-
-    private static void diary(Map<Integer, Integer> bits, DiaryTier tier, String source,
-                              int easy, int medium, int hard, int elite) {
-        assign(bits, easy, tier.ordinal() > 0 ? 1 : 0, source + " easy", "diary " + source);
-        assign(bits, medium, tier.ordinal() > 1 ? 1 : 0, source + " medium", "diary " + source);
-        assign(bits, hard, tier.ordinal() > 2 ? 1 : 0, source + " hard", "diary " + source);
-        assign(bits, elite, tier.ordinal() > 3 ? 1 : 0, source + " elite", "diary " + source);
-    }
-
     static void assign(Map<Integer, Integer> target, int id, int value, String symbol, String source) {
         Integer existing = target.get(id);
         if (existing != null && existing != value) {
@@ -395,15 +304,6 @@ final class RoutingVariables {
                 + existing + ", " + source + " -> " + value);
         }
         target.put(id, value);
-    }
-}
-
-final class CompiledVariables {
-    final Map<Integer, Integer> varbits;
-    final Map<Integer, Integer> varplayers;
-    CompiledVariables(Map<Integer, Integer> varbits, Map<Integer, Integer> varplayers) {
-        this.varbits = varbits;
-        this.varplayers = varplayers;
     }
 }
 

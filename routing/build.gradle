@@ -3,7 +3,7 @@ plugins {
 }
 
 // Headless route planning for an account: profiles, plugin settings, the pathfinder config, and the
-// route API contract (corpus/schemas) that the route service serves. Tooling tests and the service
+// route API contract (corpus/schemas) that the route service serves; accounts come from :accounts. Tooling tests and the service
 // both build on it, so they plan routes the same way.
 dependencies {
     api 'shortestpath:shortest-path'
@@ -13,10 +13,8 @@ dependencies {
     api 'com.fasterxml.jackson.core:jackson-annotations:2.17.3'
 
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.17.3'
 }
 
 test {
     jvmArgs = ['-Xms512m', '-Xmx4g']
-    systemProperty 'corpus.dir', rootProject.file('corpus').absolutePath
 }

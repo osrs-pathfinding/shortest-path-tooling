@@ -7,11 +7,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import shortestpath.accounts.AccountBuild;
 
 /**
- * The route API contract ({@code corpus/schemas/route-api-v1}, {@code account-build-v1} and
- * {@code route-policy-v1}) as Jackson-bindable classes: a request names an account build, two
- * locations and a route policy; a plan is a list of walk, travel and bank segments.
+ * The route API contract ({@code corpus/schemas/route-api-v1} and {@code route-policy-v1}) as
+ * Jackson-bindable classes: a request names an {@link AccountBuild}, two locations and a route
+ * policy; a plan is a list of walk, travel and bank segments.
  */
 public final class RouteApi {
     private RouteApi() { }
@@ -35,60 +36,6 @@ public final class RouteApi {
         public String placeId;
         public String name;
         public WorldPoint coordinate;
-    }
-
-    public static final class AccountBuild {
-        public int schemaVersion;
-        public String id;
-        public String name;
-        public long benchmarkNowMinutes;
-        public Map<String, Integer> levels = new LinkedHashMap<>();
-        public List<String> completedQuests = new ArrayList<>();
-        public Map<String, String> diaries = new LinkedHashMap<>();
-        public Map<String, Integer> inventory = new LinkedHashMap<>();
-        public Map<String, Integer> equipment = new LinkedHashMap<>();
-        public Map<String, Integer> runePouch = new LinkedHashMap<>();
-        public Map<String, Integer> bank = new LinkedHashMap<>();
-        public boolean fairyRingsUnlocked;
-        public List<String> plantedSpiritTrees = new ArrayList<>();
-        public Poh poh;
-        public RuntimeState runtime;
-        public RoutingVariables routingVariables;
-    }
-
-    public static final class Poh {
-        public String location;
-        public String jewelleryBox;
-        public Portals portals;
-        public boolean fairyRing;
-        public boolean spiritTree;
-        public boolean obelisk;
-        public boolean mountedGlory;
-        public boolean mountedXerics;
-        public boolean mountedDigsite;
-        public boolean mountedMythical;
-    }
-
-    public static final class Portals {
-        public String mode;
-        public List<String> destinations = new ArrayList<>();
-    }
-
-    public static final class RuntimeState {
-        public boolean arriveInsidePoh;
-        public String spellbook;
-        public MinigameTeleport minigameTeleport;
-    }
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static final class MinigameTeleport {
-        public String state;
-        public Long minutes;
-    }
-
-    public static final class RoutingVariables {
-        public Map<Integer, Integer> varbits = new LinkedHashMap<>();
-        public Map<Integer, Integer> varplayers = new LinkedHashMap<>();
     }
 
     public static final class RoutePolicy {

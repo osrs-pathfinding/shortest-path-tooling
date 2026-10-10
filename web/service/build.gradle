@@ -41,16 +41,12 @@ def generateRouteItemNames = tasks.register('generateRouteItemNames', JavaExec) 
     } as CommandLineArgumentProvider)
 }
 
-// The API contracts and canonical account fixtures live in the repository's corpus/.
+// The API contracts live in the repository's corpus/schemas.
 def corpusDir = rootProject.file('corpus')
 
 processResources {
     from(generateRouteItemNames)
     from(new File(corpusDir, 'schemas')) { into 'schemas' }
-}
-
-processTestResources {
-    from(new File(corpusDir, 'profiles')) { into 'profiles' }
 }
 
 test {
