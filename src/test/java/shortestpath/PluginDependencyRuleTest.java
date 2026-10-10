@@ -81,7 +81,7 @@ public class PluginDependencyRuleTest
 	// New leaf packages must be added here — the lint only covers what it enumerates.
 	private static final List<String> LEAF_PACKAGES = List.of(
 		"transport", "pathfinder", "requirement", "leagues", "overlay",
-		"settings", "items", "spirittree", "poh", "scheduler");
+		"settings", "items", "spirittree", "poh", "scheduler", "sailing");
 
 	private static final String PLUGIN_REFERENCE = "ShortestPathPlugin.";
 
@@ -212,6 +212,21 @@ public class PluginDependencyRuleTest
 			"PathScheduler reads TransportEligibility for the merged consumption/re-plan machinery");
 		LEAF_EDGES.put("scheduler -> transport",
 			"PathScheduler reads Transport records for the merged consumption/re-plan machinery");
+
+		// sailing package — the sailing service's seams. The outbound edges
+		// are the producer channel plus the service's reads of sibling leaf
+		// types; the inbound edges are the coordinator/scheduler/config
+		// consumers.
+		LEAF_EDGES.put("pathfinder -> sailing",
+			"PathfinderConfig holds the SailingService seam and derives dispatch inputs from SailingState");
+		LEAF_EDGES.put("sailing -> scheduler",
+			"SailingService declares SailingChange facts to the injected RefreshCoordinator");
+		LEAF_EDGES.put("sailing -> requirement",
+			"SailingService reads PlayerStateSource and builds a ClientPlayerStateSource on the event arm");
+		LEAF_EDGES.put("sailing -> settings",
+			"SailingChange carries Effect values");
+		LEAF_EDGES.put("scheduler -> sailing",
+			"RefreshCoordinator admits SailingChange; PathScheduler/PathRenderState read SailingService/SailingState");
 
 		// Pre-existing edges frozen at lint introduction.
 		LEAF_EDGES.put("leagues -> requirement",
