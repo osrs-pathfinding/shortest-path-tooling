@@ -17,9 +17,8 @@ import net.runelite.api.WorldType;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.VarbitID;
 import org.junit.Test;
-import shortestpath.TeleportationItem;
 import shortestpath.WorldPointUtil;
-import shortestpath.accounts.Account;
+import shortestpath.accounts.Poh;
 import shortestpath.accounts.canonical.CanonicalAccounts;
 import shortestpath.transport.PohMountedItem;
 import shortestpath.transport.PohNexusPortal;
@@ -32,16 +31,15 @@ public class ProfilesTest {
     @Test
     public void canonicalProfilesUseConcreteFactsAndQuestStates() {
         CompiledAccount mid = canonical("mid");
-        Account account = CanonicalAccounts.account("mid");
         assertNotNull(mid.getConfig().bank);
         assertEquals(80, mid.getClient().getBoostedSkillLevel(Skill.ATTACK));
-        assertEquals(account.varbits().get(10449).intValue(), mid.getClient().getVarbitValue(10449));
+        assertEquals(1, mid.getClient().getVarbitValue(VarbitID.ARDOUGNE_DIARY_HARD_COMPLETE));
         assertEquals(QuestState.FINISHED, mid.getConfig().getQuestState(Quest.THE_GRAND_TREE));
         assertEquals(QuestState.NOT_STARTED, mid.getConfig().getQuestState(Quest.RUM_DEAL));
         assertEquals(EnumSet.of(PohNexusPortal.ARDOUGNE, PohNexusPortal.BARROWS, PohNexusPortal.CAMELOT,
                 PohNexusPortal.FALADOR, PohNexusPortal.KOUREND, PohNexusPortal.VARROCK),
             mid.getSettings().pohNexusPortals());
-        assertEquals(CanonicalAccounts.benchmarkNowMinutes(), mid.getConfig().evaluationTimeMinutes());
+        assertEquals(CanonicalAccounts.NOW_MINUTES, mid.getConfig().evaluationTimeMinutes());
     }
 
     @Test
@@ -57,7 +55,7 @@ public class ProfilesTest {
 
     @Test
     public void mountedItemsFollowThePoh() {
-        Account.Poh poh = new Account.Poh(false, false, false, Account.JewelleryBox.NONE,
+        Poh poh = new Poh(Poh.Location.RIMMINGTON, false, false, false, Poh.JewelleryBox.NONE,
             true, false, true, false, List.of());
         assertEquals(EnumSet.of(PohMountedItem.GLORY, PohMountedItem.DIGSITE_PENDANT), PluginSettings.mountedItems(poh));
     }
@@ -65,7 +63,7 @@ public class ProfilesTest {
     @Test
     public void earlyFishingTrawlerTeleportUsesTheProfileClock() {
         Setup cooldown = Profiles.EARLY.setup(new ProfileContext(WorldPointUtil.UNDEFINED, true));
-        cooldown.account.nowMinutes(99999990L);
+        cooldown.account.minigameTeleportUsedAt(CanonicalAccounts.NOW_MINUTES - 10);
         assertTrue(Arrays.stream(canonical("early").getConfig().getUsableTeleports(false))
             .anyMatch(transport -> "Fishing Trawler Minigame Teleport".equals(transport.getDisplayInfo())));
         assertTrue(Arrays.stream(cooldown.compile().getConfig().getUsableTeleports(false))
@@ -73,7 +71,7 @@ public class ProfilesTest {
     }
 
     @Test
-    public void presetsStartFromTheDashboardBaseline() {
+    public void presetsStartFromTheHarnessAccount() {
         int start = WorldPointUtil.packWorldPoint(3222, 3218, 0);
         CompiledAccount unitTest = Profiles.get("unit_test").setup(new ProfileContext(start, true)).compile();
         assertEquals(99, unitTest.getClient().getBoostedSkillLevel(Skill.AGILITY));
@@ -89,9 +87,7 @@ public class ProfilesTest {
         assertEquals(EnumSet.of(WorldType.SEASONAL), seasonal.getClient().getWorldType());
         assertEquals(1, seasonal.getClient().getVarbitValue(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE));
 
-        CompiledAccount bank = Profiles.BANK.setup(new ProfileContext(start, true)).compile();
-        assertEquals(25000, bank.getConfig().bank.getItems().length);
-        assertEquals(TeleportationItem.INVENTORY_AND_BANK, bank.getSettings().useTeleportationItems());
+        assertEquals(Set.of("ALL", "NONE", "SEASONAL", "UNIT_TEST"), Profiles.presetNames());
     }
 
     @Test

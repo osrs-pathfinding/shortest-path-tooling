@@ -8,18 +8,18 @@ code. This page is the model; the dashboard UI is in [dashboard-design.md](dashb
 
 | Concept | What it is | Code |
 |---|---|---|
-| **Account** | The game state a route is planned for: levels, quests, varbits, varplayers, items, bank, world, location, POH, clock | `accounts/` → `shortestpath.accounts.Account` |
+| **Account** | An account as a player would describe it: levels, quests, diaries, unlocks, items, house, spellbook, clock. `AccountCompiler` turns it into the `ClientState` (varbits, varplayers, items) the plugin reads | `accounts/` → `shortestpath.accounts.Account` |
 | **Profile** | A named account plus plugin settings to start from | `shortestpath.profiles.Profiles` |
 | **Scenario** | A route (start, target, transports allowed) + a profile + account and settings overrides + an expectation | `shortestpath.scenarios.Scenario` |
 | **Suite** | A named list of scenarios, some tagged with tiers | `shortestpath.scenarios.Suites` |
 | **Runner** | Runs a scenario on the legacy or exact pathfinder and returns an `Observation` | `shortestpath.scenarios.ScenarioRunner` |
 
 **Profiles.** The canonical accounts `early`, `mid`, `end`, `maxed` are defined in
-`accounts/src/main/java/shortestpath/accounts/canonical/` (the same Java generates the JSON in
-`corpus/` for non-Java consumers). The presets `ALL`, `NONE`, `UNIT_TEST`, `SEASONAL`, `BANK`,
-`BANK_PERM`, `INVENTORY`, `INVENTORY_NON_CONSUMABLE` start from the harness baseline (every skill 99,
-every quest finished, nothing carried) with preset settings. `PluginSettings` is the plugin
-settings object every profile and scenario uses.
+`accounts/src/main/java/shortestpath/accounts/canonical/CanonicalAccounts.java`. The presets
+`ALL`, `NONE`, `UNIT_TEST`, `SEASONAL` share the harness account (every skill 99, every quest
+finished, fairy rings, nothing carried) and differ in settings, plus the Lumbridge elite diary and,
+for `SEASONAL`, a seasonal world. `PluginSettings` is the plugin settings object every profile and
+scenario uses.
 
 **Expectations.** A scenario is expected reachable or unreachable, and may set a minimum path
 length. *Reached* is the engine's verdict, `PathfinderResult.isReached()` (for a target that
@@ -57,9 +57,13 @@ static void define(Suite suite) {
 }
 ```
 
-- `.account(a -> ...)` overrides the profile's `Account.Builder`: `varbit`, `varplayer`, `inventory`,
-  `equipment`, `bank`, `level`, `quest`, `world`, `location`, `nowMinutes`. Use RuneLite's `gameval`
-  constants (`ItemID`, `VarbitID`, `VarPlayerID`).
+- `.account(a -> ...)` overrides the profile's `Account.Builder` with facts: `quest`, `diary`,
+  `unlock`/`lock`, `spellbook`, `minigameTeleportUsedAt`, `inventory`, `equipment`, `bank`, `level`,
+  `world`, `location`, `nowMinutes`. A fact sets every variable it implies, so `a.quest(X, FINISHED)`
+  also sets X's progress varbits.
+- `varbit`/`varplayer` set raw variables, for what no fact describes (league area picks, a quest
+  half done). They are applied last and override the facts. Use RuneLite's `gameval` constants
+  (`ItemID`, `VarbitID`, `VarPlayerID`).
 - `.settings(s -> ...)` overrides `PluginSettings`.
 - `Overrides` names the repeated ones: `.account(leagueAreas(LeagueRegion.ASGARNIA, ...))`,
   `.account(eliteDiaries())`, `.settings(bankTeleports())`. Overrides apply in order after the profile.
@@ -151,7 +155,8 @@ profile, route-CLI and benchmark tests, which load every suite and compile every
 | To | Do |
 |---|---|
 | Add a regression | a `suite.scenario(...)` in the right Java suite (issues: `RoutingIssueScenarios`, category `<domain>-issue-<N>`), then `-ProuteSuite=… -ProuteScenario=…` or the dashboard with a filter |
-| Add a canonical route | edit `corpus/corpus/routes-v1.json`; `./gradlew :accounts:check` validates it |
-| Change a canonical account | edit `accounts/…/canonical/CanonicalProfiles.java` (or `CanonicalItems`, `RoutingVariables`), run `./gradlew :accounts:generateAccountProfiles`, commit the regenerated `corpus/` JSON |
+| Add a canonical route | edit `corpus/corpus/routes-v1.json`; `CanonicalCorpusTest` validates it |
+| Change a canonical account | edit `accounts/…/canonical/CanonicalAccounts.java` (or `CanonicalItems`) |
+| Teach accounts a new fact | a field on `Account` (or an `Unlock`) and its variables in `AccountCompiler` |
 | Add a preset | a `preset(...)` in `Profiles` |
 | Add a suite | a Java `define(Suite)` or a route file, registered in `Suites` |

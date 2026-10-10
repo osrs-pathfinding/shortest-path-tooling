@@ -8,18 +8,20 @@ import java.util.Set;
 import java.util.function.Consumer;
 import net.runelite.api.QuestState;
 import net.runelite.api.WorldType;
-import net.runelite.api.gameval.VarbitID;
 import shortestpath.TeleportationItem;
 import shortestpath.WorldPointUtil;
 import shortestpath.accounts.Account;
+import shortestpath.accounts.Diary;
+import shortestpath.accounts.Poh;
+import shortestpath.accounts.Unlock;
 import shortestpath.accounts.canonical.CanonicalAccounts;
 
 /**
  * Every named profile: the four canonical accounts ({@code early}, {@code mid}, {@code end},
- * {@code maxed}) and the dashboard presets ({@code ALL}, {@code NONE}, {@code UNIT_TEST},
- * {@code SEASONAL}, {@code BANK}, {@code BANK_PERM}, {@code INVENTORY},
- * {@code INVENTORY_NON_CONSUMABLE}). Names are case-sensitive for the canonical profiles and
- * case-insensitive for the presets.
+ * {@code maxed}) and the test presets ({@code ALL}, {@code NONE}, {@code UNIT_TEST},
+ * {@code SEASONAL}), which share the {@linkplain #harness harness account} and differ mostly in
+ * settings. Names are case-sensitive for the canonical profiles and case-insensitive for the
+ * presets.
  */
 public final class Profiles {
     private static final Map<String, Profile> CANONICAL = new LinkedHashMap<>();
@@ -31,40 +33,21 @@ public final class Profiles {
     public static final Profile MAXED = canonical("maxed");
 
     /** Every teleport item, no bank path. */
-    public static final Profile ALL = preset("ALL", 1, settings -> {
+    public static final Profile ALL = preset("ALL", lumbridgeElite(), settings -> {
         settings.setUseTeleportationItems(TeleportationItem.ALL);
         settings.setIncludeBankPath(false);
     });
     /** No teleport items, no bank path. */
-    public static final Profile NONE = preset("NONE", 1, settings -> {
+    public static final Profile NONE = preset("NONE", lumbridgeElite(), settings -> {
         settings.setUseTeleportationItems(TeleportationItem.NONE);
-        settings.setIncludeBankPath(false);
-    });
-    /** Banked teleport items from a bank holding every item; the Lumbridge elite diary is not done. */
-    public static final Profile BANK = preset("BANK", 0, settings -> {
-        settings.setUseTeleportationItems(TeleportationItem.INVENTORY_AND_BANK);
-        settings.setIncludeBankPath(true);
-        settings.setUseTeleportationMinigames(false);
-    });
-    /** {@link #BANK} with only non-consumable teleport items. */
-    public static final Profile BANK_PERM = preset("BANK_PERM", 0, settings -> {
-        settings.setUseTeleportationItems(TeleportationItem.INVENTORY_AND_BANK_NON_CONSUMABLE);
-        settings.setIncludeBankPath(true);
-        settings.setUseTeleportationMinigames(false);
-    });
-    public static final Profile INVENTORY = preset("INVENTORY", 1, settings -> {
-        settings.setUseTeleportationItems(TeleportationItem.INVENTORY);
-        settings.setIncludeBankPath(false);
-    });
-    public static final Profile INVENTORY_NON_CONSUMABLE = preset("INVENTORY_NON_CONSUMABLE", 1, settings -> {
-        settings.setUseTeleportationItems(TeleportationItem.INVENTORY_NON_CONSUMABLE);
         settings.setIncludeBankPath(false);
     });
     /**
      * A Demonic Pacts League world: seasonal transports and carried teleport items, wilderness
      * avoided. League area picks are varbits 10662-10667, all locked unless a scenario sets them.
      */
-    public static final Profile SEASONAL = preset("SEASONAL", 1, settings -> {
+    public static final Profile SEASONAL = preset("SEASONAL",
+            lumbridgeElite().andThen(account -> account.world(WorldType.SEASONAL)), settings -> {
         settings.setUseTeleportationItems(TeleportationItem.INVENTORY);
         settings.setIncludeBankPath(false);
         settings.setUseSeasonalTransports(true);
@@ -72,9 +55,9 @@ public final class Profiles {
     });
     /**
      * The plugin's unit-test baseline: every transport toggle off, no teleport items, a
-     * 30-tick cutoff, and the Lumbridge elite diary not done. Scenarios enable what they test.
+     * 30-tick cutoff, and no diaries. Scenarios enable what they test.
      */
-    public static final Profile UNIT_TEST = preset("UNIT_TEST", 0, settings -> {
+    public static final Profile UNIT_TEST = preset("UNIT_TEST", account -> { }, settings -> {
         settings.setAvoidWilderness(false);
         settings.setUseAgilityShortcuts(false);
         settings.setUseBoats(false);
@@ -137,7 +120,7 @@ public final class Profiles {
      * The canonical benchmark settings: every transport the route allows, neutral user cost
      * penalties, a 500-tick cutoff, and no harness bypass of varbit or varplayer requirements.
      */
-    static PluginSettings canonicalSettings(Account.Poh poh, boolean allowTransports) {
+    static PluginSettings canonicalSettings(Poh poh, boolean allowTransports) {
         PluginSettings settings = new PluginSettings();
         settings.setAvoidWilderness(false);
         settings.setUseAgilityShortcuts(allowTransports);
@@ -199,33 +182,41 @@ public final class Profiles {
     }
 
     /**
-     * A dashboard preset. Its account is the dashboard harness baseline: every skill 99 (total
-     * 2277), every quest finished, fairy rings unlocked, the given Lumbridge elite diary state,
-     * the player standing on the scenario's start tile, and nothing carried or banked unless the
-     * scenario adds it ({@code BANK} presets bank every item). Settings start from
-     * {@link PluginSettings}'s defaults, which bypass varbit and varplayer checks.
+     * The account every preset starts from: every skill 99 (total 2277), every quest finished,
+     * fairy rings unlocked, no diaries, standing on the scenario's start tile, and nothing carried
+     * or banked unless the scenario adds it.
      */
-    private static Profile preset(String name, int lumbridgeDiaryElite, Consumer<PluginSettings> settings) {
+    private static Account.Builder harness(ProfileContext context) {
+        return Account.builder()
+            .defaultLevel(99)
+            .totalLevel(2277)
+            // Benchmark parity, as for the canonical profiles.
+            .reportsRealLevels(false)
+            .defaultQuestState(QuestState.FINISHED)
+            .unlock(Unlock.FAIRY_RINGS)
+            .location(WorldPointUtil.unpackWorldX(context.start),
+                WorldPointUtil.unpackWorldY(context.start), WorldPointUtil.unpackWorldPlane(context.start));
+    }
+
+    private static Consumer<Account.Builder> lumbridgeElite() {
+        return account -> account.diary(Diary.LUMBRIDGE_DRAYNOR, Diary.Tier.ELITE);
+    }
+
+    /**
+     * A test preset: the {@linkplain #harness harness account} with {@code account} applied, and
+     * settings from {@link PluginSettings}'s defaults (which bypass varbit and varplayer checks)
+     * with {@code settings} applied.
+     */
+    private static Profile preset(String name, Consumer<Account.Builder> account,
+            Consumer<PluginSettings> settings) {
         Profile profile = new Profile() {
             @Override public String name() { return name; }
             @Override public Setup setup(ProfileContext context) {
-                Account.Builder account = Account.builder()
-                    .defaultLevel(99)
-                    .totalLevel(2277)
-                    .defaultQuestState(QuestState.FINISHED)
-                    .varbit(VarbitID.LUMBRIDGE_DIARY_ELITE_COMPLETE, lumbridgeDiaryElite)
-                    .varbit(VarbitID.FAIRY2_QUEENCURE_QUEST, 100)
-                    .location(WorldPointUtil.unpackWorldX(context.start),
-                        WorldPointUtil.unpackWorldY(context.start), WorldPointUtil.unpackWorldPlane(context.start));
-                if (name.equals("SEASONAL")) {
-                    account.world(WorldType.SEASONAL);
-                }
-                if (name.equals("BANK") || name.equals("BANK_PERM")) {
-                    account.universalBank();
-                }
+                Account.Builder builder = harness(context);
+                account.accept(builder);
                 PluginSettings config = new PluginSettings();
                 settings.accept(config);
-                return new Setup(account, config);
+                return new Setup(builder, config);
             }
         };
         PRESETS.put(name, profile);

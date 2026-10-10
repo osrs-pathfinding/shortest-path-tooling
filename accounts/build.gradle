@@ -2,44 +2,12 @@ plugins {
     id 'java-library'
 }
 
-// The account model compiles against the same RuneLite API as the tooling tests that consume it. The
-// plugin is needed only to resolve item names (ItemVariations) in account builds.
+// Accounts compile against the same RuneLite API as everything else. The plugin is needed only to
+// resolve item names (ItemVariations) in the web's account builds.
 dependencies {
     api group: 'net.runelite', name: 'runelite-api', version: runeLiteVersion
     implementation 'shortestpath:shortest-path'
-    implementation 'com.google.code.gson:gson:2.10.1'
     api 'com.fasterxml.jackson.core:jackson-annotations:2.17.3'
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'com.networknt:json-schema-validator:1.5.9'
     testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.17.3'
-}
-
-test {
-    systemProperty 'corpus.dir', rootProject.file('corpus').absolutePath
-}
-
-def corpusDir = rootProject.file('corpus')
-
-// Writes the generated account fixtures that non-Java consumers read from corpus/.
-tasks.register('generateAccountProfiles', JavaExec) {
-    group = 'build'
-    description = 'Regenerates corpus/accounts/account-profiles-v1.json and corpus/profiles/*.json.'
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'shortestpath.accounts.canonical.Main'
-    args 'generate', new File(corpusDir, 'accounts/account-profiles-v1.json').path,
-        new File(corpusDir, 'profiles').path
-}
-
-// Fails when the committed fixtures differ from what the Java profiles generate.
-tasks.register('verifyAccountProfiles', JavaExec) {
-    group = 'verification'
-    description = 'Checks that the committed account fixtures match the Java profile definitions.'
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'shortestpath.accounts.canonical.Main'
-    args 'verify', new File(corpusDir, 'accounts/account-profiles-v1.json').path,
-        new File(corpusDir, 'profiles').path
-}
-
-tasks.named('check') {
-    dependsOn 'verifyAccountProfiles'
 }

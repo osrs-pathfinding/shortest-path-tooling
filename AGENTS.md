@@ -17,7 +17,7 @@ around it.
 | Path | Contents |
 |------|----------|
 | `shortest-path/` | Git submodule (pinned commit). Plugin sources + data in `src/main/resources/` (`collision-map.zip`, `destinations/`, `transports/`, `leagues/`). |
-| `accounts/` | Gradle subproject: accounts. `AccountBuild` (the account-build-v1 document the web planner edits), `AccountBuilds` (the one compiler from a build to an `Account`, i.e. the varbits/varplayers the plugin reads), and the canonical profiles, which are written as builds and generate `corpus/accounts/` and `corpus/profiles/`. |
+| `accounts/` | Gradle subproject: `Account` (an account as a player describes it: levels, quests, diaries, unlocks, items, house), `AccountCompiler` (the only place facts become the varbits/varplayers in a `ClientState`), `HeadlessClient` (a RuneLite `Client` answering from a `ClientState`), and the canonical profiles (`canonical/CanonicalAccounts`). |
 | `routing/` | Gradle subproject (main sources): `shortestpath.profiles` (profiles, `PluginSettings`, `Setup`, `AccountPathfinderConfig`), `shortestpath.pathfinder.PluginResources` (world data loaded once per JVM), and `shortestpath.routeapi` (route API classes; route policy → `PluginSettings`, `PathfinderResult` → route plan). Tooling tests and the route service both build on it. |
 | `web/` | The public route planner: React + TypeScript + Vite frontend (npm project), deploy and infra files. See `web/README.md`. |
 | `web/service/` | Gradle subproject `:service`: the route service's HTTP layer (Javalin) on top of `routing/`. |
@@ -206,17 +206,13 @@ Checks that cannot fail get written every cycle — audit before shipping:
 
 ## Benchmark corpus
 
-`corpus/` is the implementation-neutral benchmark corpus (formerly the
-`shortest-path-corpus` repo, history imported). Non-Java consumers read it as a
-directory, so keep its layout and formats stable; see `corpus/README.md`.
+`corpus/` holds the canonical routes and the web API schemas (formerly the
+`shortest-path-corpus` repo, history imported); see `corpus/README.md`.
 
 - `corpus/corpus/routes-v1.json` — canonical routes (`id`, `start`/`target`,
-  `allowTransports`, `tiers`, hand-curated `negativeProfiles`). Data, edit directly.
-- `corpus/accounts/account-profiles-v1.json`, `corpus/profiles/*.json` —
-  **generated** from the Java profiles in `accounts/` (`CanonicalProfiles.java`,
-  `CanonicalItems.java`, `RoutingVariables.java`). Never hand-edit; run
-  `./gradlew :accounts:generateAccountProfiles`. `./gradlew :accounts:check`
-  (in CI) fails when the committed JSON differs from the Java by a single byte.
+  `allowTransports`, `tiers`, hand-curated `negativeProfiles`). Data, edit directly;
+  `CanonicalCorpusTest` checks it.
+- The canonical accounts are Java only: `accounts/…/canonical/CanonicalAccounts.java`.
 
 Query one route (the `route` CLI; its argument forms and JSON fields are
 agent-facing, keep them stable):

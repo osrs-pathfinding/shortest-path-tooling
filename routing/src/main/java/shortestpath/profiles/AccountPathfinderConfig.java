@@ -3,34 +3,34 @@ package shortestpath.profiles;
 import net.runelite.api.Client;
 import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
-import shortestpath.accounts.Account;
+import shortestpath.accounts.ClientState;
 import shortestpath.pathfinder.PathfinderConfig;
 import shortestpath.pathfinder.PluginResources;
 import shortestpath.transport.Transport;
 
 /**
- * A {@link PathfinderConfig} for an {@link Account}, on the shared {@link PluginResources}. It
- * answers quest states and the clock from the account, and skips varbit or varplayer transport
+ * A {@link PathfinderConfig} for an account's {@link ClientState}, on the shared {@link PluginResources}.
+ * It answers quest states and the clock from the state, and skips varbit or varplayer transport
  * requirements when the settings bypass them. Quest states are answered here rather than by the
  * client because {@code getQuestState} runs in the search loop.
  */
 public final class AccountPathfinderConfig extends PathfinderConfig {
-    private final Account account;
+    private final ClientState state;
     private final boolean bypassVarbitChecks;
     private final boolean bypassVarPlayerChecks;
 
-    AccountPathfinderConfig(Client client, PluginSettings settings, Account account) {
+    AccountPathfinderConfig(Client client, PluginSettings settings, ClientState state) {
         super(client, settings, PluginResources.map(), PluginResources.transports(),
             PluginResources.destinations(), PluginResources.filteredDestinations(),
             PluginResources.bankRequirements());
-        this.account = account;
+        this.state = state;
         this.bypassVarbitChecks = settings.isBypassVarbitChecks();
         this.bypassVarPlayerChecks = settings.isBypassVarPlayerChecks();
     }
 
     @Override
     public QuestState getQuestState(Quest quest) {
-        return account.questState(quest);
+        return state.questState(quest);
     }
 
     @Override
@@ -45,7 +45,7 @@ public final class AccountPathfinderConfig extends PathfinderConfig {
 
     @Override
     protected long currentTimeMinutes() {
-        return account.nowMinutes() == null ? super.currentTimeMinutes() : account.nowMinutes();
+        return state.nowMinutes() == null ? super.currentTimeMinutes() : state.nowMinutes();
     }
 
     /** The game time timed requirements are evaluated at. */

@@ -22,33 +22,33 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.gameval.InventoryID;
 
 /**
- * A logged-in RuneLite {@link Client} that reports an {@link Account}.
+ * A logged-in RuneLite {@link Client} that reports a {@link ClientState}.
  *
  * <p>Only the calls the pathfinder makes while refreshing its config are answered from the
- * account. Every other method returns an empty value (0, {@code false}, an empty collection or
- * {@code null}), as the Mockito stubs this replaces did. {@code getRealSkillLevel} answers 0, so
- * the plugin computes combat level 3, unless the account {@link Account#reportsRealLevels()}.
+ * state. Every other method returns an empty value (0, {@code false}, an empty collection or
+ * {@code null}). {@code getRealSkillLevel} answers 0, so the plugin computes combat level 3,
+ * unless the state {@link ClientState#reportsRealLevels()}.
  */
-public final class AccountClient {
-    private AccountClient() { }
+public final class HeadlessClient {
+    private HeadlessClient() { }
 
-    public static Client of(Account account) {
-        ItemContainer inventory = container(account.inventory());
-        ItemContainer equipment = container(account.equipment());
-        Player player = account.location() == null ? null : player(new WorldPoint(
-            account.location().x, account.location().y, account.location().plane));
-        int totalLevel = account.totalLevel();
+    public static Client of(ClientState state) {
+        ItemContainer inventory = container(state.inventory());
+        ItemContainer equipment = container(state.equipment());
+        Player player = state.location() == null ? null : player(new WorldPoint(
+            state.location().x, state.location().y, state.location().plane));
+        int totalLevel = state.totalLevel();
         return proxy(Client.class, (method, args) -> {
             switch (method.getName()) {
                 case "getGameState": return GameState.LOGGED_IN;
                 case "getClientThread": return Thread.currentThread();
-                case "getWorldType": return account.worldTypes().isEmpty()
-                    ? EnumSet.noneOf(WorldType.class) : EnumSet.copyOf(account.worldTypes());
-                case "getVarbitValue": return account.varbits().getOrDefault((Integer) args[0], 0);
-                case "getVarpValue": return account.varplayers().getOrDefault((Integer) args[0], 0);
-                case "getBoostedSkillLevel": return account.level((Skill) args[0]);
+                case "getWorldType": return state.worldTypes().isEmpty()
+                    ? EnumSet.noneOf(WorldType.class) : EnumSet.copyOf(state.worldTypes());
+                case "getVarbitValue": return state.varbits().getOrDefault((Integer) args[0], 0);
+                case "getVarpValue": return state.varplayers().getOrDefault((Integer) args[0], 0);
+                case "getBoostedSkillLevel": return state.level((Skill) args[0]);
                 case "getRealSkillLevel":
-                    return account.reportsRealLevels() ? account.level((Skill) args[0]) : EMPTY;
+                    return state.reportsRealLevels() ? state.level((Skill) args[0]) : EMPTY;
                 case "getTotalLevel": return totalLevel;
                 case "getLocalPlayer": return player;
                 case "getItemContainer":

@@ -30,10 +30,9 @@ jobs:
         run: ./gradlew compileTestJava --stacktrace
         shell: bash
 
-      - name: Check the account profiles and corpus data
-        # Tests the Java profile definitions, checks corpus/ against them byte for byte,
-        # and validates the presets against corpus/schemas.
-        run: ./gradlew :accounts:check --stacktrace
+      - name: Test the account model
+        # The account compiler and the canonical accounts.
+        run: ./gradlew :accounts:test --stacktrace
         shell: bash
 
       - name: Check the scenario suites

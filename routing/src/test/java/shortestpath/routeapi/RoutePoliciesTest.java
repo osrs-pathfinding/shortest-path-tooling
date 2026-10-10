@@ -7,12 +7,12 @@ import static org.junit.Assert.assertTrue;
 import java.util.List;
 import org.junit.Test;
 import shortestpath.TeleportationItem;
-import shortestpath.accounts.Account;
+import shortestpath.accounts.Poh;
 import shortestpath.accounts.canonical.CanonicalAccounts;
 import shortestpath.profiles.PluginSettings;
 
 public class RoutePoliciesTest {
-    private static final Account.Poh POH = CanonicalAccounts.account("mid").poh();
+    private static final Poh POH = CanonicalAccounts.account("mid").poh();
 
     private static RouteApi.RoutePolicy policy() {
         RouteApi.RoutePolicy policy = new RouteApi.RoutePolicy();

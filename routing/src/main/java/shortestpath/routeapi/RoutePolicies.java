@@ -2,7 +2,7 @@ package shortestpath.routeapi;
 
 import java.util.Set;
 import shortestpath.TeleportationItem;
-import shortestpath.accounts.Account;
+import shortestpath.accounts.Poh;
 import shortestpath.profiles.PluginSettings;
 
 /**
@@ -19,7 +19,7 @@ public final class RoutePolicies {
 
     private RoutePolicies() { }
 
-    public static PluginSettings toSettings(RouteApi.RoutePolicy policy, Account.Poh poh) {
+    public static PluginSettings toSettings(RouteApi.RoutePolicy policy, Poh poh) {
         Set<String> avoided = Set.copyOf(policy.avoidedTransportTypes);
         Set<String> unlocks = Set.copyOf(policy.declaredUnlocks);
         boolean banks = !"never".equals(policy.banking);

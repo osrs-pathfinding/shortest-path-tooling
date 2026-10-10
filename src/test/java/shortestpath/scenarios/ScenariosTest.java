@@ -126,7 +126,7 @@ public class ScenariosTest {
     /**
      * {@code varPlayerChecks} returns {@code true} when a requirement fails. Presets bypass
      * varplayer requirements unless a scenario turns {@code bypassVarPlayerChecks} off; then the
-     * scenario's varplayers (0 when unset) decide.
+     * account's varplayers decide.
      */
     @Test
     public void bypassVarPlayerChecksGatesVarPlayerRequirements() {
@@ -143,8 +143,9 @@ public class ScenariosTest {
             .settings(s -> s.setBypassVarPlayerChecks(false)).build().compile();
         assertFalse(satisfied.getConfig().varPlayerChecks(transport, 0));
 
-        CompiledAccount unset = unitTest().settings(s -> s.setBypassVarPlayerChecks(false)).build().compile();
-        assertTrue(unset.getConfig().varPlayerChecks(transport, 0));
+        CompiledAccount unstarted = unitTest().account(a -> a.quest(Quest.LEGENDS_QUEST, QuestState.NOT_STARTED))
+            .settings(s -> s.setBypassVarPlayerChecks(false)).build().compile();
+        assertTrue(unstarted.getConfig().varPlayerChecks(transport, 0));
     }
 
     @Test

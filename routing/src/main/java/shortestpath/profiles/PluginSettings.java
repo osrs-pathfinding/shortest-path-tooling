@@ -5,7 +5,7 @@ import java.util.Set;
 import shortestpath.JewelleryBoxTier;
 import shortestpath.ShortestPathConfig;
 import shortestpath.TeleportationItem;
-import shortestpath.accounts.Account;
+import shortestpath.accounts.Poh;
 import shortestpath.pathfinder.PathfinderBackend;
 import shortestpath.transport.PohNexusPortal;
 import shortestpath.transport.PohMountedItem;
@@ -327,7 +327,7 @@ public class PluginSettings implements ShortestPathConfig {
      * Sets the POH settings from the account's facilities: the POH is used, and its fairy ring,
      * spirit tree, obelisk and nexus portals only when the route allows transports.
      */
-    public void applyPoh(Account.Poh poh, boolean allowTransports) {
+    public void applyPoh(Poh poh, boolean allowTransports) {
         setUsePoh(true);
         setUsePohFairyRing(allowTransports && poh.fairyRing);
         setUsePohSpiritTree(allowTransports && poh.spiritTree);
@@ -339,7 +339,7 @@ public class PluginSettings implements ShortestPathConfig {
         setPohNexusPortals(portals);
     }
 
-    static Set<PohNexusPortal> nexusPortals(Account.Poh poh) {
+    static Set<PohNexusPortal> nexusPortals(Poh poh) {
         if (poh.portals == null) {
             return EnumSet.allOf(PohNexusPortal.class);
         }
@@ -354,7 +354,7 @@ public class PluginSettings implements ShortestPathConfig {
         return result;
     }
 
-    static Set<PohMountedItem> mountedItems(Account.Poh poh) {
+    static Set<PohMountedItem> mountedItems(Poh poh) {
         Set<PohMountedItem> result = EnumSet.noneOf(PohMountedItem.class);
         if (poh.mountedGlory) result.add(PohMountedItem.GLORY);
         if (poh.mountedXerics) result.add(PohMountedItem.XERICS_TALISMAN);

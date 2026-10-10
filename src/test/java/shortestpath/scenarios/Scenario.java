@@ -20,7 +20,7 @@ import shortestpath.profiles.Setup;
  * suite.scenario("Digsite gate (#139) kudos 153+ crosses gate", "routing-issue-139")
  *     .from(3293, 3428, 0).to(3350, 3415, 0)
  *     .profile(UNIT_TEST)
- *     .account(a -&gt; a.varbit(VarbitID.VM_KUDOS, 153))
+ *     .account(a -&gt; a.unlock(Unlock.MUSEUM_KUDOS_153))
  *     .settings(s -&gt; s.setBypassVarbitChecks(false))
  *     .minimumLength(40);
  * </pre>

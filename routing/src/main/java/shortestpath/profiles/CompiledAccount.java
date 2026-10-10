@@ -2,9 +2,11 @@ package shortestpath.profiles;
 
 import net.runelite.api.Client;
 import shortestpath.accounts.Account;
-import shortestpath.accounts.AccountClient;
+import shortestpath.accounts.AccountCompiler;
+import shortestpath.accounts.ClientState;
+import shortestpath.accounts.HeadlessClient;
 
-/** An account and plugin settings turned into a refreshed pathfinder config. */
+/** An account and plugin settings compiled into a refreshed pathfinder config. */
 public final class CompiledAccount {
     private final AccountPathfinderConfig config;
     private final Client client;
@@ -17,15 +19,16 @@ public final class CompiledAccount {
     }
 
     /**
-     * Refreshes a pathfinder config for the account on the calling thread, which the plugin treats
-     * as the client thread; run the pathfinder on the same thread.
+     * Compiles the account and refreshes a pathfinder config for it on the calling thread, which the
+     * plugin treats as the client thread; run the pathfinder on the same thread.
      */
     public static CompiledAccount of(Account account, PluginSettings settings) {
-        Client client = AccountClient.of(account);
-        AccountPathfinderConfig config = new AccountPathfinderConfig(client, settings, account);
-        config.bank = AccountClient.container(account.bank());
-        if (account.plantedSpiritTrees() != null) {
-            config.availableSpiritTrees = account.plantedSpiritTrees();
+        ClientState state = AccountCompiler.compile(account);
+        Client client = HeadlessClient.of(state);
+        AccountPathfinderConfig config = new AccountPathfinderConfig(client, settings, state);
+        config.bank = HeadlessClient.container(state.bank());
+        if (state.plantedSpiritTrees() != null) {
+            config.availableSpiritTrees = state.plantedSpiritTrees();
         }
         config.refresh();
         return new CompiledAccount(config, client, settings);

@@ -12,6 +12,8 @@ import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import shortestpath.TeleportationItem;
+import shortestpath.accounts.Spellbook;
+import shortestpath.accounts.Unlock;
 
 /**
  * Regression routes for upstream routing issues; the category names the issue. Suite {@code routing-issues}; exact lengths in
@@ -28,14 +30,14 @@ final class RoutingIssueScenarios {
         suite.scenario("Digsite gate (#139) kudos 153+ crosses gate", "routing-issue-139")
             .from(3293, 3428, 0).to(3350, 3415, 0)
             .profile(UNIT_TEST)
-            .account(a -> a.varbit(VarbitID.VM_KUDOS, 153))
+            .account(a -> a.unlock(Unlock.MUSEUM_KUDOS_153))
             .settings(s -> s.setBypassVarbitChecks(false))
             .minimumLength(40);
 
         suite.scenario("Digsite gate (#139) no kudos walks around fence", "routing-issue-139")
             .from(3293, 3428, 0).to(3350, 3415, 0)
             .profile(UNIT_TEST)
-            .account(a -> a.varbit(VarbitID.VM_KUDOS, 0))
+            .account(a -> a.lock(Unlock.MUSEUM_KUDOS_153))
             .settings(s -> s.setBypassVarbitChecks(false))
             .minimumLength(100);
 
@@ -603,7 +605,7 @@ final class RoutingIssueScenarios {
             .from(3160, 3486, 0).to(2660, 3298, 0)
             .profile(UNIT_TEST)
             .account(a -> a
-                .varbit(VarbitID.SPELLBOOK, 2)
+                .spellbook(Spellbook.LUNAR)
                 .inventory(ItemID.LAWRUNE, 4)
                 .inventory(ItemID.WATERRUNE, 4)
                 .inventory(ItemID.SOULRUNE, 4)
@@ -621,7 +623,7 @@ final class RoutingIssueScenarios {
             .from(3160, 3486, 0).to(2660, 3298, 0)
             .profile(UNIT_TEST)
             .account(a -> a
-                .varbit(VarbitID.SPELLBOOK, 0)
+                .spellbook(Spellbook.STANDARD)
                 .inventory(ItemID.LAWRUNE, 2)
                 .inventory(ItemID.WATERRUNE, 2)
                 .level(Skill.MAGIC, 51)
@@ -635,7 +637,7 @@ final class RoutingIssueScenarios {
             .from(3160, 3486, 0).to(3040, 4969, 1)
             .profile(UNIT_TEST)
             .account(a -> a
-                .varplayer(VarPlayerID.SLUG2_REGIONUID, 29999999)
+                .minigameTeleportUsedAt(29999999)
                 .bank(ItemID.NECKLACE_OF_MINIGAMES_8, 1))
             .settings(bankTeleports())
             .settings(s -> {
@@ -909,13 +911,13 @@ final class RoutingIssueScenarios {
         suite.scenario("Mountain guide (#548) met guide hops Gorge to Nemus", "routing-issue-548")
             .from(1486, 3232, 0).to(1411, 3361, 0)
             .profile(UNIT_TEST)
-            .account(a -> a.varbit(VarbitID.MET_AUBURN_MOUNTAIN_GUIDE, 1))
+            .account(a -> a.unlock(Unlock.MET_AUBURN_MOUNTAIN_GUIDE))
             .settings(s -> s.setBypassVarbitChecks(false));
 
         suite.scenario("Mountain guide (#548) unmet still hops Gorge to Nemus", "routing-issue-548")
             .from(1486, 3232, 0).to(1411, 3361, 0)
             .profile(UNIT_TEST)
-            .account(a -> a.varbit(VarbitID.MET_AUBURN_MOUNTAIN_GUIDE, 0))
+            .account(a -> a.lock(Unlock.MET_AUBURN_MOUNTAIN_GUIDE))
             .settings(s -> s.setBypassVarbitChecks(false));
 
         suite.scenario("Gutanoth crumbling wall (#549) pocket sealed without shortcut", "routing-issue-549")
@@ -1257,13 +1259,13 @@ final class RoutingIssueScenarios {
             .from(3213, 3428, 0).to(3265, 6077, 0)
             .profile(UNIT_TEST)
             .account(a -> a
-                .varbit(VarbitID.SPELLBOOK, 3)
-                .varbit(VarbitID.FALADOR_SPAWN, 0)
-                .varbit(VarbitID.CAMELOT_SPAWN, 0)
-                .varbit(VarbitID.EDGEVILLE_SPAWN, 0)
-                .varbit(VarbitID.WILDERNESS_SPAWN, 0)
-                .varbit(VarbitID.KOUREND_SPAWN, 0)
-                .varbit(VarbitID.CIVITAS_SPAWN, 0)
+                .spellbook(Spellbook.ARCEUUS)
+                .lock(Unlock.RESPAWN_FALADOR)
+                .lock(Unlock.RESPAWN_CAMELOT)
+                .lock(Unlock.RESPAWN_EDGEVILLE)
+                .lock(Unlock.RESPAWN_FEROX_ENCLAVE)
+                .lock(Unlock.RESPAWN_KOUREND_CASTLE)
+                .lock(Unlock.RESPAWN_CIVITAS_ILLA_FORTIS)
                 .inventory(ItemID.LAWRUNE, 1)
                 .inventory(ItemID.SOULRUNE, 1)
                 .level(Skill.MAGIC, 34))
@@ -1277,13 +1279,13 @@ final class RoutingIssueScenarios {
             .from(3213, 3428, 0).to(3265, 6077, 0)
             .profile(UNIT_TEST)
             .account(a -> a
-                .varbit(VarbitID.SPELLBOOK, 3)
-                .varbit(VarbitID.FALADOR_SPAWN, 0)
-                .varbit(VarbitID.CAMELOT_SPAWN, 0)
-                .varbit(VarbitID.EDGEVILLE_SPAWN, 0)
-                .varbit(VarbitID.WILDERNESS_SPAWN, 0)
-                .varbit(VarbitID.KOUREND_SPAWN, 0)
-                .varbit(VarbitID.CIVITAS_SPAWN, 0)
+                .spellbook(Spellbook.ARCEUUS)
+                .lock(Unlock.RESPAWN_FALADOR)
+                .lock(Unlock.RESPAWN_CAMELOT)
+                .lock(Unlock.RESPAWN_EDGEVILLE)
+                .lock(Unlock.RESPAWN_FEROX_ENCLAVE)
+                .lock(Unlock.RESPAWN_KOUREND_CASTLE)
+                .lock(Unlock.RESPAWN_CIVITAS_ILLA_FORTIS)
                 .inventory(ItemID.LAWRUNE, 1)
                 .inventory(ItemID.SOULRUNE, 1)
                 .level(Skill.MAGIC, 34)
@@ -1316,7 +1318,7 @@ final class RoutingIssueScenarios {
             .from(3160, 3486, 0).to(3040, 4969, 1)
             .profile(UNIT_TEST)
             .account(a -> a
-                .varplayer(VarPlayerID.SLUG2_REGIONUID, 0)
+                .minigameTeleportUsedAt(0)
                 .bank(ItemID.NECKLACE_OF_MINIGAMES_8, 1))
             .settings(bankTeleports())
             .settings(s -> {
@@ -1328,7 +1330,7 @@ final class RoutingIssueScenarios {
             .from(3160, 3486, 0).to(3040, 4969, 1)
             .profile(UNIT_TEST)
             .account(a -> a
-                .varplayer(VarPlayerID.SLUG2_REGIONUID, 0)
+                .minigameTeleportUsedAt(0)
                 .bank(ItemID.NECKLACE_OF_MINIGAMES_8, 1))
             .settings(bankTeleports())
             .settings(s -> {
@@ -1341,7 +1343,7 @@ final class RoutingIssueScenarios {
             .from(3160, 3486, 0).to(3040, 4969, 1)
             .profile(UNIT_TEST)
             .account(a -> a
-                .varplayer(VarPlayerID.SLUG2_REGIONUID, 0)
+                .minigameTeleportUsedAt(0)
                 .bank(ItemID.NECKLACE_OF_MINIGAMES_8, 1))
             .settings(bankTeleports())
             .settings(s -> {
