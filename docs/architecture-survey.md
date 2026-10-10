@@ -378,9 +378,9 @@ search handle.
 | Owned state | The `queries` map and `pendingTasks` list (mutex-guarded, cross-thread); the volatile `ActiveSearch` handle written on the client/worker boundary and read on the render thread; `PendingTask` named here explicitly — it is the scheduler's deferred-work type, not a loose shell class |
 | Subscribed events | None directly — the coordinator invokes it; menu verbs and the plugin-message API call its entry points today |
 | Published facts | `ActiveSearch` — the immutable-ish published handle (path, reachability, cancellation) read by overlays and the debug panel on the render thread; query results delivered through `postQueryResult`/`postQueryFailure` callbacks |
-| Injected dependencies | `PathfinderConfig` and the captured `RequirementContext` as engine inputs; the executor it constructs |
+| Injected dependencies | `PathfinderConfig` and the captured `RequirementContext` as engine inputs; the executor it constructs; `SailingService` — the published boat-state snapshot consumed at dispatch (late-bound via `attach`); `Client` — the documented retained direct reads: `getLocalPlayer`, `getTickCount`, and the `setTargets` start-anchoring (`fromLocalInstance`, `lastLocation`, marker) |
 | Consumers | The coordinator (sole `restartPathfinding` caller in target shape); menu verbs (`setTarget`/`setStart`); the plugin-message API (`queryPath`/`runQuery`, `restartPathfinding("plugin message", …)`); overlays via `getActiveSearch()`; the off-route/target-reached logic in `onGameTick` (`isNearPath`, `reachedDistance`) |
-| Killed seams | Executor/mutex/query internals leave the shell; the ~10 scattered `restartPathfinding` call sites in event handlers collapse to coordinator declarations |
+| Killed seams | Executor/mutex/query internals leave the shell; the ~10 scattered `restartPathfinding` call sites in event handlers collapse to coordinator declarations; the direct boat entity-graph reads (`WorldEntity`/`WorldEntityConfig`/`WorldPointUtil.boat`) moved to `SailingService` — dispatch consumes the published snapshot |
 | Seam anchors | Pinned — `ActiveSearch` is the render-thread read contract, and `restartPathfinding(reason, start, ends, canReviveFiltered)` is the coordinator's sole call in; query/callback plumbing provisional |
 | Extraction PR | Future — the scheduler extraction (lands with the refresh coordinator) |
 | Blast radius | `PendingTask`, `ActiveSearch` plus the executor/mutex/query/target responsibility rows on `ShortestPathPlugin`; `Pathfinder`/`ExactPathfinder` construction sites; harness mirrors (`ProfilingPathfinder`) |
@@ -426,6 +426,28 @@ refresh orchestration.
 | Extraction PR | Future — lands with the scheduler extraction |
 | Blast radius | The refresh-decision responsibility rows on `ShortestPathPlugin`; the `refresh()`/`refreshTransports()`/`eligibilityStale` rows on `PathfinderConfig` |
 | Known violations | None — every site sits in the shell/top-level package today |
+
+### Sailing
+
+The `sailing/` leaf — the milestone's first new cluster since this survey —
+holds the boat-state producer in full producer shape: `SailingService` owns
+every `Client`/entity-graph read, publishes one immutable `SailingState`
+per refresh, and declares typed `SailingChange` facts to the coordinator
+on material change.
+
+| Field | Content |
+|-------|---------|
+| Responsibilities | `SailingService` — the sole boat-state read seam: aboard/base-speed/speed-cap/acceleration varbits, the `WorldPointUtil.boat`/`boatLocation` entity graph, hull config id + bounds, pivots, boat point, heading; publishes one immutable `SailingState` per refresh; `SailingChange` — the typed fact; `materiallyEquals` filters positional drift |
+| Owned state | `private volatile SailingState state` (initialised `EMPTY`; single-write publish) |
+| Subscribed events | `VarbitChanged` arm (`onVarbitChanged(int)` — the four sailing varbit ids), plus the `refresh(PlayerStateSource)` capture hook inside the engine's refresh envelope |
+| Published facts | `SailingState` via `getState()`; `SailingChange` declares (`"varbit:<id>"` + `ROUTE_INVALIDATING`, material changes only) |
+| Injected dependencies | `Client`, `RefreshCoordinator` (declare sink); `PlayerStateSource`/`ClientPlayerStateSource` (capture reads) |
+| Consumers | `PathfinderConfig` (snapshot-derived dispatch inputs + `isOnSailingBoat` delegation), `PathScheduler` (dispatch-time `BoatHull.fromBounds` + start anchor + in-scene guard), `RefreshCoordinator.sailingChanged`, `PathRenderState` (overlays' `isOnSailingBoat`/verdict reads) |
+| Killed seams | `PathScheduler`'s direct entity-graph reads (:394-403 pre-change), `PathfinderConfig`'s duplicated `SAILING_BOARDED_BOAT` capture, the shell's sailing accessors/`COLOUR_SAILING_PATH` |
+| Seam anchors | `SailingState` field contract + `getState()`/`refresh(PlayerStateSource)` + `onVarbitChanged(int)`; `RefreshCoordinator.sailingChanged`; `attach(..., SailingService, ...)`; `PathRenderState`'s read surface |
+| Extraction PR | **Queue record:** upstream-facing sailing-placement rides behind the pending extraction stack (#716/#721/#722/#726/#732/#733/#734) as a stack-top follow-up once the extractions begin merging — upstream master has no leaf packages to place this code into, so a direct upstream sailing diff would re-diff signatures the stack already owns. Placement is inexpressible today, not merely deferred. |
+| Blast radius | the `sailing/` leaf + `PathfinderConfig`, `PathScheduler`, `RefreshCoordinator`, `ShortestPathPlugin`, the three path overlays, `PathRenderState`, the lint tables |
+| Known violations | None — the leaf was born inside the boundary |
 
 ### Plugin-message API
 
@@ -545,7 +567,11 @@ level and quest points) is the extended-index contract four sites share.
 ### Path rendering overlays
 
 The path-drawing trio plus `ArrowHead` — a presentation-seam record: these
-consume the settings service and scheduler output; they own no logic.
+consume the settings service and scheduler output; they own no logic. The
+sailing surface the enumeration covers (`isSailing`, the pivot pair,
+`isPathUnreachable`, the path colour, the `isOnSailingBoat` disembark read)
+already reads the injected `PathRenderState` seam in `scheduler/`; the
+remaining `plugin.*` reads stay presentation-boundary scope.
 
 | Field | Content |
 |-------|---------|
@@ -674,6 +700,16 @@ consumes — recorded here so they are not lost.
   `BankPickupRequirements.compute` takes a `PathfinderConfig` parameter.
   Not shell violations, but boundary notes the player-item-state extraction
   owns: the constants and the config edge move with item state.
+- **Sailing leaf edges.** The dependency rule's edge table gained the five
+  measured sailing edges: `sailing -> scheduler` (`SailingService` declares
+  `SailingChange` facts to the injected `RefreshCoordinator`),
+  `sailing -> requirement` (`PlayerStateSource`/`ClientPlayerStateSource`
+  on the observation arm), `sailing -> settings` (`SailingChange` carries
+  `Effect` values), `scheduler -> sailing` (`RefreshCoordinator` admits
+  `SailingChange`; `PathScheduler`/`PathRenderState` read
+  `SailingService`/`SailingState`), and `pathfinder -> sailing`
+  (`PathfinderConfig` holds the service seam, deriving dispatch inputs
+  from `SailingState`).
 
 ## Middleware re-audit
 
