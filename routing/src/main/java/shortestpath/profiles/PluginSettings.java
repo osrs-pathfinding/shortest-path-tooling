@@ -42,6 +42,7 @@ public class PluginSettings implements ShortestPathConfig {
     private boolean useAgilityShortcuts = true;
     private boolean useGrappleShortcuts = false;
     private boolean useBoats = true;
+    private boolean useSailingMoves = true;
     private boolean useCanoes = false;
     private boolean useCharterShips = false;
     private boolean useShips = true;
@@ -140,6 +141,7 @@ public class PluginSettings implements ShortestPathConfig {
     @Override public boolean useAgilityShortcuts() { return useAgilityShortcuts; }
     @Override public boolean useGrappleShortcuts() { return useGrappleShortcuts; }
     @Override public boolean useBoats() { return useBoats; }
+    @Override public boolean useSailingMoves() { return useSailingMoves; }
     @Override public boolean useCanoes() { return useCanoes; }
     @Override public boolean useCharterShips() { return useCharterShips; }
     @Override public boolean useShips() { return useShips; }
@@ -239,6 +241,7 @@ public class PluginSettings implements ShortestPathConfig {
     public void setUseAgilityShortcuts(boolean v) { useAgilityShortcuts = v; }
     public void setUseGrappleShortcuts(boolean v) { useGrappleShortcuts = v; }
     public void setUseBoats(boolean v) { useBoats = v; }
+    public void setUseSailingMoves(boolean v) { useSailingMoves = v; }
     public void setUseCanoes(boolean v) { useCanoes = v; }
     public void setUseCharterShips(boolean v) { useCharterShips = v; }
     public void setUseShips(boolean v) { useShips = v; }
