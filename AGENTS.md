@@ -28,7 +28,7 @@ around it.
 | `scripts/` | Python orchestration (see Scripts map below). |
 | `tests/` | pytest suite for the Python scripts (`fixtures/` for test data). |
 | `collision-map-update/` | Standalone upstream pipeline pieces: `download-latest-cache.sh`, `CollisionMapDumper.java`, `build.gradle.kts.patch`. |
-| `docs/` | `maintenance.md` runbook, `dashboard-design.md`, performance analysis. |
+| `docs/` | `maintenance.md` runbook, `dashboard-design.md`, `scenarios.md`, `wiki-locations.md` (finding coordinates), performance analysis. |
 
 ## Toolchain
 
@@ -136,6 +136,7 @@ land in the Gradle log — usable when the Var Inspector panel can't copy.
 | `scripts/collision_zip.py` | Shared reader library for `collision-map.zip` (imported by other scripts). |
 | `scripts/analyse_dashboard_runs.py` | Compare two sets of dashboard `report.json` files, per-route deltas. |
 | `scripts/import_issues.py` | Sync upstream Skretzo/shortest-path issues/PRs into local datasets. |
+| `scripts/wiki_locations.py` | Find coordinates on the OSRS Wiki (`page`, `search`, `near`); see `docs/wiki-locations.md`. |
 
 ### Submodule scripts (`shortest-path/scripts/`)
 
@@ -233,6 +234,13 @@ instead of rendered HTML:
 - Append `?action=raw` to the page URL, or
 - call the API directly:
   `https://oldschool.runescape.wiki/api.php?action=parse&page=<page>&prop=wikitext&format=json`
+
+To find **where** something is (scenario endpoints, checking a tile), use
+`scripts/wiki_locations.py`: `page TITLE...` gives coordinates, `search TEXT` finds
+titles, `near X Y PLANE` does reverse lookup. It prints JSON with a `source` string to
+paste into route data. Read `docs/wiki-locations.md` first: most map pins are not in
+the wiki's Bucket API, floors and instances have traps, and a wiki tile is not always
+walkable, so check it with the `route` CLI.
 
 ## Gotchas
 

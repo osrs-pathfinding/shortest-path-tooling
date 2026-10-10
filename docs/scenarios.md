@@ -113,7 +113,8 @@ A route file is a JSON array in the canonical corpus route format:
 Optional fields: `start` (absent: the Grand Exchange), `allowTransports` (default true), `tiers`,
 `negativeProfiles` (profiles that must not reach it), `profiles` (instead of the suite's),
 `category` (default: the id without its number), and the provenance strings `startName`,
-`targetName`, `startSource`, `targetSource`. Unknown fields are rejected — overrides belong in Java.
+`targetName`, `startSource`, `targetSource`. To find coordinates and a source string for a place, see
+[wiki-locations.md](wiki-locations.md). Unknown fields are rejected — overrides belong in Java.
 Each route runs with each profile as scenario `<id>/<profile>`.
 
 ## Running scenarios
