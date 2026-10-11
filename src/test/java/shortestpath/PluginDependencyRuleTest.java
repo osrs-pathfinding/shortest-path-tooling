@@ -170,8 +170,6 @@ public class PluginDependencyRuleTest
 			"PathTileOverlay reads PohService display/exit-info output");
 		LEAF_EDGES.put("pathfinder -> poh",
 			"PathfinderConfig/TransportAvailability delegate POH destination and transport remaps to PohService");
-		LEAF_EDGES.put("poh -> pathfinder",
-			"PohService exit-info walks PathStep positions");
 		LEAF_EDGES.put("poh -> settings",
 			"PohChange/PohService carry Effect facts and share the Settings config-group constant");
 		LEAF_EDGES.put("poh -> transport",
