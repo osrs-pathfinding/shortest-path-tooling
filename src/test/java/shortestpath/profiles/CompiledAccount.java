@@ -28,7 +28,7 @@ public final class CompiledAccount {
         AccountPathfinderConfig config = new AccountPathfinderConfig(client, settings, state);
         config.getItemState().noteBankContainer(HeadlessClient.container(state.bank()));
         if (state.plantedSpiritTrees() != null) {
-            config.availableSpiritTrees = state.plantedSpiritTrees();
+            config.getSpiritTrees().setAvailableSpiritTreesForTest(state.plantedSpiritTrees());
         }
         config.refresh();
         return new CompiledAccount(config, client, settings);

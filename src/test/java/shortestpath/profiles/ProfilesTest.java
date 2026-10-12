@@ -44,11 +44,11 @@ public class ProfilesTest {
 
     @Test
     public void canonicalProfilesPlantSpiritTreesIndependentlyOfThePoh() {
-        assertEquals(Set.of(), canonical("early").getConfig().availableSpiritTrees);
-        assertEquals(Set.of("Farming Guild"), canonical("mid").getConfig().availableSpiritTrees);
-        assertEquals(Set.of("Farming Guild", "Port Sarim"), canonical("end").getConfig().availableSpiritTrees);
+        assertEquals(Set.of(), canonical("early").getConfig().getSpiritTrees().getAvailableSpiritTrees());
+        assertEquals(Set.of("Farming Guild"), canonical("mid").getConfig().getSpiritTrees().getAvailableSpiritTrees());
+        assertEquals(Set.of("Farming Guild", "Port Sarim"), canonical("end").getConfig().getSpiritTrees().getAvailableSpiritTrees());
         assertEquals(Set.of("Farming Guild", "Port Sarim", "Etceteria", "Brimhaven", "Hosidius"),
-            canonical("maxed").getConfig().availableSpiritTrees);
+            canonical("maxed").getConfig().getSpiritTrees().getAvailableSpiritTrees());
         assertFalse(canonical("mid").getSettings().usePohSpiritTree());
         assertTrue(canonical("end").getSettings().usePohSpiritTree());
     }
