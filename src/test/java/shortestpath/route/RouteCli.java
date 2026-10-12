@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import shortestpath.WorldPointUtil;
+import shortestpath.pathfinder.BankVisitState;
 import shortestpath.pathfinder.PathStep;
 import shortestpath.pathfinder.AStarPathfinder;
 import shortestpath.pathfinder.PathfinderConfig;
@@ -181,22 +182,22 @@ public final class RouteCli {
             System.out.println("route:");
             List<PathStep> path = result.getPathSteps();
             System.out.println("  start " + coordinate(path.isEmpty() ? start : path.get(0).getPackedPosition(),
-                !path.isEmpty() && path.get(0).isBankVisited()));
+                !path.isEmpty() && path.get(0).getBankVisitState() == BankVisitState.BANKED));
             for (int i = 1; i < path.size(); i++) {
                 PathStep from = path.get(i - 1);
                 PathStep to = path.get(i);
                 MatchedTransport transport = findAt(transports, i);
-                if (to.isBankVisited() && !from.isBankVisited()) {
+                if (to.getBankVisitState() == BankVisitState.BANKED && from.getBankVisitState() != BankVisitState.BANKED) {
                     System.out.println("  bank-state -> " + coordinate(to.getPackedPosition(), true));
                 }
                 if (transport == null) {
-                    System.out.println("  walk -> " + coordinate(to.getPackedPosition(), to.isBankVisited()));
+                    System.out.println("  walk -> " + coordinate(to.getPackedPosition(), to.getBankVisitState() == BankVisitState.BANKED));
                 } else {
                     String label = transport.label();
                     String details = transport.type + (label.equals(transport.type) ? "" : " \"" + label + "\"");
                     System.out.println("  transport " + details + " "
                         + coordinate(transport.origin) + " -> "
-                        + coordinate(transport.destination, to.isBankVisited()));
+                        + coordinate(transport.destination, to.getBankVisitState() == BankVisitState.BANKED));
                 }
             }
             System.out.println("  final destination: " + coordinate(target));
@@ -278,12 +279,12 @@ public final class RouteCli {
             JsonObject value = new JsonObject();
             value.addProperty("kind", transport == null ? "walk" : "transport");
             value.addProperty("coordinate", coordinate(step.getPackedPosition()));
-            value.addProperty("banked", step.isBankVisited());
+            value.addProperty("banked", step.getBankVisitState() == BankVisitState.BANKED);
             if (transport != null) {
                 value.addProperty("label", transport.label());
                 value.addProperty("type", transport.type);
                 value.add("origin", point(transport.origin, false));
-                value.add("destination", point(transport.destination, step.isBankVisited()));
+                value.add("destination", point(transport.destination, step.getBankVisitState() == BankVisitState.BANKED));
             }
             path.add(value);
         }
@@ -307,7 +308,7 @@ public final class RouteCli {
         JsonArray bankEvents = new JsonArray();
         for (int index = 0; index < steps.size(); index++) {
             PathStep step = steps.get(index);
-            if (step.isBankVisited() && (index == 0 || !steps.get(index - 1).isBankVisited())) {
+            if (step.getBankVisitState() == BankVisitState.BANKED && (index == 0 || steps.get(index - 1).getBankVisitState() != BankVisitState.BANKED)) {
                 JsonObject event = new JsonObject();
                 event.addProperty("stepIndex", index);
                 event.add("location", point(step.getPackedPosition(), true));
@@ -324,14 +325,14 @@ public final class RouteCli {
             Transport transport = transportFor(path.get(i - 1), path.get(i), config);
             if (transport != null) {
                 result.add(new MatchedTransport(i, path.get(i - 1).getPackedPosition(),
-                    path.get(i).getPackedPosition(), path.get(i).isBankVisited(), transport));
+                    path.get(i).getPackedPosition(), path.get(i).getBankVisitState() == BankVisitState.BANKED, transport));
             }
         }
         return result;
     }
 
     private static Transport transportFor(PathStep from, PathStep to, PathfinderConfig config) {
-        boolean banked = to.isBankVisited();
+        BankVisitState banked = to.getBankVisitState();
         Transport[] local = config.getTransportsPacked(banked)
             .getOrDefault(from.getPackedPosition(), TransportAvailability.EMPTY_TRANSPORTS);
         List<Transport> candidates = new ArrayList<>();

@@ -16,6 +16,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import shortestpath.WorldPointUtil;
+import shortestpath.pathfinder.BankVisitState;
 import shortestpath.route.RouteCli;
 import shortestpath.scenarios.CanonicalCorpus;
 import shortestpath.scenarios.Observation;
@@ -125,7 +126,7 @@ public class BenchmarkMainTest {
     }
 
     private static boolean hasFishingTrawlerTeleport(shortestpath.profiles.CompiledAccount account) {
-        return java.util.Arrays.stream(account.getConfig().getUsableTeleports(false))
+        return java.util.Arrays.stream(account.getConfig().getUsableTeleports(BankVisitState.CARRIED))
             .anyMatch(transport -> "Fishing Trawler Minigame Teleport".equals(transport.getDisplayInfo()));
     }
 

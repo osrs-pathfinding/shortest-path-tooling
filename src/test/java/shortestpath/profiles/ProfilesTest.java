@@ -20,6 +20,7 @@ import org.junit.Test;
 import shortestpath.WorldPointUtil;
 import shortestpath.accounts.Poh;
 import shortestpath.accounts.canonical.CanonicalAccounts;
+import shortestpath.pathfinder.BankVisitState;
 import shortestpath.poh.PohMountedItem;
 import shortestpath.poh.PohNexusPortal;
 
@@ -64,9 +65,9 @@ public class ProfilesTest {
     public void earlyFishingTrawlerTeleportUsesTheProfileClock() {
         Setup cooldown = Profiles.EARLY.setup(new ProfileContext(WorldPointUtil.UNDEFINED, true));
         cooldown.account.minigameTeleportUsedAt(CanonicalAccounts.NOW_MINUTES - 10);
-        assertTrue(Arrays.stream(canonical("early").getConfig().getUsableTeleports(false))
+        assertTrue(Arrays.stream(canonical("early").getConfig().getUsableTeleports(BankVisitState.CARRIED))
             .anyMatch(transport -> "Fishing Trawler Minigame Teleport".equals(transport.getDisplayInfo())));
-        assertTrue(Arrays.stream(cooldown.compile().getConfig().getUsableTeleports(false))
+        assertTrue(Arrays.stream(cooldown.compile().getConfig().getUsableTeleports(BankVisitState.CARRIED))
             .noneMatch(transport -> "Fishing Trawler Minigame Teleport".equals(transport.getDisplayInfo())));
     }
 
