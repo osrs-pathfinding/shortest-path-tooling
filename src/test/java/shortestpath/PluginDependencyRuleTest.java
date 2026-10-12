@@ -82,7 +82,7 @@ public class PluginDependencyRuleTest
 	private static final List<String> LEAF_PACKAGES = List.of(
 		"transport", "pathfinder", "requirement", "leagues", "overlay",
 		"settings", "items", "spirittree", "poh", "scheduler", "sailing",
-		"widgets");
+		"widgets", "api", "presentation");
 
 	private static final String PLUGIN_REFERENCE = "ShortestPathPlugin.";
 
@@ -145,7 +145,7 @@ public class PluginDependencyRuleTest
 		LEAF_EDGES.put("items -> pathfinder",
 			"ItemStateService reads PathStep/PathfinderConfig for the bank-pickup projection");
 		LEAF_EDGES.put("items -> requirement",
-			"ItemStateService.collectEligibility shares PlayerStateSource/TransportEligibility/BankPickupResult/Unlock");
+			"ItemStateService.collectEligibility shares PlayerStateSource/TransportEligibility/Unlock; BankPickupResult is shared from presentation/BankPickupRequirements");
 		LEAF_EDGES.put("items -> settings",
 			"ItemChange/ItemStateService read the TeleportationItem setting and Effect facts");
 		LEAF_EDGES.put("pathfinder -> items",
@@ -220,6 +220,42 @@ public class PluginDependencyRuleTest
 		LEAF_EDGES.put("scheduler -> sailing",
 			"RefreshCoordinator admits SailingChange; PathScheduler/PathRenderState read SailingService/SailingState");
 
+		// api + presentation packages — the plugin-message/menu-verb and
+		// transport-presentation extraction's seams. The api leaf's outbound
+		// edges are the QueryResponder contract plus the serializers' reads
+		// of the injected seams; the presentation leaf's outbound edges are
+		// the annotator's edge-walk inputs. The inbound edges are the
+		// consumers that read BankPickupResult at its new home after the
+		// requirement/ -> presentation/ whole-type move.
+		LEAF_EDGES.put("api -> pathfinder",
+			"PluginMessageHandler serializers walk PathStep/PathfinderResult/ActiveSearch; MenuVerbs reads ActiveSearch/PathStep");
+		LEAF_EDGES.put("api -> presentation",
+			"PluginMessageHandler serializers and MenuVerbs annotate edges through the injected PathAnnotator");
+		LEAF_EDGES.put("api -> scheduler",
+			"PluginMessageHandler implements the QueryResponder seam and reads PathScheduler/RefreshCoordinator state");
+		LEAF_EDGES.put("api -> settings",
+			"PluginMessageHandler reads Settings for CONFIG_GROUP and the config-override echo path");
+		LEAF_EDGES.put("api -> transport",
+			"the transports serializer emits Transport records in the wire payload");
+		LEAF_EDGES.put("api -> widgets",
+			"MenuVerbs reads the injected WidgetGeometry seam (getSelectedWorldPoint)");
+		LEAF_EDGES.put("items -> presentation",
+			"ItemStateService imports BankPickupResult from presentation/BankPickupRequirements");
+		LEAF_EDGES.put("overlay -> presentation",
+			"overlays read BankPickupRequirements/BankPickupResult at its new presentation home");
+		LEAF_EDGES.put("pathfinder -> presentation",
+			"PathfinderConfig's getBankPickup facade signature references BankPickupResult");
+		LEAF_EDGES.put("presentation -> items",
+			"PathAnnotator delegates getBankPickup to the injected ItemStateService");
+		LEAF_EDGES.put("presentation -> pathfinder",
+			"PathAnnotator walks edges via PathStep/PathfinderConfig/TransportAvailability; BankPickupRequirements keeps its pathfinder reads");
+		LEAF_EDGES.put("presentation -> poh",
+			"PathAnnotator reads PohService for POH exit info and inside-POH display policy");
+		LEAF_EDGES.put("presentation -> requirement",
+			"BankPickupRequirements carries its TransportEligibility/TransportItems reads through the requirement/ move; PathAnnotator reads TransportEligibility");
+		LEAF_EDGES.put("presentation -> transport",
+			"PathAnnotator/BankPickupRequirements read Transport/TransportType for display formatting and eligibility");
+
 		// Pre-existing edges frozen at lint introduction.
 		LEAF_EDGES.put("leagues -> requirement",
 			"LeagueModeState builds requirement checks");
@@ -242,7 +278,7 @@ public class PluginDependencyRuleTest
 		LEAF_EDGES.put("requirement -> leagues",
 			"requirements consult league-region checks");
 		LEAF_EDGES.put("requirement -> pathfinder",
-			"BankPickupRequirements walks PathStep/PathfinderConfig/TransportAvailability");
+			"Requirements/TransportEligibility read BankVisitState; BankPickupRequirements moved to presentation");
 		LEAF_EDGES.put("requirement -> settings",
 			"RoutingPolicy/TransportEligibility read settings types");
 		LEAF_EDGES.put("requirement -> transport",
