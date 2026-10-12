@@ -242,7 +242,9 @@ public class PluginDependencyRuleTest
 		LEAF_EDGES.put("items -> presentation",
 			"ItemStateService imports BankPickupResult from presentation/BankPickupRequirements");
 		LEAF_EDGES.put("overlay -> presentation",
-			"overlays read BankPickupRequirements/BankPickupResult at its new presentation home");
+			"overlays read the PathAnnotator seam and BankPickupRequirements/BankPickupResult at its new presentation home");
+		LEAF_EDGES.put("overlay -> widgets",
+			"PathMapOverlay/PathMinimapOverlay/PathMapTooltipOverlay read the injected WidgetGeometry for map/minimap geometry");
 		LEAF_EDGES.put("pathfinder -> presentation",
 			"PathfinderConfig's getBankPickup facade signature references BankPickupResult");
 		LEAF_EDGES.put("presentation -> items",
