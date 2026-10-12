@@ -3,6 +3,7 @@ package shortestpath.pathfinder;
 import java.util.Map;
 import java.util.Set;
 import shortestpath.Destination;
+import shortestpath.poh.PohService;
 import shortestpath.requirement.model.DestinationRequirements;
 import shortestpath.transport.Transport;
 import shortestpath.transport.TransportLoader;
@@ -22,7 +23,7 @@ public final class PluginResources {
 
         private static Map<Integer, Set<Transport>> load() {
             Map<Integer, Set<Transport>> transports = TransportLoader.loadAllFromResources();
-            PathfinderConfig.remapPohDestinations(transports);
+            PohService.remapPohDestinations(transports);
             return transports;
         }
     }

@@ -20,8 +20,8 @@ import org.junit.Test;
 import shortestpath.WorldPointUtil;
 import shortestpath.accounts.Poh;
 import shortestpath.accounts.canonical.CanonicalAccounts;
-import shortestpath.transport.PohMountedItem;
-import shortestpath.transport.PohNexusPortal;
+import shortestpath.poh.PohMountedItem;
+import shortestpath.poh.PohNexusPortal;
 
 public class ProfilesTest {
     private static CompiledAccount canonical(String name) {

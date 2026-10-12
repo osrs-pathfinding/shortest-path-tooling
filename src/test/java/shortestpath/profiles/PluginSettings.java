@@ -7,8 +7,8 @@ import shortestpath.ShortestPathConfig;
 import shortestpath.settings.TeleportationItem;
 import shortestpath.accounts.Poh;
 import shortestpath.pathfinder.PathfinderBackend;
-import shortestpath.transport.PohNexusPortal;
-import shortestpath.transport.PohMountedItem;
+import shortestpath.poh.PohNexusPortal;
+import shortestpath.poh.PohMountedItem;
 
 /**
  * The plugin settings a route is planned with: a mutable {@link ShortestPathConfig}. Every
