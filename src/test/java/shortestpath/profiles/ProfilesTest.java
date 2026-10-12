@@ -31,7 +31,7 @@ public class ProfilesTest {
     @Test
     public void canonicalProfilesUseConcreteFactsAndQuestStates() {
         CompiledAccount mid = canonical("mid");
-        assertNotNull(mid.getConfig().bank);
+        assertNotNull(mid.getConfig().getItemState().getBank());
         assertEquals(80, mid.getClient().getBoostedSkillLevel(Skill.ATTACK));
         assertEquals(1, mid.getClient().getVarbitValue(VarbitID.ARDOUGNE_DIARY_HARD_COMPLETE));
         assertEquals(QuestState.FINISHED, mid.getConfig().getQuestState(Quest.THE_GRAND_TREE));
@@ -80,7 +80,7 @@ public class ProfilesTest {
         assertEquals(QuestState.FINISHED, unitTest.getConfig().getQuestState(Quest.RUM_DEAL));
         assertEquals(30, unitTest.getSettings().calculationCutoff());
         assertNull(unitTest.getClient().getItemContainer(InventoryID.INV));
-        assertNull(unitTest.getConfig().bank);
+        assertNull(unitTest.getConfig().getItemState().getBank());
         assertEquals(3222, unitTest.getClient().getLocalPlayer().getWorldLocation().getX());
 
         CompiledAccount seasonal = Profiles.SEASONAL.setup(new ProfileContext(start, true)).compile();

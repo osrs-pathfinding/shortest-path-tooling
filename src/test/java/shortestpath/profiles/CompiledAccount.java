@@ -26,7 +26,7 @@ public final class CompiledAccount {
         ClientState state = AccountCompiler.compile(account);
         Client client = HeadlessClient.of(state);
         AccountPathfinderConfig config = new AccountPathfinderConfig(client, settings, state);
-        config.bank = HeadlessClient.container(state.bank());
+        config.getItemState().noteBankContainer(HeadlessClient.container(state.bank()));
         if (state.plantedSpiritTrees() != null) {
             config.availableSpiritTrees = state.plantedSpiritTrees();
         }
