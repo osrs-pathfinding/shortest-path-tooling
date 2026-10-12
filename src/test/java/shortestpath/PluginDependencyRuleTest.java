@@ -81,7 +81,8 @@ public class PluginDependencyRuleTest
 	// New leaf packages must be added here — the lint only covers what it enumerates.
 	private static final List<String> LEAF_PACKAGES = List.of(
 		"transport", "pathfinder", "requirement", "leagues", "overlay",
-		"settings", "items", "spirittree", "poh", "scheduler", "sailing");
+		"settings", "items", "spirittree", "poh", "scheduler", "sailing",
+		"widgets");
 
 	private static final String PLUGIN_REFERENCE = "ShortestPathPlugin.";
 
