@@ -61,11 +61,12 @@ import static org.junit.Assert.*;
  * field, as several overlay classes do today — is not counted. Those sites
  * are documented in the architectural survey and migrate with their owning
  * extractions; widening the token set is a future enhancement, not a
- * silent rule change. And when the last allowlist entry is retired,
- * {@link #scanHasReach()} intentionally fails: the empty-allowlist
- * assertion exists to prevent a vacuous guard, so the change that removes
- * the final coupling should delete this lint (or relax that assertion) in
- * the same commit.
+ * silent rule change. The last allowlist entry retired with the resource
+ * anchors' migration to the self-anchored loader, so the formerly
+ * vacuous-guard assertion in {@link #scanHasReach()} was relaxed in the
+ * same change; the freeze mechanism stays — any new
+ * {@code ShortestPathPlugin.} site in a leaf package still fails the
+ * build.
  *
  * <p>Two maintenance properties to know before touching allowlisted code.
  * The match is a raw substring scan — comments and string literals
@@ -94,18 +95,6 @@ public class PluginDependencyRuleTest
 	 * are removed, never added.
 	 */
 	private static final Map<String, String> ALLOWLIST = new TreeMap<>();
-
-	static
-	{
-		// Resource anchors — plugin-class resource reads that die when the
-		// data loader anchors on its own class.
-		ALLOWLIST.put("shortestpath/transport/TransportLoader.java:33",
-			"resource anchor — transport TSV read; the loader migrates self-anchored");
-		ALLOWLIST.put("shortestpath/pathfinder/SplitFlagMap.java:100",
-			"resource anchor — collision-map resource read; the loader migrates self-anchored");
-		ALLOWLIST.put("shortestpath/leagues/LeagueRegionChecker.java:105",
-			"resource anchor — league-region TSV read; the loader migrates self-anchored");
-	}
 
 	/**
 	 * Matches an import of a leaf-package type:
@@ -261,6 +250,8 @@ public class PluginDependencyRuleTest
 		// Pre-existing edges frozen at lint introduction.
 		LEAF_EDGES.put("leagues -> requirement",
 			"LeagueModeState builds requirement checks");
+		LEAF_EDGES.put("leagues -> transport",
+			"LeagueRegionChecker delegates the regions TSV load to ResourceLoader");
 		LEAF_EDGES.put("overlay -> pathfinder",
 			"overlays read PathStep/PathfinderConfig path state");
 		LEAF_EDGES.put("overlay -> requirement",
@@ -416,11 +407,17 @@ public class PluginDependencyRuleTest
 		assertTrue(message.toString(), unlisted.isEmpty() && stale.isEmpty());
 	}
 
+	/**
+	 * Reach check: every enumerated leaf package must still resolve to a
+	 * directory containing {@code .java} sources, so a renamed or relocated
+	 * package cannot silently empty the scan. The frozen allowlist may now be
+	 * empty — all plugin-class resource anchors migrated to the
+	 * self-anchored loader — and the plugin-reference scan remains enforced
+	 * with zero tolerated sites.
+	 */
 	@Test
 	public void scanHasReach() throws IOException
 	{
-		assertFalse("the frozen allowlist must not be empty — a vacuous guard "
-			+ "is worse than none", ALLOWLIST.isEmpty());
 		Path base = MAIN_ROOT.resolve("shortestpath");
 		for (String pkg : LEAF_PACKAGES)
 		{
