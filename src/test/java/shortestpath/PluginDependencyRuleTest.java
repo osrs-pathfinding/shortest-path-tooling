@@ -151,6 +151,8 @@ public class PluginDependencyRuleTest
 			"SpiritTreeService reads PlayerStateSource for the availability refresh");
 		LEAF_EDGES.put("spirittree -> settings",
 			"TreeChange/SpiritTreeService read Effect facts and the teleportation settings");
+		LEAF_EDGES.put("spirittree -> widgets",
+			"SpiritTreeService reads the travel-menu row texts through the injected GameWidgets seam");
 
 		// poh package — the extraction's seams. The inbound edges are the
 		// consumers that used to read the shell statics; the outbound edges
@@ -163,6 +165,8 @@ public class PluginDependencyRuleTest
 			"PohChange/PohService carry Effect facts and share the Settings config-group constant");
 		LEAF_EDGES.put("poh -> transport",
 			"PohService remap signatures read Transport/TransportType");
+		LEAF_EDGES.put("poh -> widgets",
+			"PohService reads the nexus keyed-row and slot-list texts through the injected GameWidgets seam");
 		LEAF_EDGES.put("requirement -> poh",
 			"RoutingPolicy/Requirements delegate the POH gates' enablement reads to PohService");
 		LEAF_EDGES.put("settings -> poh",
