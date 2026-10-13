@@ -2,11 +2,10 @@ package shortestpath.pathfinder;
 
 import java.util.Map;
 import java.util.Set;
-import shortestpath.Destination;
 import shortestpath.poh.PohService;
 import shortestpath.requirement.model.DestinationRequirements;
+import shortestpath.transport.ResourceLoader;
 import shortestpath.transport.Transport;
-import shortestpath.transport.TransportLoader;
 
 /**
  * The plugin's world data, loaded once per JVM and shared by every headless
@@ -22,16 +21,16 @@ public final class PluginResources {
         static final Map<Integer, Set<Transport>> ALL = load();
 
         private static Map<Integer, Set<Transport>> load() {
-            Map<Integer, Set<Transport>> transports = TransportLoader.loadAllFromResources();
+            Map<Integer, Set<Transport>> transports = ResourceLoader.transports();
             PohService.remapPohDestinations(transports);
             return transports;
         }
     }
 
     private static final class Destinations {
-        static final Map<String, Set<Integer>> ALL = Destination.loadAllFromResources();
+        static final Map<String, Set<Integer>> ALL = ResourceLoader.destinations();
         static final Map<String, Set<Integer>> FILTERED = PathfinderConfig.filterDestinations(ALL);
-        static final Map<Integer, DestinationRequirements> BANKS = Destination.loadBankRequirementsFromResources();
+        static final Map<Integer, DestinationRequirements> BANKS = ResourceLoader.bankRequirements();
     }
 
     private static final class CollisionData {

@@ -17,7 +17,7 @@ import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.PathStep;
 import shortestpath.pathfinder.TransportAvailability;
 import shortestpath.transport.Transport;
-import shortestpath.transport.TransportLoader;
+import shortestpath.transport.ResourceLoader;
 import shortestpath.transport.TransportType;
 import shortestpath.requirement.model.ItemRequirement;
 import shortestpath.requirement.model.TransportItems;
@@ -139,7 +139,7 @@ public class PathfinderDashboardReportWriter {
     // Reachability dashboards use one concrete PathfinderConfig, so the overlay can classify transports by whether
     // they are available before banking, after banking, or not available in that config at all.
     public List<PathfinderDashboardModels.TransportLayerTransport> createTransportLayerPoints(PathfinderConfig config) {
-        Map<TransportKey, Transport> allTransports = indexTransports(TransportLoader.loadAllFromResources());
+        Map<TransportKey, Transport> allTransports = indexTransports(ResourceLoader.transports());
         Set<TransportKey> withoutBank = collectAvailableTransportKeys(config, BankVisitState.CARRIED);
         Set<TransportKey> withBank = collectAvailableTransportKeys(config, BankVisitState.BANKED);
         return createTransportLayerPoints(allTransports, withoutBank, withBank);
@@ -148,7 +148,7 @@ public class PathfinderDashboardReportWriter {
     // Scenario dashboards mix many bespoke test setups together, so the most useful overlay is the full transport
     // graph rendered as available everywhere rather than a misleading snapshot from one scenario's config.
     public List<PathfinderDashboardModels.TransportLayerTransport> createTransportLayerPointsAlwaysAvailable() {
-        Map<TransportKey, Transport> allTransports = indexTransports(TransportLoader.loadAllFromResources());
+        Map<TransportKey, Transport> allTransports = indexTransports(ResourceLoader.transports());
         return createTransportLayerPoints(allTransports, allTransports.keySet(), allTransports.keySet());
     }
 

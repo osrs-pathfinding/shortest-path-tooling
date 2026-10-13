@@ -5,14 +5,13 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Set;
-import shortestpath.Destination;
 import shortestpath.ShortestPathPlugin;
 import shortestpath.pathfinder.CollisionMap;
 import shortestpath.pathfinder.SplitFlagMap;
 import shortestpath.pathfinder.astar.RoutingCuts;
 import shortestpath.pathfinder.astar.RoutingStaticBuilder;
+import shortestpath.transport.ResourceLoader;
 import shortestpath.transport.Transport;
-import shortestpath.transport.TransportLoader;
 
 /**
  * Reports how well a cut file fits the plugin's current collision map: how many cuts no longer
@@ -32,8 +31,8 @@ public final class RoutingCutsReport
 			collisionZip = stream.readAllBytes();
 		}
 		CollisionMap collision = new CollisionMap(SplitFlagMap.fromResources());
-		Map<Integer, Set<Transport>> transports = TransportLoader.loadAllFromResources();
-		Set<Integer> banks = Destination.loadAllFromResources().get("bank");
+		Map<Integer, Set<Transport>> transports = ResourceLoader.transports();
+		Set<Integer> banks = ResourceLoader.destinations().get("bank");
 		RoutingStaticBuilder.Diagnostics diagnostics = RoutingStaticBuilder.build(collision, transports,
 			banks == null ? Set.of() : banks, cuts.pairs()).diagnostics;
 

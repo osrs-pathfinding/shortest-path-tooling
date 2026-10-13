@@ -16,7 +16,7 @@ import shortestpath.pathfinder.SplitFlagMap;
 import shortestpath.pathfinder.astar.RoutingCuts;
 import shortestpath.pathfinder.astar.RoutingStaticBuilder;
 import shortestpath.transport.Transport;
-import shortestpath.transport.TransportLoader;
+import shortestpath.transport.ResourceLoader;
 
 /**
  * Generates {@code routing-cuts.bin} for the A* backend by recursively partitioning large,
@@ -207,7 +207,7 @@ public final class RoutingCutsGenerator
 			collisionZip = stream.readAllBytes();
 		}
 		CollisionMap collision = new CollisionMap(SplitFlagMap.fromResources());
-		Map<Integer, Set<Transport>> transports = TransportLoader.loadAllFromResources();
+		Map<Integer, Set<Transport>> transports = ResourceLoader.transports();
 		CutGraph graph = CutGraph.of(RoutingStaticBuilder.walkingGraph(collision, transports));
 
 		RoutingCutsGenerator generator = new RoutingCutsGenerator(graph, DEFAULT_PARAMETERS,
