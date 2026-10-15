@@ -124,42 +124,38 @@ public class PluginDependencyRuleTest
 	 * the build until it is justified here, and an entry whose edge
 	 * disappeared fails until it is removed in the same change.
 	 *
-	 * <p>The {@code items} pairs are the extraction's documented seams:
-	 * {@code items -> requirement}/{@code requirement -> items} share the
-	 * eligibility snapshot and player-state source, and
-	 * {@code items -> pathfinder}/{@code pathfinder -> items} are the
-	 * bank-pickup projection and its {@code getBankPickup} facade — the
-	 * projection is a candidate for moving back onto
-	 * {@code PathfinderConfig} if the mutual edge needs breaking. The
-	 * {@code spirittree <-> requirement} pair is likewise a documented
-	 * seam: the service reads {@code PlayerStateSource} while the
-	 * requirement side consumes its statics
-	 * ({@code patchNameForTile}/{@code modalWidgetOpen}) — candidates for a
-	 * leaf-neutral type if the mutual edge needs breaking.
+	 * <p>The {@code items} pairs are the extraction's consumer/producer
+	 * seams: {@code items -> requirement}/{@code requirement -> items}
+	 * share the eligibility snapshot and player-state source, and
+	 * {@code pathfinder -> items} is {@code PathfinderConfig} holding the
+	 * {@code ItemStateService} reference (revision counter + bank state)
+	 * for the config-owned bank-pickup projection. The
+	 * {@code spirittree -> requirement} edge is the service reading
+	 * {@code PlayerStateSource} for the availability refresh and the
+	 * patch table in {@code SpiritTreePatches}; requirement code consumes
+	 * the patch table directly and asks {@code ClientPlayerStateSource}
+	 * for the modal-widget state, so no requirement -> spirittree edge
+	 * remains.
 	 */
 	private static final Map<String, String> LEAF_EDGES = new TreeMap<>();
 
 	static
 	{
 		// items package — the extraction's consumer/producer seams.
-		LEAF_EDGES.put("items -> pathfinder",
-			"ItemStateService reads PathStep/PathfinderConfig for the bank-pickup projection");
 		LEAF_EDGES.put("items -> requirement",
 			"ItemStateService.collectEligibility shares PlayerStateSource/TransportEligibility/Unlock; BankPickupResult is shared from presentation/BankPickupRequirements");
 		LEAF_EDGES.put("items -> settings",
 			"ItemChange/ItemStateService read the TeleportationItem setting and Effect facts");
 		LEAF_EDGES.put("pathfinder -> items",
-			"PathfinderConfig holds the ItemStateService reference and the getBankPickup facade");
+			"PathfinderConfig holds the ItemStateService reference (revision counter and bank state) for the config-owned bank-pickup projection");
 		LEAF_EDGES.put("requirement -> items",
 			"ClientPlayerStateSource/RequirementContext read OwnedItems and collectEligibility");
 
 		// spirittree package — the extraction's seams.
 		LEAF_EDGES.put("pathfinder -> spirittree",
 			"PathfinderConfig holds the SpiritTreeService reference");
-		LEAF_EDGES.put("requirement -> spirittree",
-			"Requirements/ClientPlayerStateSource consume SpiritTreeService.patchNameForTile and modalWidgetOpen");
 		LEAF_EDGES.put("spirittree -> requirement",
-			"SpiritTreeService reads PlayerStateSource for the availability refresh");
+			"SpiritTreeService reads PlayerStateSource for the availability refresh and SpiritTreePatches for the travel-menu rows");
 		LEAF_EDGES.put("spirittree -> settings",
 			"TreeChange/SpiritTreeService read Effect facts and the teleportation settings");
 
@@ -239,8 +235,8 @@ public class PluginDependencyRuleTest
 			"the transports serializer emits Transport records in the wire payload");
 		LEAF_EDGES.put("api -> widgets",
 			"MenuVerbs reads the injected WidgetGeometry seam (getSelectedWorldPoint)");
-		LEAF_EDGES.put("items -> presentation",
-			"ItemStateService imports BankPickupResult from presentation/BankPickupRequirements");
+		LEAF_EDGES.put("api -> requirement",
+			"PluginMessageTargets serializes requirement-model types into the wire payload");
 		LEAF_EDGES.put("overlay -> presentation",
 			"overlays read the PathAnnotator seam and BankPickupRequirements/BankPickupResult at its new presentation home");
 		LEAF_EDGES.put("overlay -> widgets",
@@ -248,7 +244,7 @@ public class PluginDependencyRuleTest
 		LEAF_EDGES.put("pathfinder -> presentation",
 			"PathfinderConfig's getBankPickup facade signature references BankPickupResult");
 		LEAF_EDGES.put("presentation -> items",
-			"PathAnnotator delegates getBankPickup to the injected ItemStateService");
+			"PathAnnotator reads bank-open state through the injected ItemStateService");
 		LEAF_EDGES.put("presentation -> pathfinder",
 			"PathAnnotator walks edges via PathStep/PathfinderConfig/TransportAvailability; BankPickupRequirements keeps its pathfinder reads");
 		LEAF_EDGES.put("presentation -> poh",
