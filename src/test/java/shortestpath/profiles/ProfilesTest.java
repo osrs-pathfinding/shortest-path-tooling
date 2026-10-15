@@ -31,7 +31,7 @@ public class ProfilesTest {
     @Test
     public void canonicalProfilesUseConcreteFactsAndQuestStates() {
         CompiledAccount mid = canonical("mid");
-        assertNotNull(mid.getConfig().getItemState().getBank());
+        assertNotNull(mid.getItemState().getBank());
         assertEquals(80, mid.getClient().getBoostedSkillLevel(Skill.ATTACK));
         assertEquals(1, mid.getClient().getVarbitValue(VarbitID.ARDOUGNE_DIARY_HARD_COMPLETE));
         assertEquals(QuestState.FINISHED, mid.getConfig().getQuestState(Quest.THE_GRAND_TREE));
@@ -44,11 +44,11 @@ public class ProfilesTest {
 
     @Test
     public void canonicalProfilesPlantSpiritTreesIndependentlyOfThePoh() {
-        assertEquals(Set.of(), canonical("early").getConfig().getSpiritTrees().getAvailableSpiritTrees());
-        assertEquals(Set.of("Farming Guild"), canonical("mid").getConfig().getSpiritTrees().getAvailableSpiritTrees());
-        assertEquals(Set.of("Farming Guild", "Port Sarim"), canonical("end").getConfig().getSpiritTrees().getAvailableSpiritTrees());
+        assertEquals(Set.of(), canonical("early").getSpiritTrees().getAvailableSpiritTrees());
+        assertEquals(Set.of("Farming Guild"), canonical("mid").getSpiritTrees().getAvailableSpiritTrees());
+        assertEquals(Set.of("Farming Guild", "Port Sarim"), canonical("end").getSpiritTrees().getAvailableSpiritTrees());
         assertEquals(Set.of("Farming Guild", "Port Sarim", "Etceteria", "Brimhaven", "Hosidius"),
-            canonical("maxed").getConfig().getSpiritTrees().getAvailableSpiritTrees());
+            canonical("maxed").getSpiritTrees().getAvailableSpiritTrees());
         assertFalse(canonical("mid").getSettings().usePohSpiritTree());
         assertTrue(canonical("end").getSettings().usePohSpiritTree());
     }
@@ -80,7 +80,7 @@ public class ProfilesTest {
         assertEquals(QuestState.FINISHED, unitTest.getConfig().getQuestState(Quest.RUM_DEAL));
         assertEquals(30, unitTest.getSettings().calculationCutoff());
         assertNull(unitTest.getClient().getItemContainer(InventoryID.INV));
-        assertNull(unitTest.getConfig().getItemState().getBank());
+        assertNull(unitTest.getItemState().getBank());
         assertEquals(3222, unitTest.getClient().getLocalPlayer().getWorldLocation().getX());
 
         CompiledAccount seasonal = Profiles.SEASONAL.setup(new ProfileContext(start, true)).compile();
