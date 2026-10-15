@@ -194,8 +194,6 @@ public class PluginDependencyRuleTest
 		// debug overlay reading the injectable diagnostics state.
 		LEAF_EDGES.put("overlay -> scheduler",
 			"DebugOverlayPanel injects and reads DebugState directly");
-		LEAF_EDGES.put("scheduler -> items",
-			"PathScheduler.attach takes the ItemStateService for refresh routing");
 		LEAF_EDGES.put("scheduler -> pathfinder",
 			"PathScheduler drives Pathfinder/ActiveSearch/PathfinderConfig/PathStep");
 
