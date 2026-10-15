@@ -116,7 +116,7 @@ public class PluginDependencyRuleTest
 			"import static of POH_LANDING_Y — migrates to the POH service");
 
 		// isInsidePoh world-geometry reads — migrate to the POH service.
-		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:770",
+		ALLOWLIST.put("shortestpath/pathfinder/PathfinderConfig.java:766",
 			"isInsidePoh redirect filter — migrates to the POH service");
 		ALLOWLIST.put("shortestpath/pathfinder/TransportAvailability.java:104",
 			"isInsidePoh origin check — migrates to the POH service");
@@ -168,29 +168,28 @@ public class PluginDependencyRuleTest
 	 * the build until it is justified here, and an entry whose edge
 	 * disappeared fails until it is removed in the same change.
 	 *
-	 * <p>The {@code items} pairs are the extraction's documented seams:
-	 * {@code items -> requirement}/{@code requirement -> items} share the
-	 * eligibility snapshot and player-state source, and
-	 * {@code items -> pathfinder}/{@code pathfinder -> items} are the
-	 * bank-pickup projection and its {@code getBankPickup} facade — the
-	 * projection is a candidate for moving back onto
-	 * {@code PathfinderConfig} if the mutual edge needs breaking.
+	 * <p>The {@code items} pairs are the extraction's consumer/producer
+	 * seams: {@code items -> requirement}/{@code requirement -> items}
+	 * share the eligibility snapshot and player-state source, and
+	 * {@code pathfinder -> items} is {@code PathfinderConfig} holding the
+	 * {@code ItemStateService} reference (revision counter + bank state)
+	 * for the config-owned bank-pickup projection.
 	 */
 	private static final Map<String, String> LEAF_EDGES = new TreeMap<>();
 
 	static
 	{
 		// items package — the extraction's consumer/producer seams.
-		LEAF_EDGES.put("items -> pathfinder",
-			"ItemStateService reads PathStep/PathfinderConfig for the bank-pickup projection");
 		LEAF_EDGES.put("items -> requirement",
 			"ItemStateService.collectEligibility shares PlayerStateSource/TransportEligibility/BankPickupResult/Unlock");
 		LEAF_EDGES.put("items -> settings",
 			"ItemChange/ItemStateService read the TeleportationItem setting and Effect facts");
 		LEAF_EDGES.put("pathfinder -> items",
-			"PathfinderConfig holds the ItemStateService reference and the getBankPickup facade");
+			"PathfinderConfig holds the ItemStateService reference (revision counter and bank state) for the config-owned bank-pickup projection");
 		LEAF_EDGES.put("requirement -> items",
 			"ClientPlayerStateSource/RequirementContext read OwnedItems and collectEligibility");
+		LEAF_EDGES.put("overlay -> items",
+			"BankItemHighlightOverlay injects ItemStateService for bank-open state and seeds the pickup call's revision check");
 
 		// Pre-existing edges frozen at lint introduction.
 		LEAF_EDGES.put("leagues -> requirement",
