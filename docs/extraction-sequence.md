@@ -84,7 +84,12 @@ same gate:
 - `./gradlew test --tests '*DependencyRule*'` stays green — the frozen
   coupling allowlist only shrinks: entries a row retires leave in the
   same change, and no new leaf-package reference to the plugin shell may
-  appear.
+  appear. Two lint boundaries to keep in mind: the scan token is the
+  dotted `ShortestPathPlugin.` form, so injected-instance coupling (the
+  overlay classes' `plugin` field pattern) is tracked by the survey, not
+  the lint; and the change that retires the last allowlist entry must
+  delete the lint or relax its non-vacuousness assertion — an empty
+  allowlist fails the guard on purpose.
 - One subsystem per PR. Mechanical cross-cuts (the enum row) are the only
   exception, and they stand alone rather than nesting inside a subsystem.
 
