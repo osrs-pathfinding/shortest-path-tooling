@@ -1467,8 +1467,15 @@ final class RoutingIssueScenarios {
         suite.scenario("Ghommal's hilt (#672) hilt shortens Trollheim approach", "routing-issue-672")
             .from(3160, 3486, 0).to(2900, 3748, 0)
             .profile(UNIT_TEST)
-            .account(a -> a.inventory(ItemID.CA_OFFHAND_GRANDMASTER, 1))
-            .settings(s -> s.setUseTeleportationItems(TeleportationItem.INVENTORY));
+            .account(a -> a
+                .inventory(ItemID.CA_OFFHAND_GRANDMASTER, 1)
+                .inventory(ItemID.LAWRUNE, 2)
+                .inventory(ItemID.FIRERUNE, 2))
+            .settings(s -> {
+                s.setUseTeleportationItems(TeleportationItem.INVENTORY);
+                s.setUseAgilityShortcuts(true);
+                s.setUseTeleportationSpells(true);
+            });
 
         suite.scenario("Ghommal's hilt (#672) hilt shortens Mor Ul Rek approach", "routing-issue-672")
             .from(3160, 3486, 0).to(2544, 5139, 0)
