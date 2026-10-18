@@ -1450,5 +1450,33 @@ final class RoutingIssueScenarios {
         suite.scenario("Abyss approach (#744) Zamorak teleport reaches Abyss control", "routing-control")
             .from(3160, 3486, 0).to(3035, 4852, 0)
             .profile(UNIT_TEST);
+
+        suite.scenario("Wyrmscraig (#573) unreachable without necklace tele", "routing-issue-573")
+            .from(3160, 3486, 0).to(2591, 2221, 0)
+            .profile(UNIT_TEST)
+            .account(a -> a.inventory(ItemID.NECKLACE_OF_PASSAGE_5, 1))
+            .settings(s -> s.setUseTeleportationItems(TeleportationItem.INVENTORY))
+            .expectUnreachable();
+
+        suite.scenario("Necklace of passage (#573) reaches Eagles Eyrie", "routing-issue-573")
+            .from(3160, 3486, 0).to(3405, 3158, 0)
+            .profile(UNIT_TEST)
+            .account(a -> a.inventory(ItemID.NECKLACE_OF_PASSAGE_5, 1))
+            .settings(s -> s.setUseTeleportationItems(TeleportationItem.INVENTORY));
+
+        suite.scenario("Ghommal's hilt (#672) hilt shortens Trollheim approach", "routing-issue-672")
+            .from(3160, 3486, 0).to(2900, 3748, 0)
+            .profile(UNIT_TEST)
+            .account(a -> a.inventory(ItemID.CA_OFFHAND_GRANDMASTER, 1))
+            .settings(s -> s.setUseTeleportationItems(TeleportationItem.INVENTORY));
+
+        suite.scenario("Ghommal's hilt (#672) hilt shortens Mor Ul Rek approach", "routing-issue-672")
+            .from(3160, 3486, 0).to(2544, 5139, 0)
+            .profile(UNIT_TEST)
+            .account(a -> a.inventory(ItemID.CA_OFFHAND_GRANDMASTER, 1))
+            .settings(s -> {
+                s.setUseTeleportationItems(TeleportationItem.INVENTORY);
+                s.setUnlockMorUlRek(true);
+            });
     }
 }
