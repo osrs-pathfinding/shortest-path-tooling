@@ -4,6 +4,7 @@ import java.util.EnumSet;
 import java.util.Set;
 import shortestpath.poh.JewelleryBoxTier;
 import shortestpath.ShortestPathConfig;
+import shortestpath.settings.KeyedValues;
 import shortestpath.settings.TeleportationItem;
 import shortestpath.accounts.Poh;
 import shortestpath.pathfinder.PathfinderBackend;
@@ -32,7 +33,7 @@ import shortestpath.poh.PohMountedItem;
  *       blocked by a threshold)</li>
  * </ul>
  */
-public class PluginSettings implements ShortestPathConfig {
+public class PluginSettings implements ShortestPathConfig, KeyedValues {
 
     // -------------------------------------------------------------------------
     // Transport toggles
@@ -139,97 +140,95 @@ public class PluginSettings implements ShortestPathConfig {
     // Getters (implements ShortestPathConfig)
     // =========================================================================
 
-    @Override public boolean avoidWilderness() { return avoidWilderness; }
-    @Override public boolean useAgilityShortcuts() { return useAgilityShortcuts; }
-    @Override public boolean useGrappleShortcuts() { return useGrappleShortcuts; }
-    @Override public boolean useBoats() { return useBoats; }
-    @Override public boolean useCanoes() { return useCanoes; }
-    @Override public boolean useCharterShips() { return useCharterShips; }
-    @Override public boolean useShips() { return useShips; }
-    @Override public boolean useFairyRings() { return useFairyRings; }
-    @Override public boolean useGnomeGliders() { return useGnomeGliders; }
-    @Override public boolean useHotAirBalloons() { return useHotAirBalloons; }
-    @Override public boolean useMagicCarpets() { return useMagicCarpets; }
-    @Override public boolean useMagicMushtrees() { return useMagicMushtrees; }
-    @Override public boolean useMinecarts() { return useMinecarts; }
-    @Override public boolean useQuetzals() { return useQuetzals; }
-    @Override public boolean useSpiritTrees() { return useSpiritTrees; }
-    @Override public TeleportationItem useTeleportationItems() { return useTeleportationItems; }
-    @Override public boolean useTeleportationLevers() { return useTeleportationLevers; }
-    @Override public boolean useTeleportationPortals() { return useTeleportationPortals; }
-    @Override public boolean useTeleportationSpells() { return useTeleportationSpells; }
-    @Override public boolean useTeleportationSpellsHome() { return useTeleportationSpellsHome; }
-    @Override public boolean useTeleportationMinigames() { return useTeleportationMinigames; }
-    @Override public boolean useWildernessObelisks() { return useWildernessObelisks; }
-    @Override public boolean useSeasonalTransports() { return useSeasonalTransports; }
+    public boolean avoidWilderness() { return avoidWilderness; }
+    public boolean useAgilityShortcuts() { return useAgilityShortcuts; }
+    public boolean useGrappleShortcuts() { return useGrappleShortcuts; }
+    public boolean useBoats() { return useBoats; }
+    public boolean useCanoes() { return useCanoes; }
+    public boolean useCharterShips() { return useCharterShips; }
+    public boolean useShips() { return useShips; }
+    public boolean useFairyRings() { return useFairyRings; }
+    public boolean useGnomeGliders() { return useGnomeGliders; }
+    public boolean useHotAirBalloons() { return useHotAirBalloons; }
+    public boolean useMagicCarpets() { return useMagicCarpets; }
+    public boolean useMagicMushtrees() { return useMagicMushtrees; }
+    public boolean useMinecarts() { return useMinecarts; }
+    public boolean useQuetzals() { return useQuetzals; }
+    public boolean useSpiritTrees() { return useSpiritTrees; }
+    public TeleportationItem useTeleportationItems() { return useTeleportationItems; }
+    public boolean useTeleportationLevers() { return useTeleportationLevers; }
+    public boolean useTeleportationPortals() { return useTeleportationPortals; }
+    public boolean useTeleportationSpells() { return useTeleportationSpells; }
+    public boolean useTeleportationSpellsHome() { return useTeleportationSpellsHome; }
+    public boolean useTeleportationMinigames() { return useTeleportationMinigames; }
+    public boolean useWildernessObelisks() { return useWildernessObelisks; }
+    public boolean useSeasonalTransports() { return useSeasonalTransports; }
 
-    @Override public boolean includeBankPath() { return includeBankPath; }
-    @Override public int currencyThreshold() { return currencyThreshold; }
-    @Override public int calculationCutoff() { return calculationCutoff; }
-    @Override public int unreachableTargetDistance() { return unreachableTargetDistance; }
-    @Override public boolean collisionAwareBlockedTargets() { return collisionAwareBlockedTargets; }
-    @Override public PathfinderBackend pathfinderBackend() { return pathfinderBackend; }
-    @Override public int aStarHeuristicWeight() { return aStarHeuristicWeight; }
+    public boolean includeBankPath() { return includeBankPath; }
+    public int currencyThreshold() { return currencyThreshold; }
+    public int calculationCutoff() { return calculationCutoff; }
+    public int unreachableTargetDistance() { return unreachableTargetDistance; }
+    public boolean collisionAwareBlockedTargets() { return collisionAwareBlockedTargets; }
+    public PathfinderBackend pathfinderBackend() { return pathfinderBackend; }
+    public int aStarHeuristicWeight() { return aStarHeuristicWeight; }
     // Not marked @Override: plugin checkouts without the sailing search don't have this option (see src/sailing)
     public boolean useSailingMoves() { return useSailingMoves; }
 
-    @Override public boolean usePoh() { return usePoh; }
-    @Override public boolean usePohFairyRing() { return usePohFairyRing; }
-    @Override public boolean usePohSpiritTree() { return usePohSpiritTree; }
-    @Override public boolean useTeleportationPortalsPoh() { return useTeleportationPortalsPoh; }
-    @Override public Set<PohNexusPortal> pohNexusPortals() { return pohNexusPortals; }
-    @Override public JewelleryBoxTier pohJewelleryBoxTier() { return pohJewelleryBoxTier; }
-    @Override public boolean usePohMountedItems() { return !pohMountedItems.isEmpty(); }
-    @Override public Set<PohMountedItem> pohMountedItems() { return pohMountedItems; }
-    @Override public boolean usePohObelisk() { return usePohObelisk; }
+    public boolean usePoh() { return usePoh; }
+    public boolean usePohFairyRing() { return usePohFairyRing; }
+    public boolean usePohSpiritTree() { return usePohSpiritTree; }
+    public boolean useTeleportationPortalsPoh() { return useTeleportationPortalsPoh; }
+    public Set<PohNexusPortal> pohNexusPortals() { return pohNexusPortals; }
+    public JewelleryBoxTier pohJewelleryBoxTier() { return pohJewelleryBoxTier; }
+    public boolean usePohMountedItems() { return !pohMountedItems.isEmpty(); }
+    public Set<PohMountedItem> pohMountedItems() { return pohMountedItems; }
+    public boolean usePohObelisk() { return usePohObelisk; }
 
-    @Override public String builtTeleportationBoxes() { return builtTeleportationBoxes; }
-    @Override public String builtTeleportationPortalsPoh() { return builtTeleportationPortalsPoh; }
-    @Override public String blockedTeleportItems() { return blockedTeleportItems; }
+    public String builtTeleportationBoxes() { return builtTeleportationBoxes; }
+    public String builtTeleportationPortalsPoh() { return builtTeleportationPortalsPoh; }
+    public String blockedTeleportItems() { return blockedTeleportItems; }
 
-    @Override public int costAgilityShortcuts() { return costAgilityShortcuts; }
-    @Override public int costGrappleShortcuts() { return costGrappleShortcuts; }
-    @Override public int costBoats() { return costBoats; }
-    @Override public int costCanoes() { return costCanoes; }
-    @Override public int costCharterShips() { return costCharterShips; }
-    @Override public int costShips() { return costShips; }
-    @Override public int costFairyRings() { return costFairyRings; }
-    @Override public int costGnomeGliders() { return costGnomeGliders; }
-    @Override public int costHotAirBalloons() { return costHotAirBalloons; }
-    @Override public int costMagicCarpets() { return costMagicCarpets; }
-    @Override public int costMagicMushtrees() { return costMagicMushtrees; }
-    @Override public int costMinecarts() { return costMinecarts; }
-    @Override public int costQuetzals() { return costQuetzals; }
-    @Override public int costQuetzalWhistle() { return costQuetzalWhistle; }
-    @Override public int costSpiritTrees() { return costSpiritTrees; }
-    @Override public int costNonConsumableTeleportationItems() { return costNonConsumableTeleportationItems; }
-    @Override public int costConsumableTeleportationItems() { return costConsumableTeleportationItems; }
-    @Override public int costTeleportationBoxes() { return costTeleportationBoxes; }
-    @Override public int costTeleportationLevers() { return costTeleportationLevers; }
-    @Override public int costTeleportationPortals() { return costTeleportationPortals; }
-    @Override public int costTeleportationSpells() { return costTeleportationSpells; }
-    @Override public int costTeleportationSpellsHome() { return costTeleportationSpellsHome; }
-    @Override public int costTeleportationMinigames() { return costTeleportationMinigames; }
-    @Override public int costWildernessObelisks() { return costWildernessObelisks; }
-    @Override public int costSeasonalTransports() { return costSeasonalTransports; }
-    @Override public int costBankVisit() { return costBankVisit; }
-    @Override public boolean respawnPrifddinas() { return respawnPrifddinas; }
-    @Override public boolean unlockCanoeAxe() { return unlockCanoeAxe; }
-    @Override public boolean unlockXericsHonour() { return unlockXericsHonour; }
-    @Override public boolean unlockDragontoothPassage() { return unlockDragontoothPassage; }
-    @Override public boolean unlockMorUlRek() { return unlockMorUlRek; }
-    @Override public boolean unlockBalloonLogBasket() { return unlockBalloonLogBasket; }
+    public int costAgilityShortcuts() { return costAgilityShortcuts; }
+    public int costGrappleShortcuts() { return costGrappleShortcuts; }
+    public int costBoats() { return costBoats; }
+    public int costCanoes() { return costCanoes; }
+    public int costCharterShips() { return costCharterShips; }
+    public int costShips() { return costShips; }
+    public int costFairyRings() { return costFairyRings; }
+    public int costGnomeGliders() { return costGnomeGliders; }
+    public int costHotAirBalloons() { return costHotAirBalloons; }
+    public int costMagicCarpets() { return costMagicCarpets; }
+    public int costMagicMushtrees() { return costMagicMushtrees; }
+    public int costMinecarts() { return costMinecarts; }
+    public int costQuetzals() { return costQuetzals; }
+    public int costQuetzalWhistle() { return costQuetzalWhistle; }
+    public int costSpiritTrees() { return costSpiritTrees; }
+    public int costNonConsumableTeleportationItems() { return costNonConsumableTeleportationItems; }
+    public int costConsumableTeleportationItems() { return costConsumableTeleportationItems; }
+    public int costTeleportationBoxes() { return costTeleportationBoxes; }
+    public int costTeleportationLevers() { return costTeleportationLevers; }
+    public int costTeleportationPortals() { return costTeleportationPortals; }
+    public int costTeleportationSpells() { return costTeleportationSpells; }
+    public int costTeleportationSpellsHome() { return costTeleportationSpellsHome; }
+    public int costTeleportationMinigames() { return costTeleportationMinigames; }
+    public int costWildernessObelisks() { return costWildernessObelisks; }
+    public int costSeasonalTransports() { return costSeasonalTransports; }
+    public int costBankVisit() { return costBankVisit; }
+    public boolean respawnPrifddinas() { return respawnPrifddinas; }
+    public boolean unlockCanoeAxe() { return unlockCanoeAxe; }
+    public boolean unlockXericsHonour() { return unlockXericsHonour; }
+    public boolean unlockDragontoothPassage() { return unlockDragontoothPassage; }
+    public boolean unlockMorUlRek() { return unlockMorUlRek; }
+    public boolean unlockBalloonLogBasket() { return unlockBalloonLogBasket; }
 
     // =========================================================================
-    // Abstract void setters required by the interface
+    // Written state setters (were interface methods; persisted by key)
     // =========================================================================
 
-    @Override
     public void setBuiltTeleportationBoxes(String content) {
         this.builtTeleportationBoxes = content != null ? content : "";
     }
 
-    @Override
     public void setBuiltTeleportationPortalsPoh(String content) {
         this.builtTeleportationPortalsPoh = content != null ? content : "";
     }
@@ -370,4 +369,85 @@ public class PluginSettings implements ShortestPathConfig {
 
     public void setUnlockBalloonLogBasket(boolean v) { unlockBalloonLogBasket = v; }
     public void setBlockedTeleportItems(String v) { blockedTeleportItems = v != null ? v : ""; }
+
+    @Override
+    public Object value(String keyName) {
+        switch (keyName) {
+            case "pathfinderAlgorithm": return pathfinderBackend;
+            case "avoidWilderness": return avoidWilderness;
+            case "useAgilityShortcuts": return useAgilityShortcuts;
+            case "useGrappleShortcuts": return useGrappleShortcuts;
+            case "useBoats": return useBoats;
+            case "useCanoes": return useCanoes;
+            case "useCharterShips": return useCharterShips;
+            case "useShips": return useShips;
+            case "useFairyRings": return useFairyRings;
+            case "useGnomeGliders": return useGnomeGliders;
+            case "useHotAirBalloons": return useHotAirBalloons;
+            case "useMagicCarpets": return useMagicCarpets;
+            case "useMagicMushtrees": return useMagicMushtrees;
+            case "useMinecarts": return useMinecarts;
+            case "useQuetzals": return useQuetzals;
+            case "useSpiritTrees": return useSpiritTrees;
+            case "useTeleportationItems": return useTeleportationItems;
+            case "useTeleportationLevers": return useTeleportationLevers;
+            case "useTeleportationPortals": return useTeleportationPortals;
+            case "useTeleportationSpells": return useTeleportationSpells;
+            case "useTeleportationSpellsHome": return useTeleportationSpellsHome;
+            case "useTeleportationMinigames": return useTeleportationMinigames;
+            case "useWildernessObelisks": return useWildernessObelisks;
+            case "useSeasonalTransports": return useSeasonalTransports;
+            case "respawnPrifddinas": return respawnPrifddinas;
+            case "unlockCanoeAxe": return unlockCanoeAxe;
+            case "unlockXericsHonour": return unlockXericsHonour;
+            case "unlockDragontoothPassage": return unlockDragontoothPassage;
+            case "unlockMorUlRek": return unlockMorUlRek;
+            case "includeBankPath": return includeBankPath;
+            case "currencyThreshold": return currencyThreshold;
+            case "unreachableTargetDistanceThreshold": return unreachableTargetDistance;
+            case "calculationCutoff": return calculationCutoff;
+            case "aStarHeuristicWeight": return aStarHeuristicWeight;
+            case "collisionAwareBlockedTargets": return collisionAwareBlockedTargets;
+            case "useSailingMoves": return useSailingMoves;
+            case "usePoh": return usePoh;
+            case "usePohFairyRing": return usePohFairyRing;
+            case "usePohSpiritTree": return usePohSpiritTree;
+            case "useTeleportationPortalsPoh": return useTeleportationPortalsPoh;
+            case "pohNexusPortals": return pohNexusPortals;
+            case "pohJewelleryBoxTier": return pohJewelleryBoxTier;
+            case "pohMountedItems": return pohMountedItems;
+            case "usePohObelisk": return usePohObelisk;
+            case "costAgilityShortcuts": return costAgilityShortcuts;
+            case "costGrappleShortcuts": return costGrappleShortcuts;
+            case "costBoats": return costBoats;
+            case "costCanoes": return costCanoes;
+            case "costCharterShips": return costCharterShips;
+            case "costShips": return costShips;
+            case "costFairyRings": return costFairyRings;
+            case "costGnomeGliders": return costGnomeGliders;
+            case "costHotAirBalloons": return costHotAirBalloons;
+            case "costMagicCarpets": return costMagicCarpets;
+            case "costMagicMushtrees": return costMagicMushtrees;
+            case "costMinecarts": return costMinecarts;
+            case "costQuetzals": return costQuetzals;
+            case "costQuetzalWhistle": return costQuetzalWhistle;
+            case "costSpiritTrees": return costSpiritTrees;
+            case "costNonConsumableTeleportationItems": return costNonConsumableTeleportationItems;
+            case "costConsumableTeleportationItems": return costConsumableTeleportationItems;
+            case "costTeleportationBoxes": return costTeleportationBoxes;
+            case "costTeleportationLevers": return costTeleportationLevers;
+            case "costTeleportationPortals": return costTeleportationPortals;
+            case "costTeleportationSpells": return costTeleportationSpells;
+            case "costTeleportationSpellsHome": return costTeleportationSpellsHome;
+            case "costTeleportationMinigames": return costTeleportationMinigames;
+            case "costWildernessObelisks": return costWildernessObelisks;
+            case "costSeasonalTransports": return costSeasonalTransports;
+            case "costBankVisit": return costBankVisit;
+            case "builtTeleportationBoxes": return builtTeleportationBoxes;
+            case "builtTeleportationPortalsPoh": return builtTeleportationPortalsPoh;
+            case "blockedTeleportItems": return blockedTeleportItems;
+            case "unlockBalloonLogBasket": return unlockBalloonLogBasket;
+            default: return null;
+        }
+    }
 }

@@ -38,7 +38,7 @@ public class ProfilesTest {
             if (unlock.kind == Unlock.Kind.SETTING) {
                 PluginSettings settings = new PluginSettings();
                 CompiledAccount.of(Account.builder().unlock(unlock).build(), settings);
-                assertEquals(unlock.name(), true, ShortestPathConfig.class.getMethod(unlock.setting).invoke(settings));
+                assertEquals(unlock.name(), true, PluginSettings.class.getMethod(unlock.setting).invoke(settings));
             }
         }
     }

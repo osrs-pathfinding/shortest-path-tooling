@@ -17,6 +17,7 @@ import org.junit.Test;
 import shortestpath.ShortestPathConfig;
 import shortestpath.TestShortestPathConfig;
 import shortestpath.profiles.PluginSettings;
+import shortestpath.settings.ConfigKey;
 import shortestpath.settings.Settings;
 
 /**
@@ -309,7 +310,7 @@ public class ConfigParityTest {
         whistleTwin.setCostQuetzalWhistle(7);
         assertEquals("costQuetzalWhistle wire/twin divergence",
             whistleTwin.costQuetzalWhistle(),
-            whistleWire.coerceInt("costQuetzalWhistle", whistleWire.effective().costQuetzals()));
+            whistleWire.coerceInt("costQuetzalWhistle", whistleWire.effective().num(ConfigKey.COST_QUETZALS)));
         assertTrue("Wire-override vs twin-setter divergence (justify in"
             + " WIRE_INERT_ALLOWLIST or fix the seam): " + failures, failures.isEmpty());
     }
