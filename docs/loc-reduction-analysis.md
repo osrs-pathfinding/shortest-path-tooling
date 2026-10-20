@@ -26,6 +26,8 @@ This strips full-line `//`, `/*`, and `*` comment/javadoc lines plus blank lines
 
 **The stale 208k figure is superseded:** measured working estimate is **~231k tokens**, consistent with the reported ~240k current-tip claim (a real tokenizer counts differently than chars/4, but the conclusion is the same: the plugin is ~30–40k tokens over the line, not ~8k). A `tiktoken` cross-check was not possible (module not installed locally; no installs performed). All savings figures below are chars/4-derived and stated with the same estimator so ratios stay comparable.
 
+**Growth context (from maintainer/reviewer discussion):** the plugin measured ~182k tokens *before* this release's rewrite; the rewrite added ~49k. The `astar/` tree alone is ~51k (~22% of the counted total) — consistent with the maintainer's "the new pathfinder alone is a quarter of the budget". A previous pass extracting hardcoded data already saved ~16k tokens and landed upstream, which validates the data-extraction approach. Upcoming features (sailing, POH) are already being reconsidered for size reasons — so the target is real headroom, not barely crossing 200k.
+
 ## Token inventory
 
 Per-directory stripped-char totals (sorted desc; `root` = the 19 `shortestpath/*.java` files):
@@ -86,6 +88,15 @@ Top 30 files (stripped chars; share of the 925,352-char total):
 | 30 | `pathfinder/astar/PreparedHeuristic.java` | 354 | 10,918 | 2,729 | 1.2% |
 
 **Concentration:** the top 10 files hold 275,927 stripped chars = **29.8% of the counted total**; the top 30 hold ~57%. The codebase is broad, not lumpy — there is no single file whose restructuring alone clears the bar.
+
+## Reviewer signal (plugin-hub Discord, 2026-10-20)
+
+Reviewers named the patterns they actually see in over-limit plugins: **excessive Swing**, **hardcoded data that should be TSV/JSON**, and **over-abstracted machinery** — plus a checklist item for code that **"reimplements lombok and inject"**. Each maps onto measured mass here:
+
+- **Swing:** the hand-written panel surface is 79,343 stripped chars ≈ **~19.8k tokens (8.6%)** across 9 files — `ShortestPathPanel` (27,922), `RestrictionListPanel` (16,668), `ShortestPathHomePanel` (15,009), `TransportFamilyCard` (7,488), `CategoryPanel` (5,326), `CollapsibleEnumGroup` (4,935), plus three small helpers. Row #9's mechanical dedup recovers only ~1k of it; anything deeper means simplifying the bespoke-component design itself (fewer custom widgets, leaner card/group builders) — a UI-consistency judgment call for the maintainer, so it is flagged here as a direction rather than ranked.
+- **Hardcoded data → TSV/JSON:** rows #2 and #8 are exactly this pattern, and the prior ~16k-token data-extraction pass proves upstream accepts it.
+- **Reimplemented framework code:** a reviewer singled out "~500 lines basically re-implementing ConfigManager type casting" — that is `EffectiveConfig`'s 94 `instanceof`-cast overrides (~19k chars ≈ ~4.7k tokens). Row #3 collapses them; row #4 covers the getter boilerplate the "reimplements lombok" flag points at.
+- **Over-abstraction:** no single abstraction is removable — the dedup rows (#6–#10) are the mechanical slice; the rest is the cost of the intentional subsystem split and is only recoverable by descoping features, which is the maintainer's call.
 
 ## Ranked opportunities
 
