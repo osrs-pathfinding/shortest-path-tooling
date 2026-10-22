@@ -18,6 +18,7 @@ import shortestpath.ShortestPathConfig;
 import shortestpath.TestShortestPathConfig;
 import shortestpath.profiles.PluginSettings;
 import shortestpath.settings.Settings;
+import shortestpath.settings.ConfigKey;
 
 /**
  * Config-surface parity lint between {@link ShortestPathConfig} and the dashboard
@@ -178,6 +179,30 @@ public class ConfigParityTest {
     }
 
     @Test
+    public void hiddenSettingsReachThePlugin() throws Exception {
+        for (Method getter : PluginSettings.class.getDeclaredMethods()) {
+            if (getter.getParameterCount() != 0 || getter.getReturnType() == void.class) {
+                continue;
+            }
+            String key = getter.getName().equals("pathfinderBackend")
+                ? "pathfinderAlgorithm" : getter.getName().equals("unreachableTargetDistance")
+                ? "unreachableTargetDistanceThreshold" : getter.getName();
+            ConfigKey row = ConfigKey.forKey(key);
+            if (row == null || !row.isKeyed()) {
+                continue;
+            }
+            PluginSettings twin = new PluginSettings();
+            assertEquals(key, getter.invoke(twin), Settings.wrap(twin).configuredValue(key));
+            Object sample = sampleValue(getter, getter.invoke(twin), getter.invoke(twin));
+            if (sample != null) {
+                PluginSettings.class.getDeclaredMethod(setterName(getter.getName()), getter.getReturnType())
+                    .invoke(twin, sample);
+                assertEquals(key, sample, Settings.wrap(twin).configuredValue(key));
+            }
+        }
+    }
+
+    @Test
     public void everyConfigItemHasATwinOverride() {
         List<String> missing = new ArrayList<>();
         for (Method m : configItems()) {
@@ -309,7 +334,7 @@ public class ConfigParityTest {
         whistleTwin.setCostQuetzalWhistle(7);
         assertEquals("costQuetzalWhistle wire/twin divergence",
             whistleTwin.costQuetzalWhistle(),
-            whistleWire.coerceInt("costQuetzalWhistle", whistleWire.effective().costQuetzals()));
+            whistleWire.coerceInt("costQuetzalWhistle", whistleWire.effective().num(ConfigKey.COST_QUETZALS)));
         assertTrue("Wire-override vs twin-setter divergence (justify in"
             + " WIRE_INERT_ALLOWLIST or fix the seam): " + failures, failures.isEmpty());
     }

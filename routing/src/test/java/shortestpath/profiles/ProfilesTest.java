@@ -18,7 +18,6 @@ import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.VarbitID;
 import org.junit.Test;
 import shortestpath.WorldPointUtil;
-import shortestpath.ShortestPathConfig;
 import shortestpath.accounts.Account;
 import shortestpath.accounts.Unlock;
 import shortestpath.accounts.Poh;
@@ -38,7 +37,7 @@ public class ProfilesTest {
             if (unlock.kind == Unlock.Kind.SETTING) {
                 PluginSettings settings = new PluginSettings();
                 CompiledAccount.of(Account.builder().unlock(unlock).build(), settings);
-                assertEquals(unlock.name(), true, ShortestPathConfig.class.getMethod(unlock.setting).invoke(settings));
+                assertEquals(unlock.name(), true, settings.value(unlock.setting));
             }
         }
     }
