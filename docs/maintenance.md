@@ -277,6 +277,21 @@ runs the Gradle dashboard sweep — none of which exist in CI.
 workflow edit that removes or weakens the gate fails the suite it
 gates.
 
+## Standalone scripts
+
+Not every helper is a `maintenance.py` subcommand — ad-hoc measurement and
+attribution scripts run directly:
+
+- `python3 scripts/measure_footprint.py --ref <ref>` prints the
+  stripped-source footprint of the submodule's `src/main/java` at `<ref>`,
+  reading blobs via `git show` (no checkout needed); `--csv <file>` writes
+  the per-file table, `--top N` limits the printed table.
+  `docs/footprint-142e73e2.csv` is the recorded baseline
+  (859,057 stripped chars / 160 files) for before/after deltas.
+- `python3 scripts/attribute_deletions.py --commit <sha>` maps a deletion
+  commit's removed `src/main/java` ranges to release segments as a
+  per-hunk table.
+
 ## Suggested workflows
 
 ### Weekly refresh

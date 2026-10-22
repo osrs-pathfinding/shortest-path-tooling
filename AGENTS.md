@@ -133,6 +133,8 @@ land in the Gradle log — usable when the Var Inspector panel can't copy.
 | `scripts/analyse_dashboard_runs.py` | Compare two sets of dashboard `report.json` files, per-route deltas. |
 | `scripts/import_issues.py` | Sync upstream Skretzo/shortest-path issues/PRs into local datasets. |
 | `scripts/benchmark_smoke.py` | Runs `benchmark` as collisionlab/osrs-benchmarks does and checks its output (in CI). Changing its arguments or output means updating osrs-benchmarks too. |
+| `scripts/measure_footprint.py` | Measure stripped-source chars of plugin `src/main/java` at any ref (`--ref`, `--repo`, `--csv`, `--top`). Baseline: `docs/footprint-142e73e2.csv`. |
+| `scripts/attribute_deletions.py` | Map a deletion commit's removed `src/main/java` ranges to release segments via `git blame` + `git tag --contains`. |
 
 ### Submodule scripts (`shortest-path/scripts/`)
 
