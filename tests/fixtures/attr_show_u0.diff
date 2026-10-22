@@ -1,0 +1,17 @@
+diff --git a/src/main/java/shortestpath/alpha/FileA.java b/src/main/java/shortestpath/alpha/FileA.java
+index 1111111..2222222 100644
+--- a/src/main/java/shortestpath/alpha/FileA.java
++++ b/src/main/java/shortestpath/alpha/FileA.java
+@@ -10,3 +10,0 @@
+-int alpha;
+-int beta;
+-int gamma;
+@@ -40 +40 @@
+-int delta;
++int kept;
+diff --git a/src/main/java/shortestpath/beta/FileB.java b/src/main/java/shortestpath/beta/FileB.java
+index 3333333..4444444 100644
+--- a/src/main/java/shortestpath/beta/FileB.java
++++ b/src/main/java/shortestpath/beta/FileB.java
+@@ -7 +7,0 @@
+-import java.util.Map;

@@ -1,0 +1,19 @@
+=== src/main/java/shortestpath/alpha/FileA.java ===
+0de5c0de0de5c0de0de5c0de0de5c0de0de5c0de 10 10 2
+author Alice Aorta
+author-mail <alice@example.com>
+	int alpha;
+	int beta;
+4f3a2b1c4f3a2b1c4f3a2b1c4f3a2b1c4f3a2b1c 12 12 1
+author Bob Buffer
+author-mail <bob@example.com>
+	int gamma;
+0de5c0de0de5c0de0de5c0de0de5c0de0de5c0de 40 40 1
+author Alice Aorta
+author-mail <alice@example.com>
+	int delta;
+=== src/main/java/shortestpath/beta/FileB.java ===
+beefbeefbeefbeefbeefbeefbeefbeefbeefbeef 7 7 1
+author Carol Cache
+author-mail <carol@example.com>
+	import java.util.Map;
