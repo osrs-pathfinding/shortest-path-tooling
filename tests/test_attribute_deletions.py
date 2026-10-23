@@ -54,13 +54,13 @@ def load_sections(name):
 
 def attr_kind(args):
     """Bucket one git(argv) call into the pipeline step it performs."""
-    if args[:1] == ["log"]:
+    if args and args[0] == "log":
         return "subject"
-    if args[:1] == ["show"]:
+    if args and args[0] == "show":
         return "diff"
-    if args[:1] == ["blame"]:
+    if args and args[0] == "blame":
         return "blame"
-    if args[:1] == ["tag"]:
+    if args and args[0] == "tag":
         return "tag"
     return f"other:{args}"
 
@@ -157,11 +157,10 @@ def test_parse_blame_porcelain_maps_final_lines_to_shas():
 def test_attribute_rolls_mixed_era_run_up_to_max_bucket(monkeypatch):
     monkeypatch.setattr(ad, "git", make_fake_git())
     rows = ad.attribute("repo", "c0ffee", TAGS, POST)
-    # tag index: 0=.2, 1=.3, 2=.4, 3=.5, 4=post lane
     assert rows == [
-        (FILE_A, 10, 12, 2),   # sha2/sha2/sha1 -> max bucket v1.22.4
-        (FILE_A, 40, 40, 0),   # sha2 -> earliest tag v1.22.2
-        (FILE_B, 7, 7, 4),     # sha3 in no tag -> post lane
+        (FILE_A, 10, 12, "v1.22.4"),  # sha2/sha2/sha1 -> max bucket
+        (FILE_A, 40, 40, "v1.22.2"),  # sha2 -> earliest containing tag
+        (FILE_B, 7, 7, POST),         # sha3 in no tag -> post lane
     ]
 
 
