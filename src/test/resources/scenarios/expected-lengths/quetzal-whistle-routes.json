@@ -13,5 +13,7 @@
   "Sunset Coast → Aldarin": 2,
   "Hunter Guild → Outer Fortis": 2,
   "Quetzacalli Gorge → The Teomat": 2,
-  "The Teomat → Tal Teklan": 2
+  "The Teomat → Tal Teklan": 2,
+  "Outer Fortis → Hunter Guild (free hop priced at true-0 cost)": 10,
+  "Varrock → Tal Teklan (hop lands on a transport origin — no ordering penalty)": 2
 }

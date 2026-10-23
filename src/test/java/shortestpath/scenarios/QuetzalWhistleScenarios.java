@@ -76,5 +76,18 @@ final class QuetzalWhistleScenarios {
             .from(1445, 3171, 0).to(1226, 3091, 0)
             .profile(ALL)
             .settings(s -> s.setCostQuetzalWhistle(0));
+
+        // Divergence pins: the A* engine prices a zero-cost hop at true 0, and
+        // applies no queue-ordering penalty when a route lands on another
+        // transport's origin — every whistle destination is exactly that.
+        suite.scenario("Outer Fortis → Hunter Guild (free hop priced at true-0 cost)", "quetzal")
+            .from(1700, 3037, 0).to(1593, 3053, 0)
+            .profile(ALL)
+            .settings(s -> s.setCostQuetzalWhistle(0));
+
+        suite.scenario("Varrock → Tal Teklan (hop lands on a transport origin — no ordering penalty)", "quetzal")
+            .from(3213, 3428, 0).to(1226, 3091, 0)
+            .profile(ALL)
+            .settings(s -> s.setCostQuetzalWhistle(0));
     }
 }
