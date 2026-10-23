@@ -132,6 +132,8 @@ def main():
     ap.add_argument("--csv", default=None)
     ap.add_argument("--top", type=int, default=0, help="only print top N files")
     args = ap.parse_args()
+    if args.top < 0:
+        ap.error("--top must be >= 0")
 
     sizes = measure(args.repo, args.ref)
     ranked = sorted(sizes.items(), key=lambda kv: (-kv[1], kv[0]))
