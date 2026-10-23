@@ -7,7 +7,6 @@ import shortestpath.ShortestPathConfig;
 import shortestpath.settings.KeyedValues;
 import shortestpath.settings.TeleportationItem;
 import shortestpath.accounts.Poh;
-import shortestpath.pathfinder.PathfinderBackend;
 import shortestpath.poh.PohNexusPortal;
 import shortestpath.poh.PohMountedItem;
 
@@ -72,8 +71,6 @@ public class PluginSettings implements ShortestPathConfig, KeyedValues {
     private int calculationCutoff = 500;
     private int unreachableTargetDistance = 2;
     private boolean collisionAwareBlockedTargets = true;
-    // The pathfinder a run uses is the ScenarioRunner's backend; this is only the plugin setting.
-    private PathfinderBackend pathfinderBackend = PathfinderBackend.LEGACY;
     private int aStarHeuristicWeight = 100;
     private boolean useSailingMoves = true;
 
@@ -169,7 +166,6 @@ public class PluginSettings implements ShortestPathConfig, KeyedValues {
     public int calculationCutoff() { return calculationCutoff; }
     public int unreachableTargetDistance() { return unreachableTargetDistance; }
     public boolean collisionAwareBlockedTargets() { return collisionAwareBlockedTargets; }
-    public PathfinderBackend pathfinderBackend() { return pathfinderBackend; }
     public int aStarHeuristicWeight() { return aStarHeuristicWeight; }
     // Not marked @Override: plugin checkouts without the sailing search don't have this option (see src/sailing)
     public boolean useSailingMoves() { return useSailingMoves; }
@@ -270,7 +266,6 @@ public class PluginSettings implements ShortestPathConfig, KeyedValues {
     public void setCalculationCutoff(int v) { calculationCutoff = v; }
     public void setUnreachableTargetDistance(int v) { unreachableTargetDistance = v; }
     public void setCollisionAwareBlockedTargets(boolean v) { collisionAwareBlockedTargets = v; }
-    public void setPathfinderBackend(PathfinderBackend v) { pathfinderBackend = v; }
     public void setAStarHeuristicWeight(int v) { aStarHeuristicWeight = v; }
     public void setUseSailingMoves(boolean v) { useSailingMoves = v; }
 
@@ -373,7 +368,6 @@ public class PluginSettings implements ShortestPathConfig, KeyedValues {
     @Override
     public Object value(String keyName) {
         switch (keyName) {
-            case "pathfinderAlgorithm": return pathfinderBackend;
             case "avoidWilderness": return avoidWilderness;
             case "useAgilityShortcuts": return useAgilityShortcuts;
             case "useGrappleShortcuts": return useGrappleShortcuts;

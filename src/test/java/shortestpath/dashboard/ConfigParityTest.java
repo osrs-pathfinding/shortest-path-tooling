@@ -114,10 +114,6 @@ public class ConfigParityTest {
     private static final Map<String, String> WIRE_INERT_ALLOWLIST = new TreeMap<>();
 
     static {
-        // Payload-inert (coercion NONE): the backend is a structural choice,
-        // not an override surface.
-        WIRE_INERT_ALLOWLIST.put("pathfinderBackend",
-            "pathfinderAlgorithm payloads are inert (coercion NONE) — backend choice is structural");
         // Serialised write-path state: persisted through the setBuilt*/blocked
         // write methods, never payload-overridable (coercion NONE).
         WIRE_INERT_ALLOWLIST.put("builtTeleportationBoxes",
