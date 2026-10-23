@@ -119,7 +119,7 @@ def measure(repo, ref):
 
 
 def package_of(path):
-    """Package key = directory under src/main/java/, '(root)' for bare files."""
+    """Package key = directory under src/main/java/, '.' for bare files."""
     d = os.path.dirname(path)
     rel = os.path.relpath(d, SRC_ROOT)
     return rel.replace(os.sep, "/")
