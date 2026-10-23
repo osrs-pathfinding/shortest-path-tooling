@@ -27,7 +27,6 @@ import argparse
 import csv
 import os
 import subprocess
-import sys
 from collections import defaultdict
 
 SRC_ROOT = "src/main/java"
