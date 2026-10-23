@@ -160,7 +160,7 @@ public class ScenariosTest {
         // varp 139 (LEGENDSQUEST progress) is in the committed transport data, so refresh()
         // snapshots it from the client.
         Transport transport = new Transport.TransportBuilder()
-            .varRequirements(Set.of(VarRequirement.varPlayer(139, 49, VarCheckType.GREATER)))
+            .varRequirements(Set.of(new VarRequirement(VarRequirement.VarType.VARPLAYER, 139, 49, VarCheckType.GREATER)))
             .build();
 
         CompiledAccount bypassed = unitTest().account(a -> a.varplayer(139, 0)).build().compile();
