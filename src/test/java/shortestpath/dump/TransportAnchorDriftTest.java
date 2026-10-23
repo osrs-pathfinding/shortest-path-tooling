@@ -19,6 +19,7 @@ import net.runelite.cache.region.RegionLoader;
 import net.runelite.cache.util.XteaKeyManager;
 import org.junit.Assume;
 import org.junit.Test;
+import shortestpath.poh.PohService;
 import shortestpath.transport.parser.TransportRecord;
 
 /**
@@ -40,6 +41,20 @@ import shortestpath.transport.parser.TransportRecord;
  * report's {@code unparseable} bucket rather than crashing the scan; the
  * trailing-integer convention is documented but unenforced.
  *
+ * <p>Rows with an origin are also checked for <b>placement</b>: the object (or
+ * a multi-loc parent that turns into it) should stand on the origin's plane
+ * within {@link #NEAR} tiles of it. When it doesn't, the report names any
+ * object within {@link #AT_ORIGIN} tiles of the origin with the anchor's menu
+ * option and name, which is usually the right id (a swapped pair, a typo, an
+ * object replaced in a game update). Rows are set aside rather than reported
+ * when the origin is the plugin's player-owned house landing
+ * ({@code PohService.POH_LANDING_X/Y}, built at run time), when no interactive
+ * object stands near the origin at all (other instances), when an object of the anchor's name stands at the
+ * origin under another id but none offers the option (an opened door or
+ * trapdoor the server swaps in), or when the anchor's name is not the
+ * object's and nothing matching is near (NPCs share the column, and NPC and
+ * object ids overlap).
+ *
  * Run via:
  *   ./gradlew transportAnchorDrift \
  *     -PtransportDriftCacheDir=$PWD/cache \
@@ -55,8 +70,15 @@ public class TransportAnchorDriftTest {
         String cell;        // raw anchor cell text
         String menuOption;
         int objectId = -1;
+        String menuTarget;
+        int[] origin;       // x, y, plane, or null without an origin
         String parseError;  // non-null when the cell failed to parse
     }
+
+    /** Tiles from the origin within which the anchor's object counts as placed there. */
+    static final int NEAR = 10;
+    /** Tiles from the origin within which another object is suggested as the anchor's. */
+    static final int AT_ORIGIN = 2;
 
     @Test
     public void scanTransportAnchors() throws Exception {
@@ -163,9 +185,29 @@ public class TransportAnchorDriftTest {
                 missingAction.add(a.file + ":" + a.line + "\t" + a.cell + "\t" + detail);
             }
 
+            Placements placements = new Placements(regionLoader, objectManager);
+            List<String> notAtOrigin = new ArrayList<>();
+            int setAside = 0;
+            for (Anchor a : anchors) {
+                if (a.parseError != null || a.origin == null || objectManager.getObject(a.objectId) == null) {
+                    continue;
+                }
+                String finding = placements.check(a, objectManager);
+                if (finding == null) {
+                    continue;
+                }
+                if (finding.isEmpty()) {
+                    setAside++;
+                } else {
+                    notAtOrigin.add(a.file + ":" + a.line + "\t" + a.cell + "\t" + finding);
+                }
+            }
+
             String summary = "anchors scanned=" + scanned
                 + " missing-object=" + missingObject.size()
                 + " missing-action=" + missingAction.size()
+                + " not-at-origin=" + notAtOrigin.size()
+                + " (set aside " + setAside + ")"
                 + " unparseable=" + unparseable.size();
 
             out.println("=== missing-object (" + missingObject.size() + ") ===");
@@ -175,6 +217,11 @@ public class TransportAnchorDriftTest {
             out.println();
             out.println("=== missing-action (" + missingAction.size() + ") ===");
             for (String s : missingAction) {
+                out.println(s);
+            }
+            out.println();
+            out.println("=== not-at-origin (" + notAtOrigin.size() + ") ===");
+            for (String s : notAtOrigin) {
                 out.println(s);
             }
             out.println();
@@ -220,10 +267,12 @@ public class TransportAnchorDriftTest {
             }
             String[] cols = header.split("\t", -1);
             int objectInfoCol = -1;
+            int originCol = -1;
             for (int i = 0; i < cols.length; i++) {
                 if (cols[i].trim().equals(TransportRecord.Fields.OBJECT_INFO)) {
                     objectInfoCol = i;
-                    break;
+                } else if (cols[i].trim().equals(TransportRecord.Fields.ORIGIN)) {
+                    originCol = i;
                 }
             }
             if (objectInfoCol < 0) {
@@ -255,6 +304,9 @@ public class TransportAnchorDriftTest {
                 a.line = i + 1;
                 a.cell = cell;
                 parseAnchor(a);
+                if (originCol >= 0 && originCol < fields.length) {
+                    a.origin = parseOrigin(fields[originCol]);
+                }
                 anchors.add(a);
             }
         }
@@ -281,5 +333,171 @@ public class TransportAnchorDriftTest {
             return;
         }
         a.menuOption = tokens[0];
+        a.menuTarget = String.join(" ", java.util.Arrays.copyOfRange(tokens, 1, tokens.length - 1));
+    }
+
+    /** An {@code x y plane} origin, or null for an empty or malformed one. */
+    private static int[] parseOrigin(String cell) {
+        String[] t = cell.trim().split("\\s+");
+        if (t.length != 3) {
+            return null;
+        }
+        try {
+            return new int[]{Integer.parseInt(t[0]), Integer.parseInt(t[1]), Integer.parseInt(t[2])};
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Every interactive object the cache places (one with an action, or a
+     * multi-loc that turns into others), by id and by each id it can turn
+     * into, and by 8x8-tile bucket. Planes are the ones the game shows: under
+     * a bridge (tile setting 0x2 on plane 1) objects move down one.
+     */
+    static final class Placements {
+        /** id, x, y, plane, sizeX, sizeY. */
+        private final Map<Integer, List<int[]>> byId = new HashMap<>();
+        private final Map<Long, List<int[]>> byBucket = new HashMap<>();
+
+        Placements(RegionLoader regions, ObjectManager objects) {
+            for (net.runelite.cache.region.Region region : regions.getRegions()) {
+                for (net.runelite.cache.region.Location loc : region.getLocations()) {
+                    ObjectDefinition def = objects.getObject(loc.getId());
+                    if (def == null || (!hasAnyAction(def) && def.getConfigChangeDest() == null)) {
+                        continue;
+                    }
+                    net.runelite.cache.region.Position p = loc.getPosition();
+                    int lx = p.getX() - region.getBaseX();
+                    int ly = p.getY() - region.getBaseY();
+                    boolean bridge = (region.getTileSetting(1, lx, ly) & 2) != 0;
+                    int plane = bridge && p.getZ() > 0 ? p.getZ() - 1 : p.getZ();
+                    int[] placed = {loc.getId(), p.getX(), p.getY(), plane,
+                        CacheUtils.effectiveSizeX(def, loc.getOrientation()),
+                        CacheUtils.effectiveSizeY(def, loc.getOrientation())};
+                    byId.computeIfAbsent(loc.getId(), k -> new ArrayList<>()).add(placed);
+                    if (def.getConfigChangeDest() != null) {
+                        for (int form : def.getConfigChangeDest()) {
+                            if (form >= 0 && form != loc.getId()) {
+                                byId.computeIfAbsent(form, k -> new ArrayList<>()).add(placed);
+                            }
+                        }
+                    }
+                    byBucket.computeIfAbsent(bucket(p.getX() >> 3, p.getY() >> 3, plane), k -> new ArrayList<>()).add(placed);
+                }
+            }
+        }
+
+        /**
+         * Null when the anchor's object stands at its origin; empty when the
+         * row is set aside; otherwise what is wrong and the likely fix.
+         */
+        String check(Anchor a, ObjectManager objects) {
+            int x = a.origin[0], y = a.origin[1], z = a.origin[2];
+            if (x == PohService.POH_LANDING_X && y == PohService.POH_LANDING_Y) {
+                return "";
+            }
+            int[] nearest = null;
+            int nearestDistance = Integer.MAX_VALUE;
+            for (int[] placed : byId.getOrDefault(a.objectId, List.of())) {
+                int d = distance(x, y, placed) + (placed[3] == z ? 0 : 100_000);
+                if (d < nearestDistance) {
+                    nearest = placed;
+                    nearestDistance = d;
+                }
+            }
+            if (nearestDistance <= NEAR) {
+                return null;
+            }
+            List<int[]> around = around(x, y, z, NEAR);
+            if (around.isEmpty()) {
+                return "";
+            }
+            String target = a.menuTarget.toLowerCase();
+            List<Integer> fix = new ArrayList<>();
+            boolean sameName = false;
+            for (int[] placed : around) {
+                if (distance(x, y, placed) > AT_ORIGIN) {
+                    continue;
+                }
+                for (ObjectDefinition form : forms(placed[0], objects)) {
+                    if (form.getName() != null && form.getName().equalsIgnoreCase(target)) {
+                        sameName = true;
+                        if (CacheUtils.hasAction(form, a.menuOption) && !fix.contains(placed[0])) {
+                            fix.add(placed[0]);
+                        }
+                    }
+                }
+            }
+            boolean named = false;
+            for (ObjectDefinition form : forms(a.objectId, objects)) {
+                named |= form.getName() != null && form.getName().equalsIgnoreCase(target);
+            }
+            if (fix.isEmpty() && (sameName && nearest == null || !named)) {
+                return "";
+            }
+            String where = nearest == null ? "never placed"
+                : "nearest at " + nearest[1] + "," + nearest[2] + "," + nearest[3]
+                    + (nearest[3] == z ? ", " + distance(x, y, nearest) + " tiles away" : " (another plane)");
+            return "origin " + x + "," + y + "," + z + ": " + where
+                + (fix.isEmpty() ? "" : "; at the origin: " + fix);
+        }
+
+        /** The object and every form it can turn into. */
+        private static List<ObjectDefinition> forms(int id, ObjectManager objects) {
+            List<ObjectDefinition> forms = new ArrayList<>();
+            ObjectDefinition def = objects.getObject(id);
+            if (def == null) {
+                return forms;
+            }
+            forms.add(def);
+            if (def.getConfigChangeDest() != null) {
+                for (int form : def.getConfigChangeDest()) {
+                    ObjectDefinition other = form >= 0 ? objects.getObject(form) : null;
+                    if (other != null) {
+                        forms.add(other);
+                    }
+                }
+            }
+            return forms;
+        }
+
+        private List<int[]> around(int x, int y, int z, int reach) {
+            List<int[]> found = new ArrayList<>();
+            // Footprints reach up to a few tiles east and north of their bucket.
+            for (int bx = (x - reach - 8) >> 3; bx <= (x + reach) >> 3; bx++) {
+                for (int by = (y - reach - 8) >> 3; by <= (y + reach) >> 3; by++) {
+                    for (int[] placed : byBucket.getOrDefault(bucket(bx, by, z), List.of())) {
+                        if (distance(x, y, placed) <= reach) {
+                            found.add(placed);
+                        }
+                    }
+                }
+            }
+            return found;
+        }
+
+        /** Chebyshev distance from a tile to a placement's footprint. */
+        static int distance(int x, int y, int[] placed) {
+            int dx = Math.max(Math.max(placed[1] - x, 0), x - (placed[1] + placed[4] - 1));
+            int dy = Math.max(Math.max(placed[2] - y, 0), y - (placed[2] + placed[5] - 1));
+            return Math.max(dx, dy);
+        }
+
+        private static long bucket(int bx, int by, int plane) {
+            return ((long) bx << 32) | ((long) (by & 0xFFFF) << 8) | plane;
+        }
+
+        private static boolean hasAnyAction(ObjectDefinition def) {
+            if (def.getOps() == null || def.getOps().ops == null) {
+                return false;
+            }
+            for (net.runelite.cache.EntityOpsDefinition.Op op : def.getOps().ops) {
+                if (op != null && op.text != null && !op.text.isBlank()) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 }
