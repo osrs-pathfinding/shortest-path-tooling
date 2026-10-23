@@ -77,9 +77,6 @@ import shortestpath.scenarios.Suites;
  *       {@code true}/{@code false} always wins</td></tr>
  *   <tr><td>{@code dashboard.heatmap}</td><td>{@code true} (profiling only)</td></tr>
  *   <tr><td>{@code dashboard.threads}</td><td>{@code availableProcessors() - 3}</td></tr>
- *   <tr><td>{@code dashboard.backend}</td><td>{@code LEGACY} — {@code ASTAR} runs
- *       the A* engine instead; a per-row {@code pathfinderBackend} config
- *       override still wins, and A* searches record unprofiled</td></tr>
  *   <tr><td>{@code reachability.maxTargets}</td><td>{@code 10000}</td></tr>
  * </table>
  */
