@@ -146,6 +146,15 @@ def test_git_invokes_subprocess_with_list_argv(monkeypatch):
     assert "shell" not in calls
 
 
+def test_git_surfaces_stderr_on_failure(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        raise subprocess.CalledProcessError(128, cmd, stderr="fatal: boom\n")
+
+    monkeypatch.setattr(mf.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError, match="fatal: boom"):
+        mf.git("some-repo", "status")
+
+
 # ---------- files_at_ref / measure / package_of ----------
 
 

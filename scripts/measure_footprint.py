@@ -100,9 +100,15 @@ def stripped_size(text):
 
 
 def git(repo, *args):
-    return subprocess.run(
-        ["git", "-C", repo, *args], check=True, capture_output=True, text=True
-    ).stdout
+    try:
+        return subprocess.run(
+            ["git", "-C", repo, *args], check=True, capture_output=True, text=True
+        ).stdout
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(
+            f"git -C {repo} {' '.join(args)} failed with exit code "
+            f"{e.returncode}:\n{(e.stderr or '').strip()}"
+        ) from e
 
 
 def files_at_ref(repo, ref):
