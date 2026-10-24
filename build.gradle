@@ -30,6 +30,7 @@ dependencies {
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation 'commons-cli:commons-cli:1.5.0'
 
     testCompileOnly 'org.projectlombok:lombok:1.18.30'
     testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
@@ -60,6 +61,10 @@ test {
         }
     }
 }
+
+// Compile the standalone collision dumper too, so its cache-backed regressions
+// exercise the source used by the regeneration pipeline.
+compileTestJava.source file('collision-map-update/CollisionMapDumper.java')
 
 // The plugin checkout the build uses (see settings.gradle)
 def shortestPathProjectDir = gradle.ext.shortestPathProjectDir

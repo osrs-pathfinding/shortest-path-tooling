@@ -749,6 +749,10 @@ public class CollisionMapDumper
 		BURGH_DE_ROTT_GATE_12817(12817),
 		BURGH_DE_ROTT_LOW_FENCE_12776(12776),
 
+		// The non-blocking diagonal tent opening (interactType=0) is otherwise
+		// treated as a solid wall, sealing off the Burthorpe clue boxes.
+		BURTHORPE_TENT_OPENING_3673(3673, FlagMap.TILE_DEFAULT, 2887, 3539, 0),
+
 		CELL_DOOR_9562(9562),
 
 		COOKING_GUILD_DOOR_10045(10045),
