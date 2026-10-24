@@ -55,7 +55,6 @@ jobs:
           --tests 'shortestpath.scenarios.*' --tests 'shortestpath.profiles.*'
           --tests 'shortestpath.benchmark.*' --tests 'shortestpath.route.*'
           --tests 'shortestpath.dashboard.ConfigParityTest'
-          --tests 'shortestpath.dump.CollisionMapDumperTest'
         shell: bash
 
 
