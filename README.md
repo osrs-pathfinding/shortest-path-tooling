@@ -88,6 +88,7 @@ The default remains the `./shortest-path` Git submodule.
 | `./gradlew sailingDashboard` | Build only the sailing routes, with the experimental sailing search drawn next to the normal path (needs a plugin checkout with the sailing search) |
 | `./gradlew captureExpectedLengths -PdashboardSuite=routes` | Write actual path lengths into the suite's `src/test/resources/scenarios/expected-lengths/<suite>.json` |
 | `./gradlew sailingBenchmark` | Time the experimental sailing search against the existing search on routes at sea (needs a plugin checkout with the sailing search) |
+| `./gradlew unlockBenchmark` | Time the A* search's unlock-suggestion pass on every unreachable scenario and check each suggestion on the account (needs a plugin checkout with the pass, shortest-path #836); writes `build/reports/unlock-benchmark/` |
 | `./gradlew bankTileDump -PbankTileCacheDir=<dir> -PbankTileXteaPath=<keys.json>` | Dump bank-object placements from an OSRS cache to TSV |
 | `./gradlew sailingAmenityVarbitDump -PsailingAmenityCacheDir=<dir> -PsailingAmenityXteaPath=<keys.json>` | Dump Sailing island amenity varbits from an OSRS cache |
 | `./gradlew routingCuts -PkahipNodeSeparator=<path>` | Generate the A* pathfinder's `routing-cuts.bin` with KaHIP (see below) |
