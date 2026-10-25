@@ -502,3 +502,39 @@ def test_symbol_provider_matches_bumped_effective_segment():
         [frag], "TypeX", "none", "v1.22.2", state=state) is None
     assert ra._symbol_provider(
         [frag], "TypeX", "none", "v1.22.4", state=state) is frag
+
+
+# ---------- segment scope ----------
+
+
+def test_in_segment_scope_covers_pending_and_bumped_targets():
+    frag = make_fragment(id="f1-1of1", segment="v1.22.3")
+    # never-run spec-segment fragment scopes in
+    assert ra._in_segment_scope(frag, {}, "v1.22.3") is True
+    # terminal states scope out
+    for status in ("applied", "already-applied", "bumped"):
+        assert ra._in_segment_scope(
+            frag, {"status": status}, "v1.22.3") is False
+    # a bumped fragment re-scopes only at its bump target
+    st = {"status": "bumped", "to": "v1.22.3"}
+    assert ra._in_segment_scope(frag, st, "v1.22.3") is True
+    assert ra._in_segment_scope(frag, st, "v1.22.4") is False
+    # a .2-spec fragment bumped to .3 re-judges in the .3 run
+    frag2 = make_fragment(id="f2-1of1", segment="v1.22.2")
+    assert ra._in_segment_scope(frag2, st, "v1.22.3") is True
+    assert ra._in_segment_scope(frag2, st, "v1.22.2") is False
+
+
+def test_in_segment_scope_rejudges_same_segment_bump():
+    # The provider-gate-fail path writes bumped/to=<same segment> so a
+    # re-run of run-segment re-judges the fragment standalone — a bare
+    # 'gate-failed' status would strand it (spec segment already ran,
+    # no bump target for later segments to pick up).
+    frag = make_fragment(id="f1-1of1", segment="v1.22.2")
+    st = {"status": "bumped", "to": "v1.22.3"}
+    assert ra._in_segment_scope(frag, st, "v1.22.3") is True
+    # gate-failed without a target does NOT scope — the driver must
+    # never write it bare (regression guard for the stranded-provider
+    # bug: 16 fragments stranded by a bare gate-failed status)
+    assert ra._in_segment_scope(
+        frag, {"status": "gate-failed"}, "v1.22.3") is False

@@ -682,14 +682,10 @@ def cmd_run_segment(args):
     scoped = []
     for f in spec["fragments"]:
         st = state["fragments"].get(f["id"], {})
-        status = st.get("status")
-        if (f["segment"] == segment and status
-                not in ("applied", "already-applied", "bumped")):
-            scoped.append(f)
-        elif status == "bumped" and st.get("to") == segment:
-            # bumped fragments re-judge at their target segment —
-            # post-replay content or a landed provider may now
-            # satisfy them; otherwise they bump again.
+        # bumped fragments re-judge at their target segment —
+        # post-replay content or a landed provider may now
+        # satisfy them; otherwise they bump again.
+        if _in_segment_scope(f, st, segment):
             scoped.append(f)
     total = len(scoped)
     pending = {f["id"]: f for f in scoped}
@@ -823,11 +819,20 @@ def cmd_run_segment(args):
                         pending.pop(provider["id"], None)
                         _ledger_append(args.ledger, rows)
                         return cmd_run_segment(args)
-                    # provider can't compile here either — it is
-                    # gate-failed, pending its own bump resolution;
-                    # this fragment falls through to the bump path
+                    # provider can't compile here either — it goes
+                    # back to bumped targeting THIS segment so a
+                    # re-run re-judges it standalone (more same-segment
+                    # providers may land first; if it still fails it
+                    # bumps onward through the normal resolution).
+                    # A bare 'gate-failed' status would strand it: the
+                    # bump target would be lost and no future
+                    # run-segment could scope it.
                     state["fragments"][provider["id"]] = {
-                        "status": "gate-failed"}
+                        "status": "bumped", "to": segment,
+                        "record": make_bump_record(
+                            provider["id"], segment, segment, "?",
+                            "provider gate-failed during reorder — "
+                            "queued for standalone re-judgment")}
                     save_state(args.state, state)
                 target_seg = None
                 for s in syms:
@@ -903,6 +908,21 @@ def cmd_run_segment(args):
 def _later_segments(segment):
     order = ["v1.22.2", "v1.22.3", "v1.22.4", "v1.22.5", "post-v1.22.5"]
     return order[order.index(segment) + 1:]
+
+
+def _in_segment_scope(fragment, st, segment):
+    """Whether a fragment is in scope for ``run-segment <segment>``.
+
+    Unfinished fragments whose spec segment matches, plus bumped
+    fragments re-judging at their bump target.  A ``bumped`` status
+    with ``to == segment`` therefore re-scopes — the same-segment
+    target is how a provider that gate-failed mid-run is queued for
+    standalone re-judgment (its earlier bump record is in 'record')."""
+    status = st.get("status")
+    if (fragment["segment"] == segment and status
+            not in ("applied", "already-applied", "bumped")):
+        return True
+    return status == "bumped" and st.get("to") == segment
 
 
 def _apply_commit_gate(frag, wt, era_base, args, state, rows):
