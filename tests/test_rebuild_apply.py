@@ -376,3 +376,112 @@ def test_driver_has_no_push_argv_literal():
     src = SCRIPT_PATH.read_text()
     import re
     assert not re.search(r"[\"']push[\"']", src)
+
+
+# ---------- insertions ('+'-only hunks) ----------
+
+
+def make_insertion(**over):
+    ins = {"file": FILE_F, "pos": 2,
+           "before": "l1\nl2\n", "after": "l3\nl4\n",
+           "text": "NEW\n"}
+    ins.update(over)
+    return ins
+
+
+def test_resolve_insertion_pending_unique_anchor():
+    content = "l1\nl2\nl3\nl4\n"
+    r = ra._resolve_insertion(content, make_insertion(), [])
+    assert r["status"] == "pending"
+    assert r["before"] == "l1\nl2\n" and r["after"] == "l3\nl4\n"
+
+
+def test_resolve_insertion_satisfied_when_text_present():
+    content = "l1\nl2\nNEW\nl3\nl4\n"
+    r = ra._resolve_insertion(content, make_insertion(), [])
+    assert r["status"] == "satisfied"
+
+
+def test_resolve_insertion_absent_anchor():
+    r = ra._resolve_insertion("a\nb\n", make_insertion(), [])
+    assert r["status"] == "absent"
+
+
+def test_resolve_insertion_ambiguous_then_widened():
+    # 'v\nw\nb\nc\n' occurs twice — the widened anchor from the parent
+    # blob disambiguates to the second site.
+    content = "v\nw\nb\nc\n" + "l1\nl2\nv\nw\nb\nc\nz\n"
+    blob = ["l1\n", "l2\n", "v\n", "w\n", "b\n", "c\n", "z\n"]
+    r = ra._resolve_insertion(
+        content,
+        make_insertion(pos=4, before="v\nw\n", after="b\nc\n"),
+        blob)
+    assert r["status"] == "pending"
+    assert r["before"] == "l1\nl2\nv\nw\n"
+    assert r["after"] == "b\nc\nz\n"
+
+
+def test_resolve_insertion_ambiguous_conflict():
+    content = "l1\nl2\nl3\nl4\n" * 2
+    r = ra._resolve_insertion(content, make_insertion(), [])
+    assert r["status"] == "ambiguous" and r["count"] == 2
+
+
+# ---------- fragment paths / provider search ----------
+
+
+def test_frag_paths_covers_insertions_and_creations():
+    frag = make_fragment(
+        insertions=[make_insertion(file="src/main/java/x/G.java")],
+        creations=[{"file": "src/main/java/x/New.java", "content": "x"}],
+        companions=["src/test/java/x/FTest.java"])
+    paths = ra._frag_paths(frag)
+    assert paths[0] == FILE_F
+    assert "src/main/java/x/G.java" in paths
+    assert "src/main/java/x/New.java" in paths
+    assert "src/test/java/x/FTest.java" in paths
+
+
+def test_search_text_covers_insertions_and_creations():
+    frag = make_fragment(
+        plus_text="alpha\n",
+        insertions=[make_insertion(text="beta\n")],
+        creations=[{"file": "x", "content": "gamma\n"}])
+    text = ra._search_text(frag)
+    assert "alpha" in text and "beta" in text and "gamma" in text
+
+
+def test_symbol_provider_finds_insertion_and_creation_symbols():
+    carrier = make_fragment(
+        id="c1-1of1", segment="v1.22.3",
+        creations=[{"file": "x", "content": "class OverlayDrawing\n"}])
+    ins = make_fragment(
+        id="c2-1of1", segment="v1.22.3",
+        insertions=[make_insertion(text="import lombok.Getter;\n")])
+    assert ra._symbol_provider(
+        [carrier], "OverlayDrawing", "none", "v1.22.3") is carrier
+    assert ra._symbol_provider(
+        [ins], "Getter", "none", "v1.22.3") is ins
+    assert ra._symbol_provider(
+        [carrier], "OverlayDrawing", "none", "v1.22.2") is None
+
+
+def test_eff_segment_follows_bump_target():
+    frag = make_fragment(id="f1-1of1", segment="v1.22.2")
+    state = {"fragments": {"f1-1of1": {"status": "bumped",
+                                       "to": "v1.22.4"}}}
+    assert ra._eff_segment(frag, state) == "v1.22.4"
+    assert ra._eff_segment(frag, {"fragments": {}}) == "v1.22.2"
+
+
+def test_symbol_provider_matches_bumped_effective_segment():
+    frag = make_fragment(id="f1-1of1", segment="v1.22.2",
+                         plus_text="TypeX\n")
+    state = {"fragments": {"f1-1of1": {"status": "bumped",
+                                       "to": "v1.22.4"}}}
+    # the fragment no longer reads as a .2 provider — it re-judges
+    # where it was bumped.
+    assert ra._symbol_provider(
+        [frag], "TypeX", "none", "v1.22.2", state=state) is None
+    assert ra._symbol_provider(
+        [frag], "TypeX", "none", "v1.22.4", state=state) is frag

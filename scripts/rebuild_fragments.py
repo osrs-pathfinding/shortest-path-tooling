@@ -290,13 +290,18 @@ def generate(repo, series_base, branch, ledger_paths):
         # hunk segment = max over its rows; cluster contiguous same-segment
         blobs = {}
         per_commit = []
+        plus_only = {}  # path -> ['+'-only hunks, file order]
         for f in files:
             path = f["file"]
             for hi, hunk in enumerate(f["hunks"]):
                 segs = [covered[(path, hi, ri)][2]
                         for ri in range(len(hunk["minus"]))]
                 if not segs:
-                    continue  # +only hunk — post-.5 content, not a fragment
+                    # '+'-only hunk — no deletion to attribute, but its
+                    # content is still part of the commit and may be
+                    # gate-required (imports, new methods, new files).
+                    plus_only.setdefault(path, []).append(hunk)
+                    continue
                 segment = max(segs, key=SEGMENT_ORDER.index)
                 if (per_commit and per_commit[-1]["file"] == path
                         and per_commit[-1]["segment"] == segment):
@@ -305,6 +310,77 @@ def generate(repo, series_base, branch, ledger_paths):
                     per_commit.append(
                         {"file": path, "segment": segment,
                          "hunks": [hunk]})
+
+        # '+'-only content lands somewhere compilable rather than being
+        # dropped: an intra-file insertion rides the fragment containing
+        # the NEXT attributed hunk in file order (an import belongs to
+        # the code it precedes; fallback: the preceding fragment).  A
+        # file with no attributed hunks at all attaches to the commit's
+        # max-segment fragment — as a creation when the file is new in
+        # this commit, else as a cross-file insertion.  The driver's
+        # bump machinery re-homes anything that still cannot compile.
+        new_files = set(git(
+            repo, "show", "--format=", "--diff-filter=A", "--name-only",
+            sha, "--", SRC_GLOB).split())
+        n_commit = len(per_commit)
+        max_idx = (max(range(n_commit), key=lambda i: SEGMENT_ORDER.index(
+            per_commit[i]["segment"])) if n_commit else -1)
+        insertions = {}  # frag idx -> [insertion records]
+        for path, po_hunks in plus_only.items():
+            if path in new_files:
+                per_commit[max_idx].setdefault("creations", []).append(
+                    {"file": path,
+                     "content": git(repo, "show", f"{sha}:{path}")})
+                continue
+            file_frags = sorted(
+                (h["start"], i)
+                for i, fr in enumerate(per_commit) if fr["file"] == path
+                for h in fr["hunks"])
+            for hunk in po_hunks:
+                host = next(
+                    (i for st, i in file_frags if st > hunk["start"]),
+                    None)
+                if host is None:
+                    host = file_frags[-1][1] if file_frags else max_idx
+                if path not in blobs:
+                    blobs[path] = git(
+                        repo, "show", f"{sha}^:{path}"
+                    ).splitlines(keepends=True)
+                blob = blobs[path]
+                pos = hunk["start"]
+                insertions.setdefault(host, []).append({
+                    "file": path, "pos": pos,
+                    "before": "".join(blob[max(0, pos - 2):pos]),
+                    "after": "".join(blob[pos:pos + 2]),
+                    "text": "".join(l + "\n" for l in hunk["plus"])})
+
+        # Coverage: every non-blank '+' line of this commit's src/main
+        # diff lands in exactly one emitted slot — a fragment hunk's
+        # plus_text, an insertion, or a creation.  Blank lines ride
+        # their hunk verbatim but are noise for accounting.  A silent
+        # drop is a spec defect.
+        for f in files:
+            path = f["file"]
+            want = sorted(l for h in f["hunks"] for l in h["plus"]
+                          if l.strip())
+            got = sorted(
+                l for fr in per_commit if fr["file"] == path
+                for l in "".join(
+                    p + "\n" for h in fr["hunks"] for p in h["plus"])
+                .splitlines() if l.strip())
+            got += sorted(
+                l for ins_list in insertions.values()
+                for ins in ins_list if ins["file"] == path
+                for l in ins["text"].splitlines() if l.strip())
+            got += sorted(
+                l for fr in per_commit
+                for c in fr.get("creations", []) if c["file"] == path
+                for l in c["content"].splitlines() if l.strip())
+            missing = sorted(set(want) - set(got))
+            if missing:
+                raise RuntimeError(
+                    f"{sha}: '+'-line coverage gap on {path} — diff "
+                    f"lines not emitted anywhere: {missing[:5]}")
 
         n = len(per_commit)
         companions = [p for p in paths if not p.startswith("src/main/java/")]
@@ -335,14 +411,19 @@ def generate(repo, series_base, branch, ledger_paths):
                 for line in hunk["plus"])
             seg_frags[frag["segment"]] = seg_frags.get(
                 frag["segment"], 0) + 1
-            fragments.append({
+            frag_entry = {
                 "id": f"{sha[:8]}-{i + 1}of{n}",
                 "commit": sha[:8], "subject": subject,
                 "ordinal": f"{i + 1}/{n}",
                 "file": path, "segment": frag["segment"],
                 "minus_runs": minus_runs,
                 "plus_text": plus_text,
-                "companions": companions if i == max_idx else []})
+                "companions": companions if i == max_idx else []}
+            if insertions.get(i):
+                frag_entry["insertions"] = insertions[i]
+            if frag.get("creations"):
+                frag_entry["creations"] = frag["creations"]
+            fragments.append(frag_entry)
 
     return {
         "fragments": fragments,

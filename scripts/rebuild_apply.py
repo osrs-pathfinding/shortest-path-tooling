@@ -307,6 +307,41 @@ def _extended_context(blob_lines, first_start, last_end, extra=4):
     return before, after
 
 
+def _resolve_insertion(content, ins, blob_lines):
+    """Locate an insertion's anchor pair in the current file.
+
+    'pending' (anchor pair found exactly once), 'satisfied' (the
+    inserted text already sits between the anchors), 'ambiguous'
+    (>1 even after widening from the parent blob), 'absent'."""
+    before, after, text = ins["before"], ins["after"], ins["text"]
+    if before + text + after in content:
+        return {"status": "satisfied"}
+    positions = locate_positions(content, before + after)
+    if len(positions) == 1:
+        return {"status": "pending", "before": before, "after": after}
+    if len(positions) > 1:
+        pos = ins["pos"]
+        before2 = "".join(
+            blob_lines[max(0, pos - 6):max(0, pos - 2)]) + before
+        after2 = after + "".join(blob_lines[pos + 2:pos + 6])
+        if before2 + text + after2 in content:
+            return {"status": "satisfied"}
+        positions = locate_positions(content, before2 + after2)
+        if len(positions) == 1:
+            return {"status": "pending",
+                    "before": before2, "after": after2}
+        return {"status": "ambiguous", "count": len(positions)}
+    return {"status": "absent"}
+
+
+def _frag_paths(fragment):
+    """Every path the fragment can touch — for undo and staging."""
+    paths = [fragment["file"]] + list(fragment.get("companions", []))
+    paths += [i["file"] for i in fragment.get("insertions", [])]
+    paths += [c["file"] for c in fragment.get("creations", [])]
+    return list(dict.fromkeys(paths))
+
+
 def apply_fragment(fragment, worktree, era_base, repo=None):
     """Apply one fragment to the worktree file.
 
@@ -361,6 +396,52 @@ def apply_fragment(fragment, worktree, era_base, repo=None):
                 else "anchor ambiguous beyond extended context",
                 res["count"]))
 
+    # '+'-only insertions: anchored on the surrounding lines; a missing
+    # anchor that is not already satisfied is a conflict, never a guess.
+    ins_edits = []  # (file, before, text, after)
+    for ins in fragment.get("insertions", []):
+        fpath = os.path.join(worktree, ins["file"])
+        if ins["file"] == fragment["file"]:
+            icontent = content
+        else:
+            icontent = Path(fpath).read_text() \
+                if os.path.exists(fpath) else ""
+        iblob = parent_blob_lines if ins["file"] == fragment["file"] \
+            else _blob(repo, f"{fragment['commit']}^", ins["file"]) \
+            .splitlines(keepends=True)
+        res = _resolve_insertion(icontent, ins, iblob)
+        match_counts.append({"insertion": res["status"]})
+        if res["status"] == "satisfied":
+            statuses.append("already-applied")
+        elif res["status"] == "pending":
+            statuses.append("pending")
+            ins_edits.append(
+                (ins["file"], res["before"], ins["text"],
+                 res["after"]))
+        else:
+            statuses.append("conflict")
+            conflicts.append(make_conflict_record(
+                fragment["id"], ins["file"],
+                "insertion anchor absent and not satisfied"
+                if res["status"] == "absent"
+                else "insertion anchor ambiguous beyond context",
+                res.get("count", 0)))
+
+    # Creations: a whole new file lands with its carrier fragment.
+    cre_writes = []  # (file, content)
+    for cre in fragment.get("creations", []):
+        fpath = os.path.join(worktree, cre["file"])
+        if not os.path.exists(fpath):
+            statuses.append("pending")
+            cre_writes.append((cre["file"], cre["content"]))
+        elif Path(fpath).read_text() == cre["content"]:
+            statuses.append("already-applied")
+        else:
+            statuses.append("conflict")
+            conflicts.append(make_conflict_record(
+                fragment["id"], cre["file"],
+                "creation target exists with different content", 0))
+
     if conflicts:
         return {"status": "conflict", "conflicts": conflicts,
                 "match_counts": match_counts}
@@ -376,6 +457,17 @@ def apply_fragment(fragment, worktree, era_base, repo=None):
             content = content.replace(old, new_text, 1)
     Path(path).write_text(content)
     git(worktree, "add", "--", fragment["file"])
+    for ifile, before, text, after in ins_edits:
+        fpath = os.path.join(worktree, ifile)
+        icontent = Path(fpath).read_text()
+        Path(fpath).write_text(
+            icontent.replace(before + after, before + text + after, 1))
+        git(worktree, "add", "--", ifile)
+    for cfile, ctext in cre_writes:
+        fpath = os.path.join(worktree, cfile)
+        os.makedirs(os.path.dirname(fpath), exist_ok=True)
+        Path(fpath).write_text(ctext)
+        git(worktree, "add", "--", cfile)
     return {"status": "applied", "match_counts": match_counts,
             "already": sum(1 for s in statuses
                            if s == "already-applied")}
@@ -488,11 +580,32 @@ def _drift_check(worktree, base, segment):
         git(worktree, "worktree", "remove", "--force", tmp)
 
 
-def _symbol_provider(fragments, symbol, exclude_id, segment=None):
+def _search_text(f):
+    """Everything a fragment can deposit — its '+' replacements plus
+    carried insertions and creations — for symbol-provider lookups."""
+    parts = [f.get("plus_text", "")]
+    parts += [i.get("text", "") for i in f.get("insertions", [])]
+    parts += [c.get("content", "") for c in f.get("creations", [])]
+    return "\n".join(parts)
+
+
+def _eff_segment(f, state):
+    """The segment a fragment currently belongs to — its bump target
+    when bumped, else its spec segment."""
+    st = state["fragments"].get(f["id"], {}) if state else {}
+    if st.get("status") == "bumped" and st.get("to"):
+        return st["to"]
+    return f["segment"]
+
+
+def _symbol_provider(fragments, symbol, exclude_id, segment=None,
+                     state=None):
     for f in fragments:
-        if f["id"] == exclude_id or f["segment"] != segment:
+        if f["id"] == exclude_id:
             continue
-        if symbol in f["plus_text"]:
+        if _eff_segment(f, state) != segment:
+            continue
+        if symbol in _search_text(f):
             return f
     return None
 
@@ -547,24 +660,26 @@ def cmd_run_segment(args):
     base = git(wt, "rev-parse", "HEAD").strip()
     era_base = args.era_base or segment
 
-    frags = [f for f in spec["fragments"] if f["segment"] == segment]
-    total = len(frags)
-    pending = {f["id"]: f for f in frags
-               if state["fragments"].get(f["id"], {}).get("status")
-               not in ("applied", "already-applied", "bumped")}
-    print(f"run-segment {segment}: {total} fragments, "
-          f"{len(pending)} pending, base {base[:8]}")
+    scoped = []
+    for f in spec["fragments"]:
+        st = state["fragments"].get(f["id"], {})
+        status = st.get("status")
+        if (f["segment"] == segment and status
+                not in ("applied", "already-applied", "bumped")):
+            scoped.append(f)
+        elif status == "bumped" and st.get("to") == segment:
+            # bumped fragments re-judge at their target segment —
+            # post-replay content or a landed provider may now
+            # satisfy them; otherwise they bump again.
+            scoped.append(f)
+    total = len(scoped)
+    pending = {f["id"]: f for f in scoped}
+    print(f"run-segment {segment}: {total} in scope "
+          f"({len(pending)} pending), base {base[:8]}")
 
     rows = []
-    for idx, frag in enumerate(frags, 1):
-        if frag["id"] not in pending:
-            continue
-        recorded = state["fragments"].get(frag["id"])
-        if recorded and recorded.get("status") in (
-                "applied", "already-applied", "bumped"):
-            continue
-
-        res = apply_fragment(frag, wt, era_base)
+    for idx, frag in enumerate(scoped, 1):
+        res = apply_fragment(frag, wt, frag["segment"])
         if res["status"] == "conflict":
             for c in res["conflicts"]:
                 rows.append(make_ledger_row(
@@ -579,7 +694,7 @@ def cmd_run_segment(args):
         if res["status"] == "already-applied":
             rows.append(make_ledger_row(
                 frag["id"], frag["commit"], frag["file"],
-                frag["segment"], frag["segment"], idx,
+                frag["segment"], segment, idx,
                 res["match_counts"], "already-applied"))
             state["fragments"][frag["id"]] = {
                 "status": "already-applied"}
@@ -595,7 +710,7 @@ def cmd_run_segment(args):
             state["deviations"].append(dev)
             rows.append(make_ledger_row(
                 frag["id"], frag["commit"], frag["file"],
-                frag["segment"], frag["segment"], idx,
+                frag["segment"], segment, idx,
                 res["match_counts"],
                 "deviation: companion-deferred "
                 f"({', '.join(frag.get('_deferred', []))})"))
@@ -634,7 +749,7 @@ def cmd_run_segment(args):
                         state["deviations"].append(dev)
                         rows.append(make_ledger_row(
                             frag["id"], frag["commit"], frag["file"],
-                            frag["segment"], frag["segment"], idx,
+                            frag["segment"], segment, idx,
                             res["match_counts"],
                             "deviation: companion-pull-forward"))
             if not fixed:
@@ -664,16 +779,15 @@ def cmd_run_segment(args):
                      for f in [_symbol_provider(
                          [p for p in pending.values()
                           if p["id"] not in failed],
-                         s, frag["id"], segment)]
+                         s, frag["id"], segment, state=state)]
                      if f), None)
                 undone = False
                 if provider is not None and amended != "amended":
-                    _undo_commit(
-                        wt, [frag["file"]] + frag["companions"])
+                    _undo_commit(wt, _frag_paths(frag))
                     undone = True
                     rows.append(make_ledger_row(
                         frag["id"], frag["commit"], frag["file"],
-                        frag["segment"], frag["segment"], idx,
+                        frag["segment"], segment, idx,
                         res["match_counts"],
                         f"reorder: needs {provider['id']} first"))
                     state["deviations"].append({
@@ -684,7 +798,8 @@ def cmd_run_segment(args):
                              if "error:" in l), "")})
                     save_state(args.state, state)
                     prov_res = _apply_commit_gate(
-                        provider, wt, era_base, args, state, rows)
+                        provider, wt, provider["segment"], args,
+                        state, rows)
                     if prov_res == 0:
                         pending.pop(provider["id"], None)
                         _ledger_append(args.ledger, rows)
@@ -695,28 +810,17 @@ def cmd_run_segment(args):
                     state["fragments"][provider["id"]] = {
                         "status": "gate-failed"}
                     save_state(args.state, state)
-                bumped = {i: s.get("to")
-                          for i, s in state["fragments"].items()
-                          if s.get("status") == "bumped"}
                 target_seg = None
                 for s in syms:
                     for seg in _later_segments(segment):
                         hit = _symbol_provider(
-                            spec["fragments"], s, frag["id"], seg)
+                            spec["fragments"], s, frag["id"], seg,
+                            state=state)
                         if hit:
                             target_seg = seg
                             break
                     if target_seg:
                         break
-                if target_seg is None:
-                    for bid, bseg in bumped.items():
-                        bf = next(
-                            (f for f in spec["fragments"]
-                             if f["id"] == bid), None)
-                        if bf and any(
-                                s in bf["plus_text"] for s in syms):
-                            target_seg = bseg
-                            break
                 if target_seg is None:
                     # Nothing resolves it at this segment — missing
                     # symbol, signature/caller split across segments,
@@ -729,8 +833,7 @@ def cmd_run_segment(args):
                         target_seg = later[0]
                 if target_seg is not None:
                     if not undone and amended != "amended":
-                        _undo_commit(
-                            wt, [frag["file"]] + frag["companions"])
+                        _undo_commit(wt, _frag_paths(frag))
                     bump = make_bump_record(
                         frag["id"], segment, target_seg,
                         syms[0] if syms else "?",
@@ -761,7 +864,7 @@ def cmd_run_segment(args):
 
         rows.append(make_ledger_row(
             frag["id"], frag["commit"], frag["file"],
-            frag["segment"], frag["segment"], idx,
+            frag["segment"], segment, idx,
             res["match_counts"],
             "applied" if amended != "amended"
             else "applied (tracer fold, amended)"))
@@ -805,7 +908,7 @@ def _apply_commit_gate(frag, wt, era_base, args, state, rows):
     commit_fragment(frag, wt)
     out, rc = gradle(wt, "compileJava", "compileTestJava")
     if gate_failed(rc, out):
-        _undo_commit(wt, [frag["file"]] + frag["companions"])
+        _undo_commit(wt, _frag_paths(frag))
         return 1
     state["fragments"][frag["id"]] = {
         "status": "applied",
