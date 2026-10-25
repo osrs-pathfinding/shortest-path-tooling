@@ -331,6 +331,16 @@ def _resolve_insertion(content, ins, blob_lines):
             return {"status": "pending",
                     "before": before2, "after": after2}
         return {"status": "ambiguous", "count": len(positions)}
+    # Anchor pair diverged — another fragment already edited between
+    # the two anchor halves (e.g. sealed the class declaration the
+    # insertion precedes).  Fall back to a single-sided unique anchor;
+    # only the locate relaxes, the inserted text stays verbatim.
+    b = locate_positions(content, before) if before else []
+    if len(b) == 1:
+        return {"status": "pending", "before": before, "after": ""}
+    a = locate_positions(content, after) if after else []
+    if len(a) == 1:
+        return {"status": "pending", "before": "", "after": after}
     return {"status": "absent"}
 
 

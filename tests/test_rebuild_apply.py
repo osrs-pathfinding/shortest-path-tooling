@@ -427,6 +427,23 @@ def test_resolve_insertion_ambiguous_conflict():
     assert r["status"] == "ambiguous" and r["count"] == 2
 
 
+def test_resolve_insertion_single_sided_fallback():
+    # 'after' no longer matches — an earlier fragment changed the
+    # anchored declaration; 'before' alone stays a unique locate.
+    ins = make_insertion(before="@Getter\n",
+                         after="public class X\n{\n",
+                         text="@EqualsAndHashCode\n")
+    content = "a\n@Getter\npublic final class X\n{\nb\n"
+    r = ra._resolve_insertion(content, ins, [])
+    assert r == {"status": "pending",
+                 "before": "@Getter\n", "after": ""}
+    # apply-time replacement still lands the text correctly
+    assert content.replace(
+        r["before"] + r["after"],
+        r["before"] + ins["text"] + r["after"], 1
+    ) == "a\n@Getter\n@EqualsAndHashCode\npublic final class X\n{\nb\n"
+
+
 # ---------- fragment paths / provider search ----------
 
 
