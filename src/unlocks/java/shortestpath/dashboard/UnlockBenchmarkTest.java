@@ -23,6 +23,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
 import net.runelite.api.Skill;
 import net.runelite.api.gameval.ItemID;
@@ -32,12 +33,17 @@ import org.slf4j.LoggerFactory;
 import shortestpath.pathfinder.AStarPathfinder;
 import shortestpath.pathfinder.PathTerminationReason;
 import shortestpath.pathfinder.UnlockSuggestions;
+import shortestpath.accounts.Diary;
+import shortestpath.profiles.CompiledAccount;
 import shortestpath.profiles.Setup;
 import shortestpath.requirement.Capability;
+import shortestpath.accounts.Unlock;
+import shortestpath.settings.TeleportationItem;
 import shortestpath.requirement.model.SkillLevels;
 import shortestpath.scenarios.Observation;
 import shortestpath.scenarios.Scenario;
 import shortestpath.scenarios.ScenarioRunner;
+import net.runelite.api.Client;
 import shortestpath.scenarios.Suites;
 import shortestpath.transport.Transport;
 
@@ -52,9 +58,16 @@ import shortestpath.transport.Transport;
  * to time the pass warm. The first pass of each scenario is the cold one; the JVM warms up over the run, so the
  * earliest scenarios are the coldest.</p>
  *
- * <p>The report lists headline counts and timings, then what needs a look: passes that ran out of time,
- * unreachable scenarios with no suggestion (and why), suggestions that look out of order, and suggestions the
- * independent check couldn't confirm. The JSON has every unreachable scenario with its suggestions.</p>
+ * <p>Every unreachable scenario with no suggestion is then sorted by what it would take, through the account model
+ * alone: whether a single capability the plugin could suggest gets there (a miss, which should never happen),
+ * only several together, only a maxed account (progress the plugin can't name yet, such as diaries), only with more
+ * settings on, or nothing. Granting more never closes a route, so a group of capabilities granted together that
+ * doesn't get there holds no single one that does; halving the groups finds a single one in a few searches.</p>
+ *
+ * <p>The report lists headline counts and timings, then what needs a look: misses, passes that ran out of time,
+ * unreachable scenarios with no suggestion (and what they'd take), suggestions that look out of order,
+ * suggestions the independent check couldn't confirm, and item suggestions to check against the data (an item
+ * that is a quest or diary reward should name that quest in its row). The JSON has every unreachable scenario.</p>
  *
  * <h3>Gradle invocation</h3>
  * <pre>
@@ -81,13 +94,29 @@ public class UnlockBenchmarkTest {
     private static final int MAJOR_QUESTS = 3;
     /** A skill suggestion needing at most this many levels counts as a small one. */
     private static final int SMALL_LEVELS = 5;
+    /** What a scenario with no suggestion would take, in report order. */
+    static final List<String> VERDICTS = List.of("missed", "undecided", "several unlocks", "progress not named yet",
+        "a setting", "no route");
+    static final Map<String, String> VERDICT_TEXT = Map.of(
+        "missed", "**missed: one unlock would have done** (should be 0)",
+        "undecided", "undecided within the check's searches",
+        "several unlocks", "needs several unlocks together",
+        "progress not named yet", "needs progress the plugin can't name yet (diaries, quest stages, unlocks)",
+        "a setting", "needs a setting turned on",
+        "no route", "no route for any account");
+
+    /** The most searches the check spends looking for a single capability that would have done. */
+    private static final int CHECK_SEARCHES = 64;
 
     /** One suggestion, as the overlay words it, and whether the account with it really reaches the target. */
     static final class Suggested {
         String label;
         String effort;
         String transport;
+        String transportType;
         boolean confirmed;
+        /** How many levels short the account is of the suggestion's skill levels. */
+        int levelsMissing;
         transient Capability capability;
     }
 
@@ -104,10 +133,17 @@ public class UnlockBenchmarkTest {
         List<Double> warmMs = new ArrayList<>();
         int candidates;
         int reruns;
+        int inconclusive;
         boolean outOfTime;
         boolean alreadyConnected;
         List<Suggested> suggestions = new ArrayList<>();
         List<String> suspicious = new ArrayList<>();
+        /** For a scenario with no suggestion, what it would take; see {@link UnlockBenchmarkTest#verdict}. */
+        String verdict;
+        /** A single capability that gets there although the plugin suggested nothing. */
+        String missed;
+        /** The searches the verdict took. */
+        int checks;
 
         String route() {
             return description == null || description.isEmpty() ? scenario : scenario + " (" + description + ")";
@@ -126,16 +162,17 @@ public class UnlockBenchmarkTest {
             if (!suggestions.isEmpty()) {
                 return null;
             }
-            if (alreadyConnected) {
-                return "already connected on the component graph";
-            }
             if (candidates == 0) {
                 return "no locked transport a single unlock opens";
             }
             if (outOfTime) {
                 return "out of time";
             }
-            return "no candidate reached the target";
+            if (inconclusive > 0) {
+                return "a rerun settled nothing in its time";
+            }
+            return alreadyConnected ? "already connected on the component graph; no rerun reached the target"
+                : "no candidate reached the target";
         }
     }
 
@@ -213,18 +250,24 @@ public class UnlockBenchmarkTest {
             UnlockSuggestions.Found found = search.getUnlockSearch();
             row.candidates = found.getCandidates();
             row.reruns = found.getReruns();
+            row.inconclusive = found.getInconclusive();
             row.outOfTime = found.isOutOfTime();
             row.alreadyConnected = found.isAlreadyConnected();
             for (UnlockSuggestions.Suggestion suggestion : found.getSuggestions()) {
                 Suggested suggested = new Suggested();
                 suggested.capability = suggestion.getCapability();
                 suggested.label = label(suggestion.getCapability());
-                suggested.effort = suggestion.getCapability().getEffort().name();
+                suggested.effort = suggestion.getEffort().name();
                 suggested.transport = transportLabel(suggestion.getTransport());
+                suggested.transportType = suggestion.getTransport().getType().name();
+                suggested.levelsMissing = levelsMissing(suggestion.getCapability(), observation.getAccount().getClient());
                 suggested.confirmed = confirm(runner, scenario, suggestion.getCapability());
                 row.suggestions.add(suggested);
             }
             row.suspicious = suspicious(row.suggestions);
+            if (row.suggestions.isEmpty()) {
+                verdict(runner, scenario, observation.getAccount(), row);
+            }
             report.unreachable.add(row);
             unreachableScenarios.put(row, scenario);
         }
@@ -261,6 +304,16 @@ public class UnlockBenchmarkTest {
      */
     private static boolean confirm(ScenarioRunner runner, Scenario scenario, Capability capability) {
         Setup setup = scenario.setup();
+        grant(setup, capability);
+        return reaches(runner, scenario, setup);
+    }
+
+    private static boolean reaches(ScenarioRunner runner, Scenario scenario, Setup setup) {
+        return runner.run(scenario, setup.compile(), ScenarioRunner.Profiling.OFF).isReached();
+    }
+
+    /** Gives the scenario's account the capability's quests, levels and items through the account model. */
+    private static void grant(Setup setup, Capability capability) {
         capability.getQuests().forEach(quest -> setup.account.quest(quest, QuestState.FINISHED));
         SkillLevels levels = capability.getSkillLevels();
         for (Skill skill : Skill.values()) {
@@ -275,7 +328,106 @@ public class UnlockBenchmarkTest {
             setup.account.questPoints(levels.get(SkillLevels.QUEST_POINTS_INDEX));
         }
         capability.getItems().forEach((id, quantity) -> setup.account.inventory(id, quantity));
-        return runner.run(scenario, setup.compile(), ScenarioRunner.Profiling.OFF).isReached();
+    }
+
+    /**
+     * What a scenario the plugin suggested nothing for would take, checked through the account model alone:
+     * {@code "missed"} when one capability the plugin could suggest gets there by itself, {@code "several
+     * unlocks"} when they only do together, {@code "progress not named yet"} when only a maxed account (every
+     * quest, 99s, every diary and declared unlock) does, {@code "a setting"} when that only does with every
+     * transport setting on, and {@code "no route"} otherwise. Granting more never closes a route, so a group of
+     * capabilities that doesn't get there together holds no single one that does.
+     */
+    private static void verdict(ScenarioRunner runner, Scenario scenario, CompiledAccount account, Unreachable row) {
+        List<Capability> candidates = new ArrayList<>(account.getConfig().everyCapability());
+        int[] checks = {0};
+        if (!candidates.isEmpty() && together(runner, scenario, candidates, checks)) {
+            Capability single = single(runner, scenario, candidates, checks, true);
+            row.verdict = single != null ? "missed" : checks[0] >= CHECK_SEARCHES ? "undecided" : "several unlocks";
+            row.missed = single == null ? null : label(single);
+        } else {
+            Setup maxed = maxed(scenario, candidates);
+            checks[0]++;
+            if (reaches(runner, scenario, maxed)) {
+                row.verdict = "progress not named yet";
+            } else {
+                everySetting(maxed);
+                checks[0]++;
+                row.verdict = reaches(runner, scenario, maxed) ? "a setting" : "no route";
+            }
+        }
+        row.checks = checks[0];
+    }
+
+    private static boolean together(ScenarioRunner runner, Scenario scenario, List<Capability> group, int[] checks) {
+        Setup setup = scenario.setup();
+        group.forEach(capability -> grant(setup, capability));
+        checks[0]++;
+        return reaches(runner, scenario, setup);
+    }
+
+    /** One capability of {@code group} that gets there alone, or {@code null}; {@code known} if the group does. */
+    private static Capability single(ScenarioRunner runner, Scenario scenario, List<Capability> group, int[] checks,
+            boolean known) {
+        if (checks[0] >= CHECK_SEARCHES || !(known || together(runner, scenario, group, checks))) {
+            return null;
+        }
+        if (group.size() == 1) {
+            return group.get(0);
+        }
+        int half = group.size() / 2;
+        Capability found = single(runner, scenario, group.subList(0, half), checks, false);
+        return found != null ? found : single(runner, scenario, group.subList(half, group.size()), checks, false);
+    }
+
+    /** The scenario's account with every quest, 99 in every skill, every diary and unlock, and the candidates' items. */
+    private static Setup maxed(Scenario scenario, List<Capability> candidates) {
+        Setup setup = scenario.setup();
+        candidates.forEach(capability -> grant(setup, capability));
+        // Explicitly, as a profile's own levels and quest states win over the defaults.
+        for (Skill skill : Skill.values()) {
+            setup.account.level(skill, 99);
+        }
+        for (Quest quest : Quest.values()) {
+            setup.account.quest(quest, QuestState.FINISHED);
+        }
+        setup.account.totalLevel(99 * Skill.values().length).questPoints(1000).diaries(Diary.Tier.ELITE)
+            .unlock(Unlock.values());
+        return setup;
+    }
+
+    private static void everySetting(Setup setup) {
+        setup.settings.setUseAgilityShortcuts(true);
+        setup.settings.setUseGrappleShortcuts(true);
+        setup.settings.setUseBoats(true);
+        setup.settings.setUseCanoes(true);
+        setup.settings.setUseCharterShips(true);
+        setup.settings.setUseShips(true);
+        setup.settings.setUseFairyRings(true);
+        setup.settings.setUseGnomeGliders(true);
+        setup.settings.setUseHotAirBalloons(true);
+        setup.settings.setUseMagicCarpets(true);
+        setup.settings.setUseMagicMushtrees(true);
+        setup.settings.setUseMinecarts(true);
+        setup.settings.setUseQuetzals(true);
+        setup.settings.setUseSpiritTrees(true);
+        setup.settings.setUseTeleportationItems(TeleportationItem.ALL);
+        setup.settings.setUseTeleportationLevers(true);
+        setup.settings.setUseTeleportationPortals(true);
+        setup.settings.setUseTeleportationSpells(true);
+        setup.settings.setUseTeleportationSpellsHome(true);
+        setup.settings.setUseTeleportationMinigames(true);
+        setup.settings.setUseWildernessObelisks(true);
+        setup.settings.setIncludeBankPath(true);
+    }
+
+    /** How many levels short the account is of the capability's skill levels. */
+    static int levelsMissing(Capability capability, Client client) {
+        int missing = 0;
+        for (Skill skill : Skill.values()) {
+            missing += Math.max(0, capability.getSkillLevels().get(skill.ordinal()) - client.getBoostedSkillLevel(skill));
+        }
+        return missing;
     }
 
     /**
@@ -284,14 +436,14 @@ public class UnlockBenchmarkTest {
      */
     static List<String> suspicious(List<Suggested> suggestions) {
         List<String> reasons = new ArrayList<>();
-        if (!suggestions.isEmpty() && isMajor(suggestions.get(0).capability)) {
+        if (!suggestions.isEmpty() && isMajor(suggestions.get(0))) {
             reasons.add("major unlock first: " + suggestions.get(0).label);
         }
         for (int i = 0; i < suggestions.size(); i++) {
             for (int j = i + 1; j < suggestions.size(); j++) {
                 Capability above = suggestions.get(i).capability;
-                Capability below = suggestions.get(j).capability;
-                if (!above.getQuests().isEmpty() && levelsMissing(below) > 0 && levelsMissing(below) <= SMALL_LEVELS) {
+                int below = suggestions.get(j).levelsMissing;
+                if (!above.getQuests().isEmpty() && below > 0 && below <= SMALL_LEVELS) {
                     reasons.add(suggestions.get(i).label + " above " + suggestions.get(j).label);
                 }
             }
@@ -299,16 +451,11 @@ public class UnlockBenchmarkTest {
         return reasons;
     }
 
-    private static boolean isMajor(Capability capability) {
-        SkillLevels levels = capability.getSkillLevels();
-        return capability.getQuests().size() >= MAJOR_QUESTS
+    private static boolean isMajor(Suggested suggestion) {
+        SkillLevels levels = suggestion.capability.getSkillLevels();
+        return suggestion.capability.getQuests().size() >= MAJOR_QUESTS
             || levels.get(SkillLevels.TOTAL_LEVEL_INDEX) > 0 || levels.get(SkillLevels.QUEST_POINTS_INDEX) > 0
-            || levelsMissing(capability) >= MAJOR_LEVELS;
-    }
-
-    /** The levels a skill capability needs: the plugin's own within-tier measure. */
-    private static int levelsMissing(Capability capability) {
-        return capability.getEffort() == Capability.Effort.SKILLS ? capability.getAmount() : 0;
+            || suggestion.levelsMissing >= MAJOR_LEVELS;
     }
 
     // --- Wording, close to the plugin's overlay line ---
@@ -333,24 +480,9 @@ public class UnlockBenchmarkTest {
         return itemNames.getOrDefault(id, "Item " + id);
     }
 
-    /** "Complete Twilight's Promise", "Reach 60 Agility", "Carry 20 Coins". */
+    /** The overlay's wording: "Complete Twilight's Promise", "Reach 60 Agility", "Carry 20 Coins". */
     static String label(Capability capability) {
-        List<String> parts = new ArrayList<>();
-        capability.getQuests().forEach(quest -> parts.add(quest.getName()));
-        SkillLevels levels = capability.getSkillLevels();
-        for (int i = 0; i < SkillLevels.LENGTH; i++) {
-            int level = levels.get(i);
-            if (level > 0) {
-                parts.add(i == SkillLevels.TOTAL_LEVEL_INDEX ? "total level " + level
-                    : i == SkillLevels.COMBAT_LEVEL_INDEX ? "combat level " + level
-                    : i == SkillLevels.QUEST_POINTS_INDEX ? level + " quest points"
-                    : level + " " + Skill.values()[i].getName());
-            }
-        }
-        capability.getItems().forEach((id, quantity) -> parts.add(quantity > 1 ? quantity + " " + itemName(id) : itemName(id)));
-        Collections.sort(parts);
-        String verb = !capability.getQuests().isEmpty() ? "Complete " : capability.getItems().isEmpty() ? "Reach " : "Carry ";
-        return verb + String.join(", ", parts);
+        return capability.describe(UnlockBenchmarkTest::itemName);
     }
 
     private static String transportLabel(Transport transport) {
@@ -411,9 +543,10 @@ public class UnlockBenchmarkTest {
         }
         md.append(String.format("| **Unreachable** | **%d** |%n| … with at least one suggestion | %d |%n", rows.size(),
             withSuggestion));
-        Map<String, Long> reasons = rows.stream().filter(row -> row.noneReason() != null)
-            .collect(Collectors.groupingBy(Unreachable::noneReason, TreeMap::new, Collectors.counting()));
-        reasons.forEach((reason, count) -> md.append(String.format("| … none: %s | %d |%n", reason, count)));
+        for (String verdict : VERDICTS) {
+            md.append(String.format("| … none, %s | %d |%n", VERDICT_TEXT.get(verdict),
+                rows.stream().filter(row -> verdict.equals(row.verdict)).count()));
+        }
         md.append(String.format("| … out of time (any result) | %d |%n", outOfTime));
         md.append(String.format("| … with a suggestion that looks out of order | %d |%n",
             rows.stream().filter(row -> !row.suspicious.isEmpty()).count()));
@@ -441,15 +574,22 @@ public class UnlockBenchmarkTest {
             .collect(Collectors.toList())));
         md.append("\nThe pass has a 600 ms budget and starts no new rerun in its last 100 ms.\n");
 
+        section(md, "Missed: one unlock would have done, but nothing was suggested", rows,
+            row -> "missed".equals(row.verdict), Comparator.comparing(row -> row.scenario),
+            "| Scenario | It would have done | Why the plugin found nothing | Candidates | Reruns |\n|---|---|---|---:|---:|\n",
+            row -> String.format("| %s | %s | %s | %d | %d |%n", cell(row.route()), cell(row.missed), row.noneReason(),
+                row.candidates, row.reruns));
         section(md, "Out of time", rows, row -> row.outOfTime, Comparator.comparingDouble((Unreachable row) -> -row.coldMs),
             "| Scenario | ms | Candidates | Reruns | Found |\n|---|---:|---:|---:|---|\n",
             row -> String.format(Locale.ROOT, "| %s | %.0f | %d | %d | %s |%n", cell(row.route()), row.coldMs,
                 row.candidates, row.reruns, suggestionList(row)));
         section(md, "No suggestion", rows, row -> row.suggestions.isEmpty(),
-            Comparator.comparing(Unreachable::noneReason).thenComparing(row -> row.scenario),
-            "| Scenario | Why | Expected unreachable | Candidates | Reruns | ms |\n|---|---|---|---:|---:|---:|\n",
-            row -> String.format(Locale.ROOT, "| %s | %s | %s | %d | %d | %.0f |%n", cell(row.route()), row.noneReason(),
-                row.expectedReachable ? "no" : "yes", row.candidates, row.reruns, row.coldMs));
+            Comparator.comparing((Unreachable row) -> VERDICTS.indexOf(row.verdict)).thenComparing(row -> row.scenario),
+            "| Scenario | It would take | Why the plugin found nothing | Expected unreachable | Candidates | Reruns | ms |\n"
+                + "|---|---|---|---|---:|---:|---:|\n",
+            row -> String.format(Locale.ROOT, "| %s | %s | %s | %s | %d | %d | %.0f |%n", cell(row.route()),
+                VERDICT_TEXT.get(row.verdict), row.noneReason(), row.expectedReachable ? "no" : "yes", row.candidates,
+                row.reruns, row.coldMs));
         section(md, "Looks out of order", rows, row -> !row.suspicious.isEmpty(), Comparator.comparing(row -> row.scenario),
             "| Scenario | Why | Suggestions |\n|---|---|---|\n",
             row -> String.format("| %s | %s | %s |%n", cell(row.route()), cell(String.join("; ", row.suspicious)),
@@ -457,6 +597,15 @@ public class UnlockBenchmarkTest {
         section(md, "Not confirmed by the account check", rows, Unreachable::unconfirmed,
             Comparator.comparing(row -> row.scenario), "| Scenario | Suggestions |\n|---|---|\n",
             row -> String.format("| %s | %s |%n", cell(row.route()), suggestionList(row)));
+
+        md.append("\n## Item suggestions to check against the data\n\nAn item that is a quest or diary reward should "
+            + "name that quest in its row, so it ranks with the quest instead of above it.\n\n"
+            + "| Suggestion | Transport | Scenarios |\n|---|---|---:|\n");
+        rows.stream().flatMap(row -> row.suggestions.stream())
+            .filter(suggestion -> "ITEMS".equals(suggestion.effort))
+            .collect(Collectors.groupingBy(suggestion -> cell(suggestion.label) + " | " + suggestion.transportType,
+                TreeMap::new, Collectors.counting()))
+            .forEach((key, count) -> md.append(String.format("| %s | %d |%n", key, count)));
 
         md.append("\n## Most common suggestions\n\n| Suggestion | Scenarios |\n|---|---:|\n");
         rows.stream().flatMap(row -> row.suggestions.stream().map(suggestion -> suggestion.label).distinct())

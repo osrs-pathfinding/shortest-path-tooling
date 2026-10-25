@@ -23,10 +23,13 @@ public class UnlockBenchmarkReportTest {
         return suggested;
     }
 
-    private static Capability agility(int level, int missing) {
+    /** A suggestion to reach {@code level} Agility, {@code missing} levels short. */
+    private static UnlockBenchmarkTest.Suggested agility(int level, int missing) {
         int[] levels = new int[SkillLevels.LENGTH];
         levels[Skill.AGILITY.ordinal()] = level;
-        return Capability.skills(SkillLevels.of(levels), missing);
+        UnlockBenchmarkTest.Suggested suggested = suggested(Capability.skills(SkillLevels.of(levels)));
+        suggested.levelsMissing = missing;
+        return suggested;
     }
 
     @Test
@@ -40,15 +43,15 @@ public class UnlockBenchmarkReportTest {
 
     @Test
     public void flagsAQuestAboveAFewLevelsAndAMajorUnlockFirst() {
-        Capability coins = Capability.items(Map.of(ItemID.COINS, 20), false);
+        Capability coins = Capability.items(Map.of(ItemID.COINS, 20));
         Capability quest = Capability.quests(Set.of(Quest.TWILIGHTS_PROMISE));
 
         assertEquals(List.of(), UnlockBenchmarkTest.suspicious(List.of(suggested(coins), suggested(quest))));
         assertEquals(List.of("Complete Twilight's Promise above Reach 10 Agility"),
-            UnlockBenchmarkTest.suspicious(List.of(suggested(quest), suggested(agility(10, 4)))));
+            UnlockBenchmarkTest.suspicious(List.of(suggested(quest), agility(10, 4))));
         assertTrue("a few levels after the quest are fine when there are many",
-            UnlockBenchmarkTest.suspicious(List.of(suggested(quest), suggested(agility(60, 20)))).isEmpty());
+            UnlockBenchmarkTest.suspicious(List.of(suggested(quest), agility(60, 20))).isEmpty());
         assertEquals(List.of("major unlock first: Reach 90 Agility"),
-            UnlockBenchmarkTest.suspicious(List.of(suggested(agility(90, 60)))));
+            UnlockBenchmarkTest.suspicious(List.of(agility(90, 60))));
     }
 }
