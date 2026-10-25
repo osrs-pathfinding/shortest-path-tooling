@@ -1,0 +1,18 @@
+{
+  "fragments": {
+    "9771243e-1of2": {
+      "status": "applied",
+      "commit": "ae97d5c2",
+      "at": "2026-10-25T11:03:15Z"
+    }
+  },
+  "picks": [],
+  "deviations": [
+    {
+      "kind": "companion-pull-forward",
+      "fragment": "9771243e-1of2",
+      "from-fragment": "9771243e-2of2",
+      "reason": "test companions required for compileTestJava at fragment 1"
+    }
+  ]
+}
