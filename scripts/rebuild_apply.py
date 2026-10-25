@@ -717,13 +717,13 @@ def cmd_run_segment(args):
                                 s in bf["plus_text"] for s in syms):
                             target_seg = bseg
                             break
-                if target_seg is None and syms:
-                    # nothing provides the symbol anywhere in the
-                    # rebuild stream — a fold-created / +only
-                    # dependency; defer one segment and let the next
-                    # segment's run re-judge (post-replay content may
-                    # satisfy it; otherwise it bumps again, eventually
-                    # reaching the post-.5 lane)
+                if target_seg is None:
+                    # Nothing resolves it at this segment — missing
+                    # symbol, signature/caller split across segments,
+                    # or +only dependency.  Defer one segment and let
+                    # the next run re-judge (replayed upstream content
+                    # or a landed provider may satisfy it; otherwise
+                    # it bumps again toward the post lane).
                     later = _later_segments(segment)
                     if later:
                         target_seg = later[0]

@@ -93,14 +93,14 @@ def test_locate_unique_match():
 def test_locate_zero_and_multiple():
     content = "a\nx\nb\nx\nc\n"
     assert ra.locate_positions(content, "zz\n") == []
-    assert ra.locate_positions(content, "x\n") == [2, 8]
+    assert ra.locate_positions(content, "x\n") == [2, 6]
 
 
 def test_locate_with_context_disambiguates():
     # 'x\n' occurs twice; pinning the spec's context lines picks one.
     content = "p\nx\nq\n" + "m\nx\nn\n"
     positions = ra.locate_positions(content, "m\nx\nn\n")
-    assert positions == [7]
+    assert positions == [6]
 
 
 def test_resolve_match_unique_context_and_conflict():
