@@ -638,14 +638,39 @@ def cmd_run_segment(args):
                             res["match_counts"],
                             "deviation: companion-pull-forward"))
             if not fixed:
+                # Pitfall 6: a green gate minutes ago says nothing
+                # about a red one now — recompile the untouched
+                # SEGMENT BASE (the real tag), not HEAD, so a broken
+                # chain commit can't masquerade as dependency drift.
+                drift, _ = _drift_check(wt, era_base, segment)
+                if drift:
+                    rows.append(make_ledger_row(
+                        frag["id"], frag["commit"], frag["file"],
+                        frag["segment"], "-", idx,
+                        res["match_counts"],
+                        "conflict: latest.release drift at "
+                        "segment base"))
+                    _ledger_append(args.ledger, rows)
+                    save_state(args.state, state)
+                    print(f"GATE FAILURE at {frag['id']} "
+                          "(latest.release drift at segment base)",
+                          file=sys.stderr)
+                    return 1
                 syms = _missing_symbols(out)
+                failed = {i for i, s in state["fragments"].items()
+                          if s.get("status") == "gate-failed"}
                 provider = next(
-                    (_symbol_provider(list(pending.values()), s,
-                                      frag["id"], segment)
-                     for s in syms), None)
+                    (f for s in syms
+                     for f in [_symbol_provider(
+                         [p for p in pending.values()
+                          if p["id"] not in failed],
+                         s, frag["id"], segment)]
+                     if f), None)
+                undone = False
                 if provider is not None and amended != "amended":
                     _undo_commit(
                         wt, [frag["file"]] + frag["companions"])
+                    undone = True
                     rows.append(make_ledger_row(
                         frag["id"], frag["commit"], frag["file"],
                         frag["segment"], frag["segment"], idx,
@@ -658,43 +683,70 @@ def cmd_run_segment(args):
                             (l for l in out.splitlines()
                              if "error:" in l), "")})
                     save_state(args.state, state)
-                    # apply the provider first, then retry this one
                     prov_res = _apply_commit_gate(
                         provider, wt, era_base, args, state, rows)
-                    if prov_res != 0:
+                    if prov_res == 0:
+                        pending.pop(provider["id"], None)
                         _ledger_append(args.ledger, rows)
-                        return prov_res
-                    pending.pop(provider["id"], None)
-                    _ledger_append(args.ledger, rows)
-                    return cmd_run_segment(args)
-                later = next(
-                    (f for seg in _later_segments(segment)
-                     for s in syms
-                     for f in [_symbol_provider(
-                         spec["fragments"], s, frag["id"], seg)]
-                     if f), None)
-                if later is not None and amended != "amended":
-                    _undo_commit(
-                        wt, [frag["file"]] + frag["companions"])
+                        return cmd_run_segment(args)
+                    # provider can't compile here either — it is
+                    # gate-failed, pending its own bump resolution;
+                    # this fragment falls through to the bump path
+                    state["fragments"][provider["id"]] = {
+                        "status": "gate-failed"}
+                    save_state(args.state, state)
+                bumped = {i: s.get("to")
+                          for i, s in state["fragments"].items()
+                          if s.get("status") == "bumped"}
+                target_seg = None
+                for s in syms:
+                    for seg in _later_segments(segment):
+                        hit = _symbol_provider(
+                            spec["fragments"], s, frag["id"], seg)
+                        if hit:
+                            target_seg = seg
+                            break
+                    if target_seg:
+                        break
+                if target_seg is None:
+                    for bid, bseg in bumped.items():
+                        bf = next(
+                            (f for f in spec["fragments"]
+                             if f["id"] == bid), None)
+                        if bf and any(
+                                s in bf["plus_text"] for s in syms):
+                            target_seg = bseg
+                            break
+                if target_seg is None and syms:
+                    # nothing provides the symbol anywhere in the
+                    # rebuild stream — a fold-created / +only
+                    # dependency; defer one segment and let the next
+                    # segment's run re-judge (post-replay content may
+                    # satisfy it; otherwise it bumps again, eventually
+                    # reaching the post-.5 lane)
+                    later = _later_segments(segment)
+                    if later:
+                        target_seg = later[0]
+                if target_seg is not None:
+                    if not undone and amended != "amended":
+                        _undo_commit(
+                            wt, [frag["file"]] + frag["companions"])
                     bump = make_bump_record(
-                        frag["id"], segment, later["segment"],
+                        frag["id"], segment, target_seg,
                         syms[0] if syms else "?",
                         next((l for l in out.splitlines()
                               if "error:" in l), ""))
                     state["fragments"][frag["id"]] = {
-                        "status": "bumped", "to": later["segment"],
+                        "status": "bumped", "to": target_seg,
                         "record": bump}
                     rows.append(make_ledger_row(
                         frag["id"], frag["commit"], frag["file"],
-                        frag["segment"], later["segment"], idx,
+                        frag["segment"], target_seg, idx,
                         res["match_counts"],
-                        f"bumped to {later['segment']}: "
+                        f"bumped to {target_seg}: "
                         f"missing {bump['missing-symbol']}"))
                     continue
-                drift, _ = _drift_check(wt, base, segment)
-                reason = ("latest.release drift at segment base"
-                          if drift else
-                          "unresolvable compile failure")
+                reason = "unresolvable compile failure"
                 rows.append(make_ledger_row(
                     frag["id"], frag["commit"], frag["file"],
                     frag["segment"], "-", idx, res["match_counts"],
@@ -753,6 +805,7 @@ def _apply_commit_gate(frag, wt, era_base, args, state, rows):
     commit_fragment(frag, wt)
     out, rc = gradle(wt, "compileJava", "compileTestJava")
     if gate_failed(rc, out):
+        _undo_commit(wt, [frag["file"]] + frag["companions"])
         return 1
     state["fragments"][frag["id"]] = {
         "status": "applied",
