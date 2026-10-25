@@ -146,6 +146,52 @@ final class UnitTestScenarios {
             .settings(bankTeleports())
             .settings(s -> s.setUseFairyRings(true));
 
+        suite.scenario("Castle Wars -> AKQ without staff walks the long way", "fairy-ring")
+            .from(2442, 3083, 0).to(2324, 3619, 0)
+            .profile(UNIT_TEST)
+            .settings(s -> {
+                s.setUseFairyRings(true);
+                s.setUseTeleportationItems(TeleportationItem.INVENTORY_AND_BANK);
+                s.setCostConsumableTeleportationItems(50);
+            });
+
+        suite.scenario("Castle Wars -> AKQ with every staff variant blocked walks", "fairy-ring")
+            .from(2442, 3083, 0).to(2324, 3619, 0)
+            .profile(UNIT_TEST)
+            .account(a -> a.inventory(ItemID.DRAMEN_STAFF, 1))
+            .settings(s -> {
+                s.setUseFairyRings(true);
+                s.setBlockedTeleportItems("772,9084,9091,9092,9093");
+            });
+
+        suite.scenario("Castle Wars -> AKQ with one staff variant blocked still rings", "fairy-ring")
+            .from(2442, 3083, 0).to(2324, 3619, 0)
+            .profile(UNIT_TEST)
+            .account(a -> a.inventory(ItemID.DRAMEN_STAFF, 1))
+            .settings(s -> {
+                s.setUseFairyRings(true);
+                s.setBlockedTeleportItems("9084");
+            });
+
+        suite.scenario("POH fairy ring -> AKQ without staff", "fairy-ring")
+            .from(1858, 7051, 0).to(2324, 3619, 0)
+            .profile(UNIT_TEST)
+            .settings(s -> {
+                s.setUseFairyRings(true);
+                s.setUsePoh(true);
+                s.setUsePohFairyRing(true);
+            });
+
+        suite.scenario("POH fairy ring ignores a blocked staff", "fairy-ring")
+            .from(1858, 7051, 0).to(2324, 3619, 0)
+            .profile(UNIT_TEST)
+            .settings(s -> {
+                s.setUseFairyRings(true);
+                s.setUsePoh(true);
+                s.setUsePohFairyRing(true);
+                s.setBlockedTeleportItems("772,9084,9091,9092,9093");
+            });
+
         suite.scenario("Varrock centre -> Cowbell amulet destination with amulet in bank", "teleportation-item")
             .from(3213, 3424, 0).to(3259, 3277, 0)
             .profile(UNIT_TEST)
