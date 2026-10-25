@@ -398,7 +398,16 @@ def apply_fragment(fragment, worktree, era_base, repo=None):
         st = hunk_status(content, old, new_text, era_content)
         statuses.append(st)
         match_counts.append(res["count"])
-        if st == "conflict":
+        if st == "pending":
+            # old text is present but the resolve could not pin it to
+            # a unique site even after context extension — an
+            # unresolvable anchor produces no edit, so it is a
+            # conflict, never a silent no-op.
+            conflicts.append(make_conflict_record(
+                fragment["id"], fragment["file"],
+                "anchor unresolved — present but not uniquely "
+                "locatable", res["count"]))
+        elif st == "conflict":
             conflicts.append(make_conflict_record(
                 fragment["id"], fragment["file"],
                 "anchor absent and not already-applied"
