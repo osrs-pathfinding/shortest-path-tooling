@@ -1,0 +1,52 @@
+=== ledger_a ===
+# Phase fake — Per-Commit Segment Attribution Ledger
+
+Legend (D-06 rules):
+
+- blame = last-touch
+- Mixed-era hunks roll up by max-bucket
+- segment = earliest release tag containing the last-touch SHA
+  (v1.22.2 < v1.22.3 < v1.22.4 < v1.22.5), else the post-v1.22.5 lane.
+
+phase-base submodule: cafe0001
+
+## Tracer
+
+prose section — must be ignored
+
+## aaaa1111 refactor(x): commit a subject
+
+```
+# attribution aaaa1111 refactor(x): commit a subject
+# file	parent-lines	segment
+# blame=last-touch; mixed-era hunks roll up by max-bucket
+src/main/java/x/F.java	10-12	v1.22.2
+src/main/java/x/F.java	15-16	v1.22.4
+src/main/java/x/F.java	40	v1.22.2
+src/main/java/x/G.java	50-51	v1.22.2
+src/main/java/x/G.java	60	v1.22.2
+```
+
+## bbbb2222 test(x): commit b subject
+
+_(test-only commit — no src/main/java hunks)_
+
+```
+# attribution bbbb2222 test(x): commit b subject
+# file	parent-lines	segment
+# blame=last-touch; mixed-era hunks roll up by max-bucket
+```
+
+=== ledger_missing_sha ===
+# Phase fake
+
+## cccc3333 refactor(x): commit c subject
+
+```
+# attribution cccc3333
+# file	parent-lines	segment
+src/main/java/x/F.java	10-12	v1.22.2
+src/main/java/x/F.java	15-16	v1.22.4
+src/main/java/x/F.java	40	v1.22.2
+src/main/java/x/F.java	99	v1.22.2
+```

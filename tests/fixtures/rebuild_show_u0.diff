@@ -1,0 +1,58 @@
+=== aaaa1111 ===
+diff --git a/src/main/java/x/F.java b/src/main/java/x/F.java
+index 111..222 100644
+--- a/src/main/java/x/F.java
++++ b/src/main/java/x/F.java
+@@ -10,7 +10,0 @@ public class F
+-del10
+-del11
+-del12
++add1
+-del15
+-del16
+@@ -40 +33,0 @@ public class F
+-del40
+diff --git a/src/main/java/x/G.java b/src/main/java/x/G.java
+index 333..444 100644
+--- a/src/main/java/x/G.java
++++ b/src/main/java/x/G.java
+@@ -50,2 +50,0 @@ public class G
+-del50
+-del51
+@@ -60 +58,0 @@ public class G
+-del60
+=== cccc3333 ===
+diff --git a/src/main/java/x/F.java b/src/main/java/x/F.java
+index 111..222 100644
+--- a/src/main/java/x/F.java
++++ b/src/main/java/x/F.java
+@@ -10,7 +10,0 @@ public class F
+-del10
+-del11
+-del12
++add1
+-del15
+-del16
+@@ -40 +33,0 @@ public class F
+-del40
+=== eeee5555 ===
+diff --git a/src/main/java/x/H.java b/src/main/java/x/H.java
+index 555..666 100644
+--- a/src/main/java/x/H.java
++++ b/src/main/java/x/H.java
+@@ -3,2 +3,0 @@ public class H
+-del3
+-del4
+=== bbbb2222 ===
+
+=== name_only_aaaa1111 ===
+src/main/java/x/F.java
+src/main/java/x/G.java
+src/test/java/x/FTest.java
+build.gradle
+=== name_only_bbbb2222 ===
+src/test/java/x/FTest.java
+docs/x.md
+=== name_only_eeee5555 ===
+src/main/java/x/H.java
+src/test/java/x/HTest.java
