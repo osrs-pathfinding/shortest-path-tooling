@@ -21,7 +21,7 @@ prose section — must be ignored
 # file	parent-lines	segment
 # blame=last-touch; mixed-era hunks roll up by max-bucket
 src/main/java/x/F.java	10-12	v1.22.2
-src/main/java/x/F.java	15-16	v1.22.4
+src/main/java/x/F.java	13-14	v1.22.4
 src/main/java/x/F.java	40	v1.22.2
 src/main/java/x/G.java	50-51	v1.22.2
 src/main/java/x/G.java	60	v1.22.2
@@ -37,6 +37,16 @@ _(test-only commit — no src/main/java hunks)_
 # blame=last-touch; mixed-era hunks roll up by max-bucket
 ```
 
+=== ledger_empty ===
+# Phase fake
+
+## bbbb2222 test(x): commit b subject
+
+```
+# attribution bbbb2222
+# file	parent-lines	segment
+```
+
 === ledger_missing_sha ===
 # Phase fake
 
@@ -47,6 +57,5 @@ _(test-only commit — no src/main/java hunks)_
 # file	parent-lines	segment
 src/main/java/x/F.java	10-12	v1.22.2
 src/main/java/x/F.java	15-16	v1.22.4
-src/main/java/x/F.java	40	v1.22.2
 src/main/java/x/F.java	99	v1.22.2
 ```

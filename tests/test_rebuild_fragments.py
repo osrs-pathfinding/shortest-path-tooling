@@ -74,9 +74,9 @@ def make_fake_git(commits, calls=None):
             if "--name-only" in args:
                 sha = args[-1]
                 return diffs.get(f"name_only_{sha}", "")
-            # `show --format= -U0 <sha>` — the src/main diff
+            # `show --format= -U0 <sha> -- <pathspec>` — the src/main diff
             if "-U0" in args:
-                return diffs[args[-1]]
+                return diffs[args[3]]
             return ""
         raise AssertionError(f"unexpected argv: {args}")
 
@@ -139,7 +139,7 @@ def test_parse_ledger_groups_rows_by_sha_section():
     assert rows == {
         "aaaa1111": [
             (FILE_F, 10, 12, "v1.22.2"),
-            (FILE_F, 15, 16, "v1.22.4"),
+            (FILE_F, 13, 14, "v1.22.4"),
             (FILE_F, 40, 40, "v1.22.2"),
             (FILE_G, 50, 51, "v1.22.2"),
             (FILE_G, 60, 60, "v1.22.2"),
@@ -162,7 +162,7 @@ def test_parse_show_u0_hunks_captures_runs_and_plus_lines():
     files = rf.parse_show_u0_hunks(diffs["aaaa1111"])
     assert [f["file"] for f in files] == [FILE_F, FILE_G]
     f_hunks = files[0]["hunks"]
-    assert f_hunks[0]["minus"] == [(10, 12), (15, 16)]
+    assert f_hunks[0]["minus"] == [(10, 12), (13, 14)]
     assert f_hunks[0]["plus"] == ["add1"]
     assert f_hunks[1]["minus"] == [(40, 40)]
     assert f_hunks[1]["plus"] == []
@@ -188,10 +188,10 @@ def test_generate_emits_fragments_wholesale_and_stats(monkeypatch):
     f4 = frags[0]
     assert f4["file"] == FILE_F and f4["segment"] == "v1.22.4"
     assert f4["ordinal"] == "1/3"
-    assert [r["lines"] for r in f4["minus_runs"]] == ["10-12", "15-16"]
+    assert [r["lines"] for r in f4["minus_runs"]] == ["10-12", "13-14"]
     assert f4["minus_runs"][0]["text"] == "del10\ndel11\ndel12\n"
     assert f4["minus_runs"][0]["context_before"] == "l8\nl9\n"
-    assert f4["minus_runs"][0]["context_after"] == "l13\nl14\n"
+    assert f4["minus_runs"][0]["context_after"] == "del13\ndel14\n"
     assert f4["plus_text"] == "add1\n"
     # companions ride the max-segment fragment
     assert f4["companions"] == [
@@ -239,7 +239,8 @@ def test_generate_fails_on_row_without_containing_hunk(monkeypatch):
 def test_generate_empty_diff_commit_emits_no_fragments(monkeypatch):
     commits = [("bbbb2222", "test(x): commit b subject")]
     monkeypatch.setattr(rf, "git", make_fake_git(commits))
-    doc = rf.generate("repo", "base", "branch", [ledger_path()])
+    doc = rf.generate(
+        "repo", "base", "branch", [ledger_path("ledger_empty")])
     assert doc["fragments"] == []
     assert doc["wholesale"] == [
         {"sha": "bbbb2222", "subject": "test(x): commit b subject",
