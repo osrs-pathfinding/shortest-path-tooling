@@ -47,6 +47,28 @@ _(test-only commit — no src/main/java hunks)_
 # file	parent-lines	segment
 ```
 
+=== ledger_outer_sha ===
+# Phase fake
+
+## aaaa1111 refactor(x): commit a subject
+
+```
+# attribution aaaa1111
+# file	parent-lines	segment
+src/main/java/x/F.java	10-12	v1.22.2
+src/main/java/x/F.java	13-14	v1.22.4
+src/main/java/x/F.java	40	v1.22.2
+src/main/java/x/G.java	50-51	v1.22.2
+src/main/java/x/G.java	60	v1.22.2
+```
+
+## zzzz9999 test(scenarios): outer-repo commit
+
+```
+# attribution zzzz9999
+# file	parent-lines	segment
+```
+
 === ledger_missing_sha ===
 # Phase fake
 

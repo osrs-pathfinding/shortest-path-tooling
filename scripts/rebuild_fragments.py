@@ -220,6 +220,12 @@ def generate(repo, series_base, branch, ledger_paths):
                   file=sys.stderr)
             continue
         for abbrev, rows in parse_ledger(text).items():
+            # A section with no rows attributes nothing — docs-only or
+            # outer-repo commits carry an empty block by convention, and
+            # resolving their abbrev against the series would spuriously
+            # fail (an outer commit is not a series commit).
+            if not rows:
+                continue
             sha = _resolve(abbrev, series_shas)
             rows_by_commit.setdefault(sha, []).extend(rows)
 

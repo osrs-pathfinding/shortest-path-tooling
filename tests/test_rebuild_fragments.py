@@ -236,6 +236,18 @@ def test_generate_fails_on_row_without_containing_hunk(monkeypatch):
         rf.generate("repo", "base", "branch", [ledger_path("ledger_missing_sha")])
 
 
+def test_generate_skips_rowless_ledger_sections(monkeypatch):
+    # An empty ## <sha> block attributes nothing — outer-repo and
+    # docs-only commits carry one by convention, and resolving their
+    # abbrev against the series (zzzz9999 matches 0 series shas) must
+    # not raise.
+    commits = [("aaaa1111", "refactor(x): commit a subject")]
+    monkeypatch.setattr(rf, "git", make_fake_git(commits))
+    doc = rf.generate(
+        "repo", "base", "branch", [ledger_path("ledger_outer_sha")])
+    assert doc["stats"]["rows_per_segment"] == {"v1.22.2": 4, "v1.22.4": 1}
+
+
 def test_generate_empty_diff_commit_emits_no_fragments(monkeypatch):
     commits = [("bbbb2222", "test(x): commit b subject")]
     monkeypatch.setattr(rf, "git", make_fake_git(commits))
