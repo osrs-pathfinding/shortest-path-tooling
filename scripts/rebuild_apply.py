@@ -382,26 +382,48 @@ def apply_fragment(fragment, worktree, era_base, repo=None):
 
 
 def apply_companions(fragment, worktree):
-    """Apply the commit's non-src/main paths as a 3-way patch.
+    """Apply the commit's non-src/main paths as 3-way patches.
 
-    Returns 'applied' | 'already-applied' | 'conflict'."""
+    Per-path diffs: a modification to a file that does not exist at
+    this segment cannot apply and cannot be gate-required — it is
+    recorded 'deferred' (the file arrives via upstream replay or rides
+    a later segment; the ledger names it).  A change already satisfied
+    (reverse-check applies) records a skip.
+
+    Returns 'applied' | 'already-applied' | 'conflict' | 'deferred' —
+    'applied'/'deferred' may co-occur; deferred paths are reported on
+    fragment['_deferred']."""
     paths = fragment["companions"]
     if not paths:
         return "applied"
-    diff = git(worktree, "show", "--format=", fragment["commit"],
-               "--", *paths)
-    try:
-        git(worktree, "apply", "--reverse", "--check", input=diff)
-        return "already-applied"
-    except RuntimeError:
-        pass
-    try:
-        git(worktree, "apply", "--3way", input=diff)
-        for p in paths:
+    deferred, applied = [], []
+    for p in paths:
+        diff = git(worktree, "show", "--format=", fragment["commit"],
+                   "--", p)
+        exists = os.path.exists(os.path.join(worktree, p))
+        if not exists and "--- /dev/null" not in diff:
+            deferred.append(p)
+            continue
+        try:
+            git(worktree, "apply", "--reverse", "--check", input=diff)
+            # satisfied already — stage it so an orphaned (unstaged)
+            # companion edit still lands in this fragment's commit
             git(worktree, "add", "--", p)
-        return "applied"
-    except RuntimeError:
-        return "conflict"
+            applied.append(p)
+            continue
+        except RuntimeError:
+            pass
+        try:
+            git(worktree, "apply", "--3way", input=diff)
+            git(worktree, "add", "--", p)
+            applied.append(p)
+        except RuntimeError:
+            return "conflict"
+    if deferred:
+        fragment["_deferred"] = deferred
+        if not applied:
+            return "deferred"
+    return "applied" if applied else "already-applied"
 
 
 def head_subject(worktree):
@@ -422,7 +444,10 @@ def commit_fragment(fragment, worktree, extra_paths=None):
 
 def _undo_commit(worktree, paths):
     """Back out the tip fragment commit and its file edits — used only
-    by the reorder/bump resolutions (never on an amend)."""
+    by the reorder/bump resolutions (never on an amend).  Reverts every
+    path the fragment touched: main file plus any companion paths that
+    were applied or staged alongside it (a created companion file is
+    removed, a modified one reverted)."""
     git(worktree, "reset", "--soft", "HEAD^")
     git(worktree, "reset")
     for p in paths:
@@ -430,6 +455,13 @@ def _undo_commit(worktree, paths):
             git(worktree, "checkout", "--", p)
         except RuntimeError:
             pass
+        if git(worktree, "status", "--porcelain", "--", p).strip():
+            try:
+                git(worktree, "rm", "-f", "--", p)
+            except RuntimeError:
+                full = os.path.join(worktree, p)
+                if os.path.exists(full):
+                    os.remove(full)
 
 
 def _missing_symbols(out):
@@ -555,6 +587,18 @@ def cmd_run_segment(args):
 
         # companions land with this fragment (max-segment carrier)
         comp = apply_companions(frag, wt)
+        if frag.get("_deferred"):
+            dev = {"kind": "companion-deferred",
+                   "fragment": frag["id"],
+                   "paths": frag.get("_deferred", []),
+                   "reason": "companion file absent at segment"}
+            state["deviations"].append(dev)
+            rows.append(make_ledger_row(
+                frag["id"], frag["commit"], frag["file"],
+                frag["segment"], frag["segment"], idx,
+                res["match_counts"],
+                "deviation: companion-deferred "
+                f"({', '.join(frag.get('_deferred', []))})"))
         if comp == "conflict":
             rows.append(make_ledger_row(
                 frag["id"], frag["commit"], frag["file"],
@@ -600,7 +644,8 @@ def cmd_run_segment(args):
                                       frag["id"], segment)
                      for s in syms), None)
                 if provider is not None and amended != "amended":
-                    _undo_commit(wt, [frag["file"]])
+                    _undo_commit(
+                        wt, [frag["file"]] + frag["companions"])
                     rows.append(make_ledger_row(
                         frag["id"], frag["commit"], frag["file"],
                         frag["segment"], frag["segment"], idx,
@@ -629,7 +674,8 @@ def cmd_run_segment(args):
                          spec["fragments"], s, frag["id"], seg)]
                      if f), None)
                 if later is not None and amended != "amended":
-                    _undo_commit(wt, [frag["file"]])
+                    _undo_commit(
+                        wt, [frag["file"]] + frag["companions"])
                     bump = make_bump_record(
                         frag["id"], segment, later["segment"],
                         syms[0] if syms else "?",
@@ -711,6 +757,7 @@ def _apply_commit_gate(frag, wt, era_base, args, state, rows):
     state["fragments"][frag["id"]] = {
         "status": "applied",
         "commit": git(wt, "rev-parse", "--short", "HEAD").strip()}
+    save_state(args.state, state)
     rows.append(make_ledger_row(
         frag["id"], frag["commit"], frag["file"],
         frag["segment"], frag["segment"], 0,
