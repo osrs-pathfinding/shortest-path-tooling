@@ -71,6 +71,13 @@ if (pluginHasSailing) {
     sourceSets.test.java.srcDir 'src/sailing/java'
 }
 
+// Likewise the unlock-suggestion benchmark (src/unlocks/java) needs a plugin whose A* search suggests what to
+// unlock for an unreachable target (shortest-path PR #836)
+ext.pluginHasUnlockSuggestions = new File(shortestPathProjectDir, 'src/main/java/shortestpath/pathfinder/UnlockSuggestions.java').exists()
+if (pluginHasUnlockSuggestions) {
+    sourceSets.test.java.srcDir 'src/unlocks/java'
+}
+
 // ConfigParityTest compares PluginSettings' defaults with the plugin's own test config, which stays
 // in shortest-path/src/test/java (no changes to the plugin build).
 compileTestJava.source fileTree(

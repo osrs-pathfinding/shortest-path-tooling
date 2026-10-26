@@ -75,3 +75,44 @@ tasks.register('route', JavaExec) {
         args parsed
     }
 }
+
+// Measures the A* backend's unlock-suggestion pass over every scenario it finds unreachable.
+tasks.register('unlockBenchmark', Test) {
+    doNotTrackState('The benchmark always re-runs.')
+    group = 'verification'
+    description = 'Times the A* unlock-suggestion pass on every unreachable scenario and checks its suggestions. ' +
+            'Needs a plugin with the pass, e.g. -PshortestPathDir=../shortest-path. ' +
+            'Options (all via -P): unlockBenchmarkSuites (default: every suite but sailing-routes), ' +
+            'unlockBenchmarkFilter (default: none), unlockBenchmarkRounds (default: 3). ' +
+            'Writes build/reports/unlock-benchmark/unlock-benchmark.md and .json.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnit()
+    include 'shortestpath/dashboard/UnlockBenchmarkTest.class'
+    reports {
+        junitXml.required = false
+        html.required = false
+    }
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    testLogging.showStandardStreams = true
+    systemProperty 'unlockBenchmark.run', 'true'
+    systemProperty 'unlockBenchmark.outputDir', layout.buildDirectory.dir('reports/unlock-benchmark').get().asFile.absolutePath
+    systemProperty 'corpus.dir', corpusDir.absolutePath
+    ['suites', 'filter', 'rounds'].each { option ->
+        def value = providers.gradleProperty('unlockBenchmark' + option.capitalize())
+        if (value.isPresent()) {
+            systemProperty 'unlockBenchmark.' + option, value.get()
+        }
+    }
+    doFirst {
+        systemProperty 'unlockBenchmark.shortestPathCommit', commitOf(gradle.ext.shortestPathProjectDir)
+    }
+}
+// Checked when the task graph is ready: without the plugin's pass the benchmark has no test class, so the task
+// would be skipped as having no source rather than run its own checks.
+gradle.taskGraph.whenReady { graph ->
+    if (graph.hasTask(tasks.named('unlockBenchmark').get()) && !pluginHasUnlockSuggestions) {
+        throw new GradleException('The plugin checkout has no unlock suggestions; point -PshortestPathDir at one ' +
+                'that does, e.g. -PshortestPathDir=../shortest-path')
+    }
+}
