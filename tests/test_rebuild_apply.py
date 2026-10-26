@@ -369,6 +369,19 @@ def test_gate_red_detection():
     assert ra.gate_failed(0, "FAILURE: x\n") is True
 
 
+def test_upstream_red_skip():
+    # Test-side-only errors qualify (relative and absolute paths).
+    assert ra.upstream_red_skip(["src/test/java/x/T.java"])
+    assert ra.upstream_red_skip(["/tmp/wt/src/test/java/x/T.java"])
+    # Any src/main error disqualifies the skip.
+    assert not ra.upstream_red_skip(["src/main/java/x/T.java"])
+    assert not ra.upstream_red_skip(
+        ["/tmp/wt/src/test/java/x/T.java",
+         "/tmp/wt/src/main/java/x/T.java"])
+    # No error paths (OOM, infra) never qualifies.
+    assert not ra.upstream_red_skip([])
+
+
 # ---------- driver never moves refs ----------
 
 

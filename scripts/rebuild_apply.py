@@ -587,6 +587,16 @@ def _error_paths(out):
             if re.search(r"error:|\.java:\d+:", l)]
 
 
+def upstream_red_skip(err_paths):
+    """True when every compile error path is test-side — the signature
+    of an upstream-red window (test code referencing an API shape a
+    later upstream commit restores).  src/main errors or an empty error
+    list never qualify: those still stop the replay."""
+    return bool(err_paths) and all(
+        p.startswith("src/test/") or "/src/test/" in p
+        for p in err_paths)
+
+
 def _drift_check(worktree, base, segment):
     """Recompile the untouched segment base in a temp worktree to rule
     out latest.release dependency drift."""
@@ -1006,6 +1016,24 @@ def cmd_replay(args):
                 "picked"))
         out, rc = gradle(wt, "compileJava", "compileTestJava")
         if gate_failed(rc, out):
+            err_paths = _error_paths(out)
+            if args.upstream_red and upstream_red_skip(err_paths):
+                # Upstream-red window (e.g. test code referencing an
+                # enum a later pick restores): the pick stays verbatim
+                # and the failure is ledgered, not hidden — any
+                # src/main error still stops the run above.
+                first_err = next(
+                    (l.strip() for l in out.splitlines()
+                     if "error:" in l), "")
+                rows.append(make_ledger_row(
+                    f"pick-{sha[:8]}", sha[:8], "-", "-", "-", idx, [],
+                    "picked — gate-skipped (upstream-red: "
+                    f"{first_err[:160]})"))
+                state["picks"].append(sha)
+                save_state(args.state, state)
+                print(f"  [{idx}/{len(shas)}] picked {sha[:8]} "
+                      f"({new_head}) gate-skipped (upstream-red)")
+                continue
             _ledger_append(args.ledger, rows)
             save_state(args.state, state)
             print(f"GATE FAILURE at pick {sha[:8]} ({new_head})",
@@ -1055,6 +1083,11 @@ def main() -> int:
     p.add_argument("segment")
     p = sub.add_parser("replay")
     p.add_argument("range")
+    p.add_argument("--upstream-red", action="store_true",
+                   help="inside a known upstream-broken window, keep "
+                        "picking on test-side-only compile failures "
+                        "(each is ledgered with its first error line); "
+                        "src/main errors still stop the run")
     sub.add_parser("status")
     args = ap.parse_args()
 
