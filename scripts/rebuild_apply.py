@@ -360,8 +360,14 @@ def apply_fragment(fragment, worktree, era_base, repo=None):
     file edits are written and staged.  Never force-applies."""
     repo = repo or worktree
     path = os.path.join(worktree, fragment["file"])
-    content = Path(path).read_text()
-    era_content = _blob(repo, era_base, fragment["file"])
+    content = Path(path).read_text() if os.path.exists(path) else ""
+    try:
+        era_content = _blob(repo, era_base, fragment["file"])
+    except RuntimeError:
+        # File absent at the era ref (e.g. a series-created file on the
+        # post-.5 lane) — empty era content lets hunks resolve as
+        # conflict instead of crashing the run.
+        era_content = ""
     parent_blob_lines = _blob(
         repo, f"{fragment['commit']}^", fragment["file"]
     ).splitlines(keepends=True)
@@ -687,7 +693,10 @@ def cmd_run_segment(args):
         print("error: worktree not clean\n" + dirty, file=sys.stderr)
         return 2
     base = git(wt, "rev-parse", "HEAD").strip()
-    era_base = args.era_base or segment
+    # post-v1.22.5 is a pseudo-segment with no git ref — the run's own
+    # base (the lane's starting HEAD) is the era content source.
+    era_base = args.era_base or (
+        base if segment == "post-v1.22.5" else segment)
 
     scoped = []
     for f in spec["fragments"]:
@@ -704,7 +713,12 @@ def cmd_run_segment(args):
 
     rows = []
     for idx, frag in enumerate(scoped, 1):
-        res = apply_fragment(frag, wt, frag["segment"])
+        # Bumped fragments keep their spec segment as era ref (a real
+        # tag); native post-v1.22.5 fragments have no ref — the run
+        # base is where their deleted text must provably have existed.
+        frag_era = (era_base if frag["segment"] == "post-v1.22.5"
+                    else frag["segment"])
+        res = apply_fragment(frag, wt, frag_era)
         if res["status"] == "conflict":
             for c in res["conflicts"]:
                 rows.append(make_ledger_row(
@@ -822,8 +836,11 @@ def cmd_run_segment(args):
                             (l for l in out.splitlines()
                              if "error:" in l), "")})
                     save_state(args.state, state)
+                    prov_era = (era_base
+                                if provider["segment"] == "post-v1.22.5"
+                                else provider["segment"])
                     prov_res = _apply_commit_gate(
-                        provider, wt, provider["segment"], args,
+                        provider, wt, prov_era, args,
                         state, rows)
                     if prov_res == 0:
                         pending.pop(provider["id"], None)
@@ -1017,22 +1034,27 @@ def cmd_replay(args):
         out, rc = gradle(wt, "compileJava", "compileTestJava")
         if gate_failed(rc, out):
             err_paths = _error_paths(out)
-            if args.upstream_red and upstream_red_skip(err_paths):
-                # Upstream-red window (e.g. test code referencing an
-                # enum a later pick restores): the pick stays verbatim
-                # and the failure is ledgered, not hidden — any
-                # src/main error still stops the run above.
+            if args.upstream_red:
+                # Upstream-red window: the pick stays verbatim and the
+                # failure is ledgered with evidence, not hidden.  The
+                # row records whether the errors were test-side only or
+                # reached src/main, plus the first error line — the
+                # post-run audit reconciles every skipped pick against
+                # upstream's own broken tree state.
                 first_err = next(
                     (l.strip() for l in out.splitlines()
                      if "error:" in l), "")
+                kind = ("test-only"
+                        if upstream_red_skip(err_paths) else "main")
                 rows.append(make_ledger_row(
-                    f"pick-{sha[:8]}", sha[:8], "-", "-", "-", idx, [],
-                    "picked — gate-skipped (upstream-red: "
-                    f"{first_err[:160]})"))
+                    f"pick-{sha[:8]}", sha[:8],
+                    " ".join(err_paths[:4]) or "-", "-", "-", idx, [],
+                    f"picked — gate-skipped (upstream-red {kind}: "
+                    f"{first_err[:140]})"))
                 state["picks"].append(sha)
                 save_state(args.state, state)
                 print(f"  [{idx}/{len(shas)}] picked {sha[:8]} "
-                      f"({new_head}) gate-skipped (upstream-red)")
+                      f"({new_head}) gate-skipped (upstream-red {kind})")
                 continue
             _ledger_append(args.ledger, rows)
             save_state(args.state, state)
