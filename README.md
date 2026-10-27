@@ -86,7 +86,7 @@ The default remains the `./shortest-path` Git submodule.
 | `./gradlew dashboard -PdashboardSuite=clue-locations-full` | Build dashboard from a specific scenario suite (only that one) |
 | `./gradlew pagesSite` | Build every bundle of the site the plugin publishes to GitHub Pages (the plugin's Dashboard Pages workflow runs it; change the published bundles in `gradle/dashboards.gradle`) |
 | `./gradlew sailingDashboard` | Build only the sailing routes, with the experimental sailing search drawn next to the normal path (needs a plugin checkout with the sailing search) |
-| `./gradlew captureExpectedLengths -PdashboardSuite=routes` | Write actual path lengths into the suite's `src/test/resources/scenarios/expected-lengths/<suite>.json` |
+| `./gradlew captureExpectedLengths -PdashboardSuite=routes` | Write actual path lengths into the suite's `scenarios/src/main/resources/scenarios/expected-lengths/<suite>.json` |
 | `./gradlew sailingBenchmark` | Time the experimental sailing search against the existing search on routes at sea (needs a plugin checkout with the sailing search) |
 | `./gradlew bankTileDump -PbankTileCacheDir=<dir> -PbankTileXteaPath=<keys.json>` | Dump bank-object placements from an OSRS cache to TSV |
 | `./gradlew sailingAmenityVarbitDump -PsailingAmenityCacheDir=<dir> -PsailingAmenityXteaPath=<keys.json>` | Dump Sailing island amenity varbits from an OSRS cache |

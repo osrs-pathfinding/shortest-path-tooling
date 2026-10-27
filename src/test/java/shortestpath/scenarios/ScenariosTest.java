@@ -27,7 +27,7 @@ import shortestpath.requirement.model.VarRequirement;
 import shortestpath.requirement.model.VarRequirement.VarType;
 
 public class ScenariosTest {
-    private static final Path RESOURCES = Path.of("src/test/resources");
+    private static final Path RESOURCES = Path.of("scenarios/src/main/resources");
 
     @Test
     public void everyExpectedLengthsFileNamesASuite() throws IOException {

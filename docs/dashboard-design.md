@@ -33,17 +33,18 @@ via `settings.gradle`, so `testImplementation 'shortestpath:shortest-path'` reso
 | Path | Purpose |
 |---|---|
 | `src/test/java/shortestpath/dashboard/` | Dashboard test runner and report writing |
-| `src/test/java/shortestpath/scenarios/` | Scenario suites (Java) and the `Scenario` model |
+| `scenarios/src/main/java/shortestpath/scenarios/` | Scenario suites (Java) and the `Scenario` model, a project of its own so other tools can load them |
+| `scenarios/src/main/java/shortestpath/scenarios/ScenarioRunner.java` | `ScenarioRunner` and `Observation`: running scenarios, in the same project |
 | `routing/src/main/java/shortestpath/profiles/` | `Profiles`: every named profile (canonical accounts and dashboard presets), shared with headless consumers |
-| `src/test/java/shortestpath/pathfinder/` | `ProfilingPathfinder`, `PathfinderProfile` (test-only instrumented pathfinder) |
+| `scenarios/src/main/java/shortestpath/pathfinder/` | `ProfilingPathfinder`, `PathfinderProfile` (instrumented legacy pathfinder) |
 | `src/test/java/shortestpath/dump/` | Cache dumpers |
-| `src/test/resources/scenarios/` | Route data (`clue-locations.json`) and each suite's `expected-lengths/<suite>.json` |
+| `scenarios/src/main/resources/scenarios/` | Route data (`clue-locations.json`) and each suite's `expected-lengths/<suite>.json` |
 | `src/test/resources/reachability-dashboard/` | Static frontend assets (`index.html`, `app.js`, `profiler.js`, `styles.css`) |
 | `gradle/dashboards.gradle` | Gradle task definitions for all dashboard and capture tasks |
 | `gradle/cache-dumpers.gradle` | Gradle task definitions for cache dump tasks |
 
 The `ProfilingPathfinder` and `PathfinderProfile` classes live in this tooling repo, not in the plugin.
-They are compiled alongside the dashboard test code and are not shipped as part of the RuneLite plugin.
+They are compiled with the `scenarios` project, beside the runner that uses them, and are not shipped as part of the RuneLite plugin.
 
 Two additional files from the plugin's test tree are pulled into compilation via a `compileTestJava.source`
 override in `build.gradle`:
@@ -133,7 +134,7 @@ To build without profiling (faster, no heatmaps):
 ### `captureExpectedLengths`
 
 Like `dashboard` but writes actual path lengths of reached scenarios into
-`src/test/resources/scenarios/expected-lengths/<suite>.json`. Use this to bootstrap or refresh
+`scenarios/src/main/resources/scenarios/expected-lengths/<suite>.json`. Use this to bootstrap or refresh
 expected lengths after changing pathfinding behavior.
 
 ```bash
@@ -149,7 +150,7 @@ instrumentation at each phase boundary.
 
 Key files:
 
-- `src/test/java/shortestpath/pathfinder/ProfilingPathfinder.java` — mirrors `Pathfinder.java`'s loop, each phase wrapped in nanoTime calls
+- `scenarios/src/main/java/shortestpath/pathfinder/ProfilingPathfinder.java` — mirrors `Pathfinder.java`'s loop, each phase wrapped in nanoTime calls
 - `src/test/java/shortestpath/pathfinder/PathfinderProfile.java` — data class collecting all profiling measurements
 - `src/test/resources/reachability-dashboard/profiler.js` — frontend rendering (bar charts, time-series, heatmap overlay)
 
