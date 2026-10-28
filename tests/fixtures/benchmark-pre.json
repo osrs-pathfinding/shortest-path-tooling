@@ -1,0 +1,60 @@
+{
+  "format_version": 2,
+  "execution_metadata": {
+    "algorithm": "astar",
+    "astar_session": "cold",
+    "diagnostic": true,
+    "repetitions": 4,
+    "warmup_scenarios": 1,
+    "runtime": {
+      "java_version": "17.0.18",
+      "java_vendor": "Eclipse Adoptium",
+      "vm_name": "OpenJDK 64-Bit Server VM",
+      "vm_version": "17.0.18+8",
+      "available_processors": 12,
+      "max_heap_bytes": 17179869184
+    },
+    "dependencies": {
+      "shortest_path": {"commit": "aaaa111", "dirty": false},
+      "shortest_path_tooling": {"commit": "bbbb222", "dirty": false}
+    },
+    "routing_static_build_ms": 1248,
+    "memory": {
+      "static_build_allocated_bytes": 200275016,
+      "heap_after_prepare_bytes": 36493600,
+      "run_gc_count": 2,
+      "run_gc_ms": 18,
+      "peak_heap_bytes": 412000000,
+      "heap_after_run_bytes": 40111233,
+      "max_heap_bytes": 17179869184
+    },
+    "world": {
+      "transports": 12450,
+      "transport_origins": 8310,
+      "transports_by_type": {"TRANSPORT": 500, "TELEPORTATION_ITEM": 9000},
+      "search_tiles": 3100000,
+      "sites": 4200,
+      "routing_components": 610,
+      "reachable_banks": 900,
+      "crossings": 1500,
+      "sparse_vertices": 40000,
+      "sparse_original_vertices": 38000,
+      "sparse_steiner_vertices": 2000,
+      "sparse_edges": 90000
+    }
+  },
+  "observations": [
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0001/maxed", "category": "gps-natural", "profile": "MAXED", "repetition": 0, "expected_reachable": true, "outcome": "ok", "check": "", "reachable": true, "path_cost": 1200, "path_length": 400, "total_ns": 1200000000, "allocated_bytes": 50000000, "termination_reason": "", "failure": "", "forward_search_ns": 1100000000, "account_prepare_ns": 9000000, "graph_prepare_ns": 8000000},
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0001/maxed", "category": "gps-natural", "profile": "MAXED", "repetition": 1, "expected_reachable": true, "outcome": "ok", "check": "", "reachable": true, "path_cost": 1200, "path_length": 400, "total_ns": 1150000000, "allocated_bytes": 50000000, "termination_reason": "", "failure": "", "forward_search_ns": 1050000000, "account_prepare_ns": 9000000, "graph_prepare_ns": 8000000},
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0001/maxed", "category": "gps-natural", "profile": "MAXED", "repetition": 2, "expected_reachable": true, "outcome": "ok", "check": "", "reachable": true, "path_cost": 1200, "path_length": 400, "total_ns": 1180000000, "allocated_bytes": 50000000, "termination_reason": "", "failure": "", "forward_search_ns": 1080000000, "account_prepare_ns": 9000000, "graph_prepare_ns": 8000000},
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0001/maxed", "category": "gps-natural", "profile": "MAXED", "repetition": 3, "expected_reachable": true, "outcome": "ok", "check": "", "reachable": true, "path_cost": 1200, "path_length": 400, "total_ns": 1210000000, "allocated_bytes": 50000000, "termination_reason": "", "failure": "", "forward_search_ns": 1110000000, "account_prepare_ns": 9000000, "graph_prepare_ns": 8000000},
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0012/maxed", "category": "gps-natural", "profile": "MAXED", "repetition": 0, "expected_reachable": true, "outcome": "ok", "check": "", "reachable": true, "path_cost": 363, "path_length": 120, "total_ns": 1450000000, "allocated_bytes": 52000000, "termination_reason": "", "failure": "", "forward_search_ns": 1300000000, "account_prepare_ns": 11000000, "graph_prepare_ns": 9800000},
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0012/maxed", "category": "gps-natural", "profile": "MAXED", "repetition": 1, "expected_reachable": true, "outcome": "ok", "check": "", "reachable": true, "path_cost": 363, "path_length": 120, "total_ns": 1400000000, "allocated_bytes": 52000000, "termination_reason": "", "failure": "", "forward_search_ns": 1250000000, "account_prepare_ns": 11000000, "graph_prepare_ns": 9800000},
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0012/maxed", "category": "gps-natural", "profile": "MAXED", "repetition": 2, "expected_reachable": true, "outcome": "ok", "check": "", "reachable": true, "path_cost": 363, "path_length": 120, "total_ns": 1420000000, "allocated_bytes": 52000000, "termination_reason": "", "failure": "", "forward_search_ns": 1280000000, "account_prepare_ns": 11000000, "graph_prepare_ns": 9800000},
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0012/maxed", "category": "gps-natural", "profile": "MAXED", "repetition": 3, "expected_reachable": true, "outcome": "ok", "check": "", "reachable": true, "path_cost": 363, "path_length": 120, "total_ns": 1460000000, "allocated_bytes": 52000000, "termination_reason": "", "failure": "", "forward_search_ns": 1320000000, "account_prepare_ns": 11000000, "graph_prepare_ns": 9800000},
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0012/early", "category": "gps-natural", "profile": "EARLY", "repetition": 0, "expected_reachable": false, "outcome": "ok", "check": "", "reachable": false, "path_cost": null, "path_length": 0, "total_ns": 900000000, "allocated_bytes": 48000000, "termination_reason": "", "failure": "", "forward_search_ns": 800000000, "account_prepare_ns": 8500000, "graph_prepare_ns": 7000000},
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0012/early", "category": "gps-natural", "profile": "EARLY", "repetition": 1, "expected_reachable": false, "outcome": "ok", "check": "", "reachable": false, "path_cost": null, "path_length": 0, "total_ns": 880000000, "allocated_bytes": 48000000, "termination_reason": "", "failure": "", "forward_search_ns": 780000000, "account_prepare_ns": 8500000, "graph_prepare_ns": 7000000},
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0012/early", "category": "gps-natural", "profile": "EARLY", "repetition": 2, "expected_reachable": false, "outcome": "ok", "check": "", "reachable": false, "path_cost": null, "path_length": 0, "total_ns": 890000000, "allocated_bytes": 48000000, "termination_reason": "", "failure": "", "forward_search_ns": 790000000, "account_prepare_ns": 8500000, "graph_prepare_ns": 7000000},
+    {"run_id": "pre", "suite": "canonical", "scenario": "gps-natural-0012/early", "category": "gps-natural", "profile": "EARLY", "repetition": 3, "expected_reachable": false, "outcome": "ok", "check": "", "reachable": false, "path_cost": null, "path_length": 0, "total_ns": 910000000, "allocated_bytes": 48000000, "termination_reason": "", "failure": "", "forward_search_ns": 810000000, "account_prepare_ns": 8500000, "graph_prepare_ns": 7000000}
+  ]
+}
