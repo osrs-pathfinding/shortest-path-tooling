@@ -73,7 +73,8 @@ public class ProfilingPathfinder {
         this.map = config.getMap();
         this.start = start;
         this.targets = targets;
-        TargetGoals resolved = TargetGoals.resolve(config, start, targets);
+        TargetGoals resolved = TargetGoals.resolve(targets, config::isTransportDestination,
+            TargetGoals.collisionRule(config, start));
         this.goals = resolved.goals();
         this.hasViableGoal = resolved.hasViableGoal();
         this.visited = new VisitedTiles(map, config.getBankVisitCost());
