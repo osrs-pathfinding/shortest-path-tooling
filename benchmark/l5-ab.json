@@ -1,0 +1,264 @@
+{
+  "format_version": 2,
+  "algorithm": "astar",
+  "astar_session": "cold",
+  "diagnostic": true,
+  "warmup": [
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/maxed"
+    }
+  ],
+  "cases": [
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0001/maxed",
+      "repetition": 0
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0001/maxed",
+      "repetition": 1
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0001/maxed",
+      "repetition": 2
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0001/maxed",
+      "repetition": 3
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0001/maxed",
+      "repetition": 4
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0001/maxed",
+      "repetition": 5
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0001/maxed",
+      "repetition": 6
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0001/maxed",
+      "repetition": 7
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0001/maxed",
+      "repetition": 8
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0001/maxed",
+      "repetition": 9
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0002/maxed",
+      "repetition": 0
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0002/maxed",
+      "repetition": 1
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0002/maxed",
+      "repetition": 2
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0002/maxed",
+      "repetition": 3
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0002/maxed",
+      "repetition": 4
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0002/maxed",
+      "repetition": 5
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0002/maxed",
+      "repetition": 6
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0002/maxed",
+      "repetition": 7
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0002/maxed",
+      "repetition": 8
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0002/maxed",
+      "repetition": 9
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0007/maxed",
+      "repetition": 0
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0007/maxed",
+      "repetition": 1
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0007/maxed",
+      "repetition": 2
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0007/maxed",
+      "repetition": 3
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0007/maxed",
+      "repetition": 4
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0007/maxed",
+      "repetition": 5
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0007/maxed",
+      "repetition": 6
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0007/maxed",
+      "repetition": 7
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0007/maxed",
+      "repetition": 8
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0007/maxed",
+      "repetition": 9
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/maxed",
+      "repetition": 0
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/maxed",
+      "repetition": 1
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/maxed",
+      "repetition": 2
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/maxed",
+      "repetition": 3
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/maxed",
+      "repetition": 4
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/maxed",
+      "repetition": 5
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/maxed",
+      "repetition": 6
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/maxed",
+      "repetition": 7
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/maxed",
+      "repetition": 8
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/maxed",
+      "repetition": 9
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/early",
+      "repetition": 0
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/early",
+      "repetition": 1
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/early",
+      "repetition": 2
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/early",
+      "repetition": 3
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/early",
+      "repetition": 4
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/early",
+      "repetition": 5
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/early",
+      "repetition": 6
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/early",
+      "repetition": 7
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/early",
+      "repetition": 8
+    },
+    {
+      "suite": "canonical",
+      "scenario": "gps-natural-0012/early",
+      "repetition": 9
+    }
+  ]
+}
