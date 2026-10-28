@@ -19,6 +19,13 @@ Defaults: --ref HEAD --repo shortest-path  (run from the tooling repo root).
 Reads blobs via `git show <ref>:<path>` — no checkout, works on a pinned
 submodule and on historical tags alike.
 
+`--ref` also accepts a comma-separated list (`--ref a,b,c`): every ref is
+measured in argument order and gets its own output block under a
+`# ref <ref>` header; the CSV gains a leading `ref` column (ref-major,
+in argument order). A single-ref invocation keeps the original output
+shape exactly. A ref that fails to resolve fails the whole run non-zero
+before anything is emitted — a truncated table never reads as green.
+
 Output: TSV of <stripped-chars>\t<path> sorted by size desc, then package
 rollups, then the grand total, on stdout. With --csv FILE also writes the
 per-file table.
@@ -131,26 +138,20 @@ def package_of(path):
     return rel.replace(os.sep, "/")
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--ref", default="HEAD")
-    ap.add_argument("--repo", default="shortest-path")
-    ap.add_argument("--csv", default=None)
-    ap.add_argument("--top", type=int, default=0, help="only print top N files")
-    args = ap.parse_args()
-    if args.top < 0:
-        ap.error("--top must be >= 0")
+def parse_refs(arg):
+    """`--ref` value → list of refs; comma-separated lists measure each."""
+    refs = [r.strip() for r in arg.split(",")]
+    if not all(refs):
+        raise ValueError("--ref entries must be non-empty")
+    return refs
 
-    sizes = measure(args.repo, args.ref)
+
+def report(sizes, top, show_ref=None):
+    """Print one ref's table, package rollups and grand total."""
     ranked = sorted(sizes.items(), key=lambda kv: (-kv[1], kv[0]))
-
-    if args.csv:
-        with open(args.csv, "w", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(["path", "stripped_chars"])
-            w.writerows(ranked)
-
-    shown = ranked[: args.top] if args.top else ranked
+    if show_ref is not None:
+        print(f"# ref {show_ref}")
+    shown = ranked[:top] if top else ranked
     for path, sz in shown:
         print(f"{sz:>8}\t{path}")
 
@@ -164,6 +165,53 @@ def main():
     for pkg, (sz, cnt) in sorted(pkgs.items(), key=lambda kv: -kv[1][0]):
         print(f"{sz:>8}\t{cnt:>3}\t{pkg}")
     print(f"\nTOTAL\t{sum(sizes.values())}\t{len(sizes)} files")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ref", default="HEAD",
+                    help="git ref to measure; a comma-separated list "
+                         "measures each ref in turn")
+    ap.add_argument("--repo", default="shortest-path")
+    ap.add_argument("--csv", default=None)
+    ap.add_argument("--top", type=int, default=0, help="only print top N files")
+    args = ap.parse_args()
+    if args.top < 0:
+        ap.error("--top must be >= 0")
+    try:
+        refs = parse_refs(args.ref)
+    except ValueError as e:
+        ap.error(str(e))
+
+    # Measure every ref before emitting anything: a ref that fails to
+    # resolve fails the whole run non-zero rather than printing a
+    # truncated-but-green table.
+    all_sizes = {}
+    for ref in refs:
+        try:
+            all_sizes[ref] = measure(args.repo, ref)
+        except RuntimeError as e:
+            ap.error(f"{ref}: {e}")
+
+    multi = len(refs) > 1
+    if args.csv:
+        with open(args.csv, "w", newline="") as f:
+            w = csv.writer(f)
+            if multi:
+                w.writerow(["ref", "path", "stripped_chars"])
+            else:
+                w.writerow(["path", "stripped_chars"])
+            for ref in refs:
+                ranked = sorted(all_sizes[ref].items(),
+                                key=lambda kv: (-kv[1], kv[0]))
+                for path, sz in ranked:
+                    if multi:
+                        w.writerow([ref, path, sz])
+                    else:
+                        w.writerow([path, sz])
+
+    for ref in refs:
+        report(all_sizes[ref], args.top, show_ref=ref if multi else None)
 
 
 if __name__ == "__main__":

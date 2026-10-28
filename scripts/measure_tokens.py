@@ -24,6 +24,14 @@ Defaults: --ref HEAD --repo shortest-path  (run from the tooling repo
 root).  Reads blobs via `git show <ref>:<path>` — no checkout, works on
 a pinned submodule and on historical tags alike.
 
+`--ref` also accepts a comma-separated list (`--ref a,b,c`): every ref
+is measured in argument order and gets its own output block under a
+`# ref <ref>` header; the CSV gains a leading `ref` column (ref-major,
+in argument order).  A single-ref invocation keeps the original output
+shape exactly.  A ref that fails to resolve fails the whole run
+non-zero before anything is emitted — a truncated table never reads as
+green.
+
 Output: TSV of <tokens>\t<path> sorted by size desc, then package
 rollups, then the grand total (`TOTAL\t<n> tokens\t<k> files`), on
 stdout.  With --csv FILE also writes the per-file table.
@@ -53,27 +61,12 @@ def measure(repo, ref, enc):
     return counts
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--ref", default="HEAD")
-    ap.add_argument("--repo", default="shortest-path")
-    ap.add_argument("--csv", default=None)
-    ap.add_argument("--top", type=int, default=0, help="only print top N files")
-    args = ap.parse_args()
-    if args.top < 0:
-        ap.error("--top must be >= 0")
-
-    enc = tiktoken.get_encoding(ENCODING)
-    counts = measure(args.repo, args.ref, enc)
+def report(counts, top, show_ref=None):
+    """Print one ref's table, package rollups and grand total."""
     ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
-
-    if args.csv:
-        with open(args.csv, "w", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(["path", "tokens"])
-            w.writerows(ranked)
-
-    shown = ranked[: args.top] if args.top else ranked
+    if show_ref is not None:
+        print(f"# ref {show_ref}")
+    shown = ranked[:top] if top else ranked
     for path, n in shown:
         print(f"{n:>8}\t{path}")
 
@@ -87,6 +80,54 @@ def main():
     for pkg, (n, cnt) in sorted(pkgs.items(), key=lambda kv: -kv[1][0]):
         print(f"{n:>8}\t{cnt:>3}\t{pkg}")
     print(f"\nTOTAL\t{sum(counts.values())} tokens\t{len(counts)} files")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ref", default="HEAD",
+                    help="git ref to measure; a comma-separated list "
+                         "measures each ref in turn")
+    ap.add_argument("--repo", default="shortest-path")
+    ap.add_argument("--csv", default=None)
+    ap.add_argument("--top", type=int, default=0, help="only print top N files")
+    args = ap.parse_args()
+    if args.top < 0:
+        ap.error("--top must be >= 0")
+    try:
+        refs = mf.parse_refs(args.ref)
+    except ValueError as e:
+        ap.error(str(e))
+
+    enc = tiktoken.get_encoding(ENCODING)
+    # Measure every ref before emitting anything: a ref that fails to
+    # resolve fails the whole run non-zero rather than printing a
+    # truncated-but-green table.
+    all_counts = {}
+    for ref in refs:
+        try:
+            all_counts[ref] = measure(args.repo, ref, enc)
+        except RuntimeError as e:
+            ap.error(f"{ref}: {e}")
+
+    multi = len(refs) > 1
+    if args.csv:
+        with open(args.csv, "w", newline="") as f:
+            w = csv.writer(f)
+            if multi:
+                w.writerow(["ref", "path", "tokens"])
+            else:
+                w.writerow(["path", "tokens"])
+            for ref in refs:
+                ranked = sorted(all_counts[ref].items(),
+                                key=lambda kv: (-kv[1], kv[0]))
+                for path, n in ranked:
+                    if multi:
+                        w.writerow([ref, path, n])
+                    else:
+                        w.writerow([path, n])
+
+    for ref in refs:
+        report(all_counts[ref], args.top, show_ref=ref if multi else None)
 
 
 if __name__ == "__main__":
