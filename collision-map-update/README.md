@@ -20,6 +20,13 @@ This workflow automates extraction of the latest Old School RuneScape (OSRS) col
 5. **Extract Collision Map**  
    The dumper JAR is executed, reading the downloaded cache and keys to extract collision data for all regions. The output is a compressed `collision-map.zip` file containing the processed collision map data.
 
+   At sea it also marks where one sea area meets another. The sailing water textures come in one family per sea area,
+   and a boat enters the restricted ones (Tempor Tantrum, the northern waters, crystal-flecked, fetid and kelp water)
+   only with a part fitted. Each edge between two sea tiles of different areas gets the boundary flag a wall or door
+   writes, with its movement flag left as it is, so walking is unchanged. With `--seaareas <file>` the dumper also
+   writes one tile of each restricted area's piece of sea per region (the plugin's `sailing/sea-areas.tsv`), which
+   names the area of the piece the boundaries enclose.
+
 6. **Store and Commit Output**  
    The resulting `collision-map.zip` is moved to `src/main/resources/`, replacing the previous version if it has changed. If the map was updated, the workflow commits and pushes the new file to the repository, ensuring the latest collision data is always available.
 

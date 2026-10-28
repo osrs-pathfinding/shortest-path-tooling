@@ -29,6 +29,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
@@ -39,8 +42,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.runelite.cache.definitions.ObjectDefinition;
+import net.runelite.cache.definitions.OverlayDefinition;
 import net.runelite.cache.fs.Store;
 import net.runelite.cache.region.Location;
 import net.runelite.cache.region.Position;
@@ -195,9 +200,51 @@ public class CollisionMapDumper
 	 * Underlay/Overlay ID indicating no floor
 	 */
 	private static final int NO_UNDERLAY_OVERLAY_ID = 0;
-	
+
+	// ========================================
+	// Sea Area Constants
+	// ========================================
+
+	/**
+	 * The restricted sea areas, which a boat enters only with a part fitted, by
+	 * the family of sailing water textures their floor overlays use: textures
+	 * 130-189 come in families of five shades, one family per sea area, and
+	 * every family not listed is open water. Named as the plugin's SeaArea.
+	 */
+	private static final String[] SEA_AREA_FAMILIES = {
+		null, "TEMPOR_TANTRUM", null, null, null, null, "NORTHERN", null, "CRYSTALLINE", "FETID", "KELP", null
+	};
+	private static final int SEA_TEXTURE_MIN = 130;
+	private static final int SEA_TEXTURE_MAX = 189;
+	/**
+	 * The dark water beyond the world edge: sea, but open, behind a blocked
+	 * border line.
+	 */
+	private static final int WORLD_EDGE_TEXTURE = 208;
+	/**
+	 * Floor overlays of the coastal shallows (an older water texture): open
+	 * sea.
+	 */
+	private static final int[] SHALLOWS_OVERLAYS = {442, 444};
+	/**
+	 * Sea area code of a tile that is not sea; open sea is 0, a restricted
+	 * area its index in SEA_AREA_FAMILIES.
+	 */
+	private static final int NOT_SEA = -1;
+
 	private final RegionLoader regionLoader;
 	private final ObjectManager objectManager;
+	private final OverlayManager overlayManager;
+	/**
+	 * Sea area code per floor overlay as regions store it (1-based, 0 for no
+	 * overlay): NOT_SEA, 0 for open sea or a restricted area's index.
+	 */
+	private int[] overlaySeaAreas = new int[0];
+	/**
+	 * One tile of each restricted sea area's piece in each region, as
+	 * "AREA\tx y 0" lines (see writeSeaAreas).
+	 */
+	private final Collection<String> seaAreaSeeds = new ConcurrentLinkedQueue<>();
 
 	/**
 	 * Per-source-region index of locations keyed by packed absolute position,
@@ -214,11 +261,14 @@ public class CollisionMapDumper
 	{
 		this.regionLoader = regionLoader;
 		this.objectManager = new ObjectManager(store);
+		this.overlayManager = new OverlayManager(store);
 	}
 
 	public CollisionMapDumper load() throws IOException
 	{
 		objectManager.load();
+		overlayManager.load();
+		overlaySeaAreas = overlaySeaAreas(overlayManager.getOverlays());
 		regionLoader.loadRegions();
 		regionLoader.calculateBounds();
 
@@ -236,6 +286,7 @@ public class CollisionMapDumper
 		options.addOption(Option.builder().longOpt("cachedir").hasArg().required().build());
 		options.addOption(Option.builder().longOpt("xteapath").hasArg().required().build());
 		options.addOption(Option.builder().longOpt("outputdir").hasArg().required().build());
+		options.addOption(Option.builder().longOpt("seaareas").hasArg().build());
 
 		CommandLineParser parser = new DefaultParser();
 		CommandLine cmd;
@@ -253,6 +304,7 @@ public class CollisionMapDumper
 		final String cacheDirectory = cmd.getOptionValue("cachedir");
 		final String xteaJSONPath = cmd.getOptionValue("xteapath");
 		final String outputDirectory = cmd.getOptionValue("outputdir");
+		final String seaAreasPath = cmd.getOptionValue("seaareas");
 
 		XteaKeyManager xteaKeyManager = new XteaKeyManager();
 		try (FileInputStream fin = new FileInputStream(xteaJSONPath))
@@ -282,6 +334,11 @@ public class CollisionMapDumper
 				dumper.makeCollisionMap(region, outputDirectory, counter.incrementAndGet(), total));
 
 			Exclusion.warnUnmatched();
+
+			if (seaAreasPath != null)
+			{
+				dumper.writeSeaAreas(Path.of(seaAreasPath));
+			}
 		}
 	}
 
@@ -301,6 +358,7 @@ public class CollisionMapDumper
 		addNeighborCollisions(flagMap, region, 1, -1);
 		addNeighborCollisions(flagMap, region, 1, 0);
 		addNeighborCollisions(flagMap, region, 1, 1);
+		addSeaAreaBoundaries(flagMap, region);
 
 		String name = region.getRegionX() + "_" + region.getRegionY();
 
@@ -327,6 +385,171 @@ public class CollisionMapDumper
 			return;
 		}
 		addCollisions(flagMap, neighbor);
+	}
+
+	/**
+	 * Marks the edges round each restricted sea area as boundaries: every edge
+	 * between one of its tiles and a tile of another area, open sea or not
+	 * sea at all (a ship's deck, a jetty), gets the wall flag, and the
+	 * movement flag is left as it is, the way a door is written. Walking is
+	 * unchanged, and the area is sealed, so a boat can tell where it begins.
+	 * Also records a seed tile for each restricted area piece in the region.
+	 */
+	private void addSeaAreaBoundaries(FlagMap flagMap, Region region)
+	{
+		int baseX = region.getBaseX();
+		int baseY = region.getBaseY();
+		int[] areas = new int[Region.X * Region.Y];
+		for (int localX = 0; localX < Region.X; localX++)
+		{
+			for (int localY = 0; localY < Region.Y; localY++)
+			{
+				areas[localY * Region.X + localX] = seaArea(region, localX, localY);
+			}
+		}
+		for (int localX = 0; localX < Region.X; localX++)
+		{
+			for (int localY = 0; localY < Region.Y; localY++)
+			{
+				int area = areas[localY * Region.X + localX];
+				int x = baseX + localX;
+				int y = baseY + localY;
+				int east = localX + 1 < Region.X ? areas[localY * Region.X + localX + 1] : seaArea(x + 1, y);
+				int north = localY + 1 < Region.Y ? areas[(localY + 1) * Region.X + localX] : seaArea(x, y + 1);
+				if (east != area && (area > 0 || east > 0))
+				{
+					flagMap.set(x, y, 0, FlagMap.FLAG_WALL_EAST, true);
+				}
+				if (north != area && (area > 0 || north > 0))
+				{
+					flagMap.set(x, y, 0, FlagMap.FLAG_WALL_NORTH, true);
+				}
+			}
+		}
+		addSeaAreaSeeds(areas, baseX, baseY);
+	}
+
+	/**
+	 * One seed per piece of each restricted area within the region: its
+	 * lowest tile, with the region's own tiles of the same area joined by
+	 * their edges.
+	 */
+	private void addSeaAreaSeeds(int[] areas, int baseX, int baseY)
+	{
+		boolean[] seen = new boolean[areas.length];
+		int[] queue = new int[areas.length];
+		for (int start = 0; start < areas.length; start++)
+		{
+			int area = areas[start];
+			if (area <= 0 || seen[start])
+			{
+				continue;
+			}
+			seaAreaSeeds.add(SEA_AREA_FAMILIES[area] + "\t" + (baseX + start % Region.X) + " "
+				+ (baseY + start / Region.X) + " 0");
+			int head = 0;
+			int tail = 0;
+			queue[tail++] = start;
+			seen[start] = true;
+			while (head < tail)
+			{
+				int tile = queue[head++];
+				int localX = tile % Region.X;
+				int localY = tile / Region.X;
+				int[] next = {
+					localX > 0 ? tile - 1 : -1,
+					localX + 1 < Region.X ? tile + 1 : -1,
+					localY > 0 ? tile - Region.X : -1,
+					localY + 1 < Region.Y ? tile + Region.X : -1
+				};
+				for (int neighbor : next)
+				{
+					if (neighbor >= 0 && !seen[neighbor] && areas[neighbor] == area)
+					{
+						seen[neighbor] = true;
+						queue[tail++] = neighbor;
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Writes the restricted sea areas' seed tiles: with the boundaries in the
+	 * collision map, each seed names the area of the piece of sea it lies in.
+	 */
+	private void writeSeaAreas(Path path) throws IOException
+	{
+		List<String> seeds = new ArrayList<>(seaAreaSeeds);
+		Collections.sort(seeds);
+		StringBuilder out = new StringBuilder()
+			.append("# Restricted sea areas: one tile of each piece of sea, within each region, that a boat enters\n")
+			.append("# only with a part fitted. The collision map marks the edges between sea areas as boundaries, so\n")
+			.append("# each tile names the area of the piece it lies in. Generated by CollisionMapDumper from the sailing\n")
+			.append("# water textures; do not edit.\n")
+			.append("# Area\tTile\n");
+		for (String seed : seeds)
+		{
+			out.append(seed).append('\n');
+		}
+		Files.writeString(path, out.toString(), StandardCharsets.UTF_8);
+		System.out.println("Wrote " + seeds.size() + " sea area seeds to " + path);
+	}
+
+	/** The sea area of world tile (x, y) on plane 0, or NOT_SEA. */
+	private int seaArea(int x, int y)
+	{
+		Region region = regionLoader.findRegionForWorldCoordinates(x, y);
+		if (region == null)
+		{
+			return NOT_SEA;
+		}
+		return seaArea(region, x - region.getBaseX(), y - region.getBaseY());
+	}
+
+	/**
+	 * The sea area of a region's plane-0 tile, from its floor overlay; under
+	 * a bridge the floor is stored one plane up.
+	 */
+	private int seaArea(Region region, int localX, int localY)
+	{
+		boolean isBridge = (region.getTileSetting(BRIDGE_CHECK_PLANE, localX, localY) & TILE_SETTING_BRIDGE_FLAG) != 0;
+		int overlay = region.getOverlayId(isBridge ? 1 : 0, localX, localY) & 0xFFFF;
+		return overlay < overlaySeaAreas.length ? overlaySeaAreas[overlay] : NOT_SEA;
+	}
+
+	/** The sea area code of each floor overlay, by its id as regions store it. */
+	private static int[] overlaySeaAreas(Collection<OverlayDefinition> overlays)
+	{
+		int max = 0;
+		for (OverlayDefinition overlay : overlays)
+		{
+			max = Math.max(max, overlay.getId());
+		}
+		int[] areas = new int[max + 2];
+		java.util.Arrays.fill(areas, NOT_SEA);
+		for (OverlayDefinition overlay : overlays)
+		{
+			int texture = overlay.getTexture();
+			int area = NOT_SEA;
+			if (texture >= SEA_TEXTURE_MIN && texture <= SEA_TEXTURE_MAX)
+			{
+				area = SEA_AREA_FAMILIES[(texture - SEA_TEXTURE_MIN) / 5] == null ? 0 : (texture - SEA_TEXTURE_MIN) / 5;
+			}
+			else if (texture == WORLD_EDGE_TEXTURE)
+			{
+				area = 0;
+			}
+			for (int shallows : SHALLOWS_OVERLAYS)
+			{
+				if (overlay.getId() + 1 == shallows)
+				{
+					area = 0;
+				}
+			}
+			areas[overlay.getId() + 1] = area;
+		}
+		return areas;
 	}
 
 	private static long packPos(int x, int y, int z)
