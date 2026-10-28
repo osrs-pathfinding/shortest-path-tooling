@@ -48,6 +48,30 @@ def make_fake_git(listing, blobs, calls=None):
     return fake_git
 
 
+def make_fake_git_multi(listings, blobs, calls=None):
+    """ref-keyed fake for ``mf.git`` — ``ls-tree`` answers ``listings[ref]``,
+    ``show <ref>:<path>`` answers ``blobs[(ref, path)]``, an unknown ref
+    raises ``RuntimeError`` like the real ``git`` seam does, anything else
+    fails loudly."""
+
+    def fake_git(repo, *args):
+        if calls is not None:
+            calls.append([repo, *args])
+        if args and args[0] == "ls-tree":
+            ref = args[3]
+            if ref not in listings:
+                raise RuntimeError(
+                    f"git -C {repo} ls-tree -r --name-only {ref} failed "
+                    f"with exit code 128:\nfatal: bad revision '{ref}'")
+            return listings[ref]
+        if args and args[0] == "show":
+            ref, _, path = args[1].partition(":")
+            return blobs[(ref, path)]
+        raise AssertionError(f"unexpected argv: {args}")
+
+    return fake_git
+
+
 # ---------- strip_comments / stripped_size ----------
 
 
@@ -300,3 +324,127 @@ def test_main_top_flag_limits_stdout_not_csv(tmp_path, monkeypatch,
     assert len(shown) == 1 and "BlobA" in shown[0]
     rows = list(csv.reader(io.StringIO(csv_path.read_text())))
     assert len(rows) == 3
+
+
+# ---------- multi-ref --ref a,b,c ----------
+
+
+def _multi_blobs():
+    """Two refs with observably different blob contents."""
+    blob_a = (FIXTURES / "measure_blob_a.java").read_text()
+    blob_b = (FIXTURES / "measure_blob_b.java").read_text()
+    listing = (FIXTURES / "measure_ls_tree.txt").read_text()
+    path_a = "src/main/java/shortestpath/alpha/BlobA.java"
+    path_b = "src/main/java/shortestpath/beta/BlobB.java"
+    listings = {"ref1": listing, "ref2": listing}
+    blobs = {
+        ("ref1", path_a): blob_a,
+        ("ref1", path_b): blob_b,
+        ("ref2", path_a): blob_b,
+        ("ref2", path_b): blob_a,
+    }
+    return listings, blobs
+
+
+def test_main_multi_ref_tags_each_ref_block(tmp_path, monkeypatch, capsys):
+    listings, blobs = _multi_blobs()
+    calls = []
+    monkeypatch.setattr(
+        mf, "git", make_fake_git_multi(listings, blobs, calls))
+    monkeypatch.setattr(
+        sys, "argv",
+        ["measure_footprint.py", "--ref", "ref1,ref2"])
+    mf.main()
+
+    out = capsys.readouterr().out
+    assert "# ref ref1" in out
+    assert "# ref ref2" in out
+    totals = [ln for ln in out.splitlines() if ln.startswith("TOTAL")]
+    assert totals == ["TOTAL\t115\t2 files", "TOTAL\t115\t2 files"]
+    # The two blobs swap refs so each ref's per-file table differs.
+    block1, block2 = out.split("# ref ")[1:]
+    assert "66\tsrc/main/java/shortestpath/alpha/BlobA.java" in block1
+    assert "49\tsrc/main/java/shortestpath/alpha/BlobA.java" in block2
+
+
+def test_main_multi_ref_csv_carries_ref_column_in_arg_order(
+        tmp_path, monkeypatch, capsys):
+    listings, blobs = _multi_blobs()
+    calls = []
+    monkeypatch.setattr(
+        mf, "git", make_fake_git_multi(listings, blobs, calls))
+    csv_path = tmp_path / "out.csv"
+    monkeypatch.setattr(
+        sys, "argv",
+        ["measure_footprint.py", "--ref", "ref2,ref1", "--csv",
+         str(csv_path)])
+    mf.main()
+    capsys.readouterr()
+
+    rows = list(csv.reader(io.StringIO(csv_path.read_text())))
+    assert rows[0] == ["ref", "path", "stripped_chars"]
+    # ref-major ordering in argument order (ref2 first), size-desc inside.
+    assert rows[1:] == [
+        ["ref2", "src/main/java/shortestpath/beta/BlobB.java", "66"],
+        ["ref2", "src/main/java/shortestpath/alpha/BlobA.java", "49"],
+        ["ref1", "src/main/java/shortestpath/alpha/BlobA.java", "66"],
+        ["ref1", "src/main/java/shortestpath/beta/BlobB.java", "49"],
+    ]
+
+
+def test_main_multi_ref_reads_src_main_java_blobs_per_ref(
+        tmp_path, monkeypatch, capsys):
+    listings, blobs = _multi_blobs()
+    calls = []
+    monkeypatch.setattr(
+        mf, "git", make_fake_git_multi(listings, blobs, calls))
+    monkeypatch.setattr(
+        sys, "argv", ["measure_footprint.py", "--ref", "ref1,ref2"])
+    mf.main()
+    capsys.readouterr()
+
+    # Each ref gets its own ls-tree scoped at src/main/java, and every
+    # blob read is a <ref>:src/main/java path — the counting scope never
+    # widens under multi-ref.
+    lstrees = [c for c in calls if c[1] == "ls-tree"]
+    assert [c[4] for c in lstrees] == ["ref1", "ref2"]
+    for c in lstrees:
+        assert c[6] == "src/main/java"
+    shows = [c[2] for c in calls if c[1] == "show"]
+    assert all(
+        s.split(":", 1)[0] in ("ref1", "ref2")
+        and s.split(":", 1)[1].startswith("src/main/java/")
+        for s in shows)
+
+
+def test_main_multi_ref_bad_ref_exits_nonzero(
+        tmp_path, monkeypatch, capsys):
+    listings, blobs = _multi_blobs()
+    calls = []
+    monkeypatch.setattr(
+        mf, "git", make_fake_git_multi(listings, blobs, calls))
+    monkeypatch.setattr(
+        sys, "argv", ["measure_footprint.py", "--ref", "ref1,bogus"])
+    with pytest.raises(SystemExit):
+        mf.main()
+    err = capsys.readouterr().err
+    assert "bogus" in err
+
+
+def test_main_multi_ref_bad_ref_writes_nothing(
+        tmp_path, monkeypatch, capsys):
+    # A failed ref means the whole run fails loudly — no partial CSV and
+    # no stdout table that could read as a truncated-but-green pass.
+    listings, blobs = _multi_blobs()
+    monkeypatch.setattr(
+        mf, "git", make_fake_git_multi(listings, blobs))
+    csv_path = tmp_path / "out.csv"
+    monkeypatch.setattr(
+        sys, "argv",
+        ["measure_footprint.py", "--ref", "ref1,bogus", "--csv",
+         str(csv_path)])
+    with pytest.raises(SystemExit):
+        mf.main()
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert not csv_path.exists()
