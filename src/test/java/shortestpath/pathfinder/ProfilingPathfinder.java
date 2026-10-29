@@ -7,6 +7,7 @@ import shortestpath.PrimitiveIntList;
 import shortestpath.WorldPointUtil;
 import shortestpath.leagues.LeagueModeState;
 import shortestpath.transport.Transport;
+import shortestpath.settings.ConfigKey;
 
 /**
  * Test-only pathfinder that replicates the core search loop from {@link Pathfinder}
@@ -77,7 +78,7 @@ public class ProfilingPathfinder {
             TargetGoals.collisionRule(config, start));
         this.goals = resolved.goals();
         this.hasViableGoal = resolved.hasViableGoal();
-        this.visited = new VisitedTiles(map, config.getBankVisitCost());
+        this.visited = new VisitedTiles(map, config.num(ConfigKey.COST_BANK_VISIT));
         this.targetInWilderness = WildernessChecker.isInWilderness(targets);
         this.targetInBlockedRegion = anyInBlockedRegion(config.getLeagueModeState(), targets);
         this.wildernessLevel = 31;
@@ -104,7 +105,7 @@ public class ProfilingPathfinder {
         long startNanos = System.nanoTime();
         boundary.addFirst(graph.createStart(start));
 
-        long cutoffDurationMillis = config.getCalculationCutoffMillis();
+        long cutoffDurationMillis = config.lng(ConfigKey.CALCULATION_CUTOFF);
         long cutoffTimeMillis = System.currentTimeMillis() + cutoffDurationMillis;
         int iteration = 0;
 
@@ -308,9 +309,9 @@ public class ProfilingPathfinder {
         // explicit, costed transition — a bank-accessible tile emits a bank-visit edge carrying
         // the configured penalty once, on the decision to bank.
         BankVisitState pathBankVisited = graph.bankVisited(node);
-        if (pathBankVisited != BankVisitState.BANKED && config.isBankPathEnabled() && config.bankAccessible(packedPosition)
+        if (pathBankVisited != BankVisitState.BANKED && config.bool(ConfigKey.INCLUDE_BANK_PATH) && config.bankAccessible(packedPosition)
             && !visited.get(packedPosition, BankVisitState.BANKED)) {
-            neighbors.add(graph.createBankVisit(packedPosition, node, config.getBankVisitCost()));
+            neighbors.add(graph.createBankVisit(packedPosition, node, config.num(ConfigKey.COST_BANK_VISIT)));
             profile.bankTransitions++;
         }
 
@@ -485,7 +486,7 @@ public class ProfilingPathfinder {
         }
         for (int target : targets) {
             if (WorldPointUtil.distanceBetween(target, packedPosition, WorldPointUtil.MANHATTAN_DISTANCE_METRIC)
-                <= config.getUnreachableTargetDistance()) {
+                <= config.num(ConfigKey.UNREACHABLE_TARGET_DISTANCE_THRESHOLD)) {
                 shortestAcceptedNode = node;
                 shortestAcceptedTarget = target;
                 return;

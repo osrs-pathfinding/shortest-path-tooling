@@ -16,6 +16,7 @@ import shortestpath.pathfinder.astar.PreparedRoutingAccount;
 import shortestpath.pathfinder.astar.RoutingStatic;
 import shortestpath.pathfinder.astar.SiteGraph;
 import shortestpath.profiles.CompiledAccount;
+import shortestpath.settings.ConfigKey;
 
 /**
  * Runs scenarios on one pathfinder backend. The only place the route CLI, the dashboard and the
@@ -140,7 +141,7 @@ public final class ScenarioRunner {
         AStarRoutingSession session = session(config, scenario.getTarget());
         long started = System.nanoTime();
         AStarPathfinder pathfinder = new AStarPathfinder(config, routingStatic, session, start, targets, null,
-            config.getAStarHeuristicWeight());
+            config.dbl(ConfigKey.A_STAR_HEURISTIC_WEIGHT));
         pathfinder.run();
         long total = System.nanoTime() - started;
         return new Observation(scenario, backend, account, pathfinder.getResult(), pathfinder, null, total);
