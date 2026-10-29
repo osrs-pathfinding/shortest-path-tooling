@@ -588,16 +588,26 @@ public class CollisionMapDumper
 		{3284, 2844, 2844}
 	};
 
-	private static final Set<Long> BLOCKED_TILES = blockedTiles(CRANDOR_SEALED_TILES);
+	// Elder Guards block ordinary walking; dialogue transports model passage.
+	private static final int[][] KING_AWOWOGEI_ENTRANCES = new int[][]
+	{
+		{2762, 2799, 2799},
+		{2759, 2802, 2802}
+	};
 
-	private static Set<Long> blockedTiles(int[][] rows)
+	private static final Set<Long> BLOCKED_TILES = blockedTiles(CRANDOR_SEALED_TILES, KING_AWOWOGEI_ENTRANCES);
+
+	private static Set<Long> blockedTiles(int[][]... groups)
 	{
 		Set<Long> tiles = new HashSet<>();
-		for (int[] row : rows)
+		for (int[][] rows : groups)
 		{
-			for (int x = row[1]; x <= row[2]; x++)
+			for (int[] row : rows)
 			{
-				tiles.add(((long) x << 32) | (row[0] & 0xffffffffL));
+				for (int x = row[1]; x <= row[2]; x++)
+				{
+					tiles.add(((long) x << 32) | (row[0] & 0xffffffffL));
+				}
 			}
 		}
 		return tiles;
