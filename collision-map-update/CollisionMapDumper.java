@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.runelite.cache.definitions.ObjectDefinition;
 import net.runelite.cache.definitions.OverlayDefinition;
@@ -231,6 +230,15 @@ public class CollisionMapDumper
 	 * area its index in SEA_AREA_FAMILIES.
 	 */
 	private static final int NOT_SEA = -1;
+	/**
+	 * The directory, in the output and so in the zip, of the sea area layer:
+	 * one file per region with any restricted sea, named like the region's
+	 * collision file, holding a byte per plane-0 tile (row by row from the
+	 * south-west, x fastest): 0 for any other tile, else the restricted area's
+	 * number in LEGEND.
+	 */
+	private static final String SEA_AREA_LAYER = "sea-areas";
+	private static final String LEGEND = "legend";
 
 	private final RegionLoader regionLoader;
 	private final ObjectManager objectManager;
@@ -240,11 +248,6 @@ public class CollisionMapDumper
 	 * overlay): NOT_SEA, 0 for open sea or a restricted area's index.
 	 */
 	private int[] overlaySeaAreas = new int[0];
-	/**
-	 * One tile of each restricted sea area's piece in each region, as
-	 * "AREA\tx y 0" lines (see writeSeaAreas).
-	 */
-	private final Collection<String> seaAreaSeeds = new ConcurrentLinkedQueue<>();
 
 	/**
 	 * Per-source-region index of locations keyed by packed absolute position,
@@ -286,7 +289,6 @@ public class CollisionMapDumper
 		options.addOption(Option.builder().longOpt("cachedir").hasArg().required().build());
 		options.addOption(Option.builder().longOpt("xteapath").hasArg().required().build());
 		options.addOption(Option.builder().longOpt("outputdir").hasArg().required().build());
-		options.addOption(Option.builder().longOpt("seaareas").hasArg().build());
 
 		CommandLineParser parser = new DefaultParser();
 		CommandLine cmd;
@@ -304,7 +306,6 @@ public class CollisionMapDumper
 		final String cacheDirectory = cmd.getOptionValue("cachedir");
 		final String xteaJSONPath = cmd.getOptionValue("xteapath");
 		final String outputDirectory = cmd.getOptionValue("outputdir");
-		final String seaAreasPath = cmd.getOptionValue("seaareas");
 
 		XteaKeyManager xteaKeyManager = new XteaKeyManager();
 		try (FileInputStream fin = new FileInputStream(xteaJSONPath))
@@ -335,10 +336,7 @@ public class CollisionMapDumper
 
 			Exclusion.warnUnmatched();
 
-			if (seaAreasPath != null)
-			{
-				dumper.writeSeaAreas(Path.of(seaAreasPath));
-			}
+			writeSeaAreaLegend(Path.of(outputDirectory, SEA_AREA_LAYER, LEGEND));
 		}
 	}
 
@@ -358,9 +356,9 @@ public class CollisionMapDumper
 		addNeighborCollisions(flagMap, region, 1, -1);
 		addNeighborCollisions(flagMap, region, 1, 0);
 		addNeighborCollisions(flagMap, region, 1, 1);
-		addSeaAreaBoundaries(flagMap, region);
 
 		String name = region.getRegionX() + "_" + region.getRegionY();
+		writeSeaAreas(region, Path.of(outputDirectory, SEA_AREA_LAYER, name));
 
 		byte[] buf = flagMap.toBytes();
 		if (buf.length > 0)
@@ -388,123 +386,56 @@ public class CollisionMapDumper
 	}
 
 	/**
-	 * Marks the edges round each restricted sea area as boundaries: every edge
-	 * between one of its tiles and a tile of another area, open sea or not
-	 * sea at all (a ship's deck, a jetty), gets the wall flag, and the
-	 * movement flag is left as it is, the way a door is written. Walking is
-	 * unchanged, and the area is sealed, so a boat can tell where it begins.
-	 * Also records a seed tile for each restricted area piece in the region.
+	 * Writes the region's restricted sea area layer (see SEA_AREA_LAYER), if
+	 * it has any restricted sea.
 	 */
-	private void addSeaAreaBoundaries(FlagMap flagMap, Region region)
+	private void writeSeaAreas(Region region, Path path)
 	{
-		int baseX = region.getBaseX();
-		int baseY = region.getBaseY();
-		int[] areas = new int[Region.X * Region.Y];
-		for (int localX = 0; localX < Region.X; localX++)
+		byte[] areas = new byte[Region.X * Region.Y];
+		boolean any = false;
+		for (int localY = 0; localY < Region.Y; localY++)
 		{
-			for (int localY = 0; localY < Region.Y; localY++)
+			for (int localX = 0; localX < Region.X; localX++)
 			{
-				areas[localY * Region.X + localX] = seaArea(region, localX, localY);
-			}
-		}
-		for (int localX = 0; localX < Region.X; localX++)
-		{
-			for (int localY = 0; localY < Region.Y; localY++)
-			{
-				int area = areas[localY * Region.X + localX];
-				int x = baseX + localX;
-				int y = baseY + localY;
-				int east = localX + 1 < Region.X ? areas[localY * Region.X + localX + 1] : seaArea(x + 1, y);
-				int north = localY + 1 < Region.Y ? areas[(localY + 1) * Region.X + localX] : seaArea(x, y + 1);
-				if (east != area && (area > 0 || east > 0))
+				int area = seaArea(region, localX, localY);
+				if (area > 0)
 				{
-					flagMap.set(x, y, 0, FlagMap.FLAG_WALL_EAST, true);
-				}
-				if (north != area && (area > 0 || north > 0))
-				{
-					flagMap.set(x, y, 0, FlagMap.FLAG_WALL_NORTH, true);
+					areas[localY * Region.X + localX] = (byte) area;
+					any = true;
 				}
 			}
 		}
-		addSeaAreaSeeds(areas, baseX, baseY);
-	}
-
-	/**
-	 * One seed per piece of each restricted area within the region: its
-	 * lowest tile, with the region's own tiles of the same area joined by
-	 * their edges.
-	 */
-	private void addSeaAreaSeeds(int[] areas, int baseX, int baseY)
-	{
-		boolean[] seen = new boolean[areas.length];
-		int[] queue = new int[areas.length];
-		for (int start = 0; start < areas.length; start++)
+		if (!any)
 		{
-			int area = areas[start];
-			if (area <= 0 || seen[start])
-			{
-				continue;
-			}
-			seaAreaSeeds.add(SEA_AREA_FAMILIES[area] + "\t" + (baseX + start % Region.X) + " "
-				+ (baseY + start / Region.X) + " 0");
-			int head = 0;
-			int tail = 0;
-			queue[tail++] = start;
-			seen[start] = true;
-			while (head < tail)
-			{
-				int tile = queue[head++];
-				int localX = tile % Region.X;
-				int localY = tile / Region.X;
-				int[] next = {
-					localX > 0 ? tile - 1 : -1,
-					localX + 1 < Region.X ? tile + 1 : -1,
-					localY > 0 ? tile - Region.X : -1,
-					localY + 1 < Region.Y ? tile + Region.X : -1
-				};
-				for (int neighbor : next)
-				{
-					if (neighbor >= 0 && !seen[neighbor] && areas[neighbor] == area)
-					{
-						seen[neighbor] = true;
-						queue[tail++] = neighbor;
-					}
-				}
-			}
+			return;
+		}
+		try
+		{
+			Files.createDirectories(path.getParent());
+			Files.write(path, areas);
+		}
+		catch (IOException e)
+		{
+			System.out.println("Unable to write the sea areas of " + path.getFileName() + ". " + e);
 		}
 	}
 
 	/**
-	 * Writes the restricted sea areas' seed tiles: with the boundaries in the
-	 * collision map, each seed names the area of the piece of sea it lies in.
+	 * Writes the legend of the sea area layer: one line per restricted area,
+	 * its number in the layer and its name, as the plugin's SeaArea names it.
 	 */
-	private void writeSeaAreas(Path path) throws IOException
+	private static void writeSeaAreaLegend(Path path) throws IOException
 	{
-		List<String> seeds = new ArrayList<>(seaAreaSeeds);
-		Collections.sort(seeds);
-		StringBuilder out = new StringBuilder()
-			.append("# Restricted sea areas: one tile of each piece of sea, within each region, that a boat enters\n")
-			.append("# only with a part fitted. The collision map marks the edges between sea areas as boundaries, so\n")
-			.append("# each tile names the area of the piece it lies in. Generated by CollisionMapDumper from the sailing\n")
-			.append("# water textures; do not edit.\n")
-			.append("# Area\tTile\n");
-		for (String seed : seeds)
+		StringBuilder out = new StringBuilder();
+		for (int area = 1; area < SEA_AREA_FAMILIES.length; area++)
 		{
-			out.append(seed).append('\n');
+			if (SEA_AREA_FAMILIES[area] != null)
+			{
+				out.append(area).append('\t').append(SEA_AREA_FAMILIES[area]).append('\n');
+			}
 		}
+		Files.createDirectories(path.getParent());
 		Files.writeString(path, out.toString(), StandardCharsets.UTF_8);
-		System.out.println("Wrote " + seeds.size() + " sea area seeds to " + path);
-	}
-
-	/** The sea area of world tile (x, y) on plane 0, or NOT_SEA. */
-	private int seaArea(int x, int y)
-	{
-		Region region = regionLoader.findRegionForWorldCoordinates(x, y);
-		if (region == null)
-		{
-			return NOT_SEA;
-		}
-		return seaArea(region, x - region.getBaseX(), y - region.getBaseY());
 	}
 
 	/**
