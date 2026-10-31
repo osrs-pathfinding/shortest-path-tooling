@@ -4,25 +4,26 @@ import java.util.EnumSet;
 import java.util.Set;
 import shortestpath.poh.JewelleryBoxTier;
 import shortestpath.ShortestPathConfig;
-import shortestpath.settings.KeyedValues;
 import shortestpath.settings.TeleportationItem;
+import shortestpath.settings.KeyedValues;
 import shortestpath.accounts.Poh;
 import shortestpath.poh.PohNexusPortal;
 import shortestpath.poh.PohMountedItem;
 
 /**
- * The plugin settings a route is planned with: a mutable {@link ShortestPathConfig}. Every
+ * The plugin settings a route is planned with: a mutable {@link ShortestPathConfig} and
+ * {@link KeyedValues} source for hidden routing keys. Every
  * {@link Profiles profile} starts from one, and scenarios override it with
  * {@code .settings(s -> s.setUseFairyRings(true))}.
  * <p>
  * Every functionally relevant setting has a field and a setter ({@code ConfigParityTest} keeps
- * them in step with the plugin's config items).
+ * them in step with the plugin's visible and hidden config keys).
  * <p>
  * Display and UI methods (drawMap, drawMinimap, colours, hotkeys …) are not overridden and
  * fall through to the {@link ShortestPathConfig} interface defaults, which are never called
  * during pathfinding.
  * <p>
- * Defaults are chosen to match the {@link ShortestPathConfig} interface defaults so that
+ * Defaults are chosen to match the plugin's config defaults so that
  * scenarios only state the settings they care about, with three
  * intentional exceptions:
  * <ul>
@@ -133,8 +134,89 @@ public class PluginSettings implements ShortestPathConfig, KeyedValues {
     private boolean unlockMorUlRek = false;
     private boolean unlockBalloonLogBasket = false;
 
+    @Override
+    public Object value(String keyName) {
+        switch (keyName) {
+            case "avoidWilderness": return avoidWilderness;
+            case "useAgilityShortcuts": return useAgilityShortcuts;
+            case "useGrappleShortcuts": return useGrappleShortcuts;
+            case "useBoats": return useBoats;
+            case "useCanoes": return useCanoes;
+            case "useCharterShips": return useCharterShips;
+            case "useShips": return useShips;
+            case "useFairyRings": return useFairyRings;
+            case "useGnomeGliders": return useGnomeGliders;
+            case "useHotAirBalloons": return useHotAirBalloons;
+            case "useMagicCarpets": return useMagicCarpets;
+            case "useMagicMushtrees": return useMagicMushtrees;
+            case "useMinecarts": return useMinecarts;
+            case "useQuetzals": return useQuetzals;
+            case "useSpiritTrees": return useSpiritTrees;
+            case "useTeleportationItems": return useTeleportationItems;
+            case "useTeleportationLevers": return useTeleportationLevers;
+            case "useTeleportationPortals": return useTeleportationPortals;
+            case "useTeleportationSpells": return useTeleportationSpells;
+            case "useTeleportationSpellsHome": return useTeleportationSpellsHome;
+            case "useTeleportationMinigames": return useTeleportationMinigames;
+            case "useWildernessObelisks": return useWildernessObelisks;
+            case "useSeasonalTransports": return useSeasonalTransports;
+            case "includeBankPath": return includeBankPath;
+            case "currencyThreshold": return currencyThreshold;
+            case "calculationCutoff": return calculationCutoff;
+            case "unreachableTargetDistanceThreshold": return unreachableTargetDistance;
+            case "collisionAwareBlockedTargets": return collisionAwareBlockedTargets;
+            case "aStarHeuristicWeight": return aStarHeuristicWeight;
+            case "useSailingMoves": return useSailingMoves;
+            case "usePoh": return usePoh;
+            case "usePohFairyRing": return usePohFairyRing;
+            case "usePohSpiritTree": return usePohSpiritTree;
+            case "useTeleportationPortalsPoh": return useTeleportationPortalsPoh;
+            case "pohNexusPortals": return pohNexusPortals;
+            case "pohJewelleryBoxTier": return pohJewelleryBoxTier;
+            case "usePohMountedItems": return !pohMountedItems.isEmpty();
+            case "pohMountedItems": return pohMountedItems;
+            case "usePohObelisk": return usePohObelisk;
+            case "builtTeleportationBoxes": return builtTeleportationBoxes;
+            case "builtTeleportationPortalsPoh": return builtTeleportationPortalsPoh;
+            case "blockedTeleportItems": return blockedTeleportItems;
+            case "costAgilityShortcuts": return costAgilityShortcuts;
+            case "costGrappleShortcuts": return costGrappleShortcuts;
+            case "costBoats": return costBoats;
+            case "costCanoes": return costCanoes;
+            case "costCharterShips": return costCharterShips;
+            case "costShips": return costShips;
+            case "costFairyRings": return costFairyRings;
+            case "costGnomeGliders": return costGnomeGliders;
+            case "costHotAirBalloons": return costHotAirBalloons;
+            case "costMagicCarpets": return costMagicCarpets;
+            case "costMagicMushtrees": return costMagicMushtrees;
+            case "costMinecarts": return costMinecarts;
+            case "costQuetzals": return costQuetzals;
+            case "costQuetzalWhistle": return costQuetzalWhistle;
+            case "costSpiritTrees": return costSpiritTrees;
+            case "costNonConsumableTeleportationItems": return costNonConsumableTeleportationItems;
+            case "costConsumableTeleportationItems": return costConsumableTeleportationItems;
+            case "costTeleportationBoxes": return costTeleportationBoxes;
+            case "costTeleportationLevers": return costTeleportationLevers;
+            case "costTeleportationPortals": return costTeleportationPortals;
+            case "costTeleportationSpells": return costTeleportationSpells;
+            case "costTeleportationSpellsHome": return costTeleportationSpellsHome;
+            case "costTeleportationMinigames": return costTeleportationMinigames;
+            case "costWildernessObelisks": return costWildernessObelisks;
+            case "costSeasonalTransports": return costSeasonalTransports;
+            case "costBankVisit": return costBankVisit;
+            case "respawnPrifddinas": return respawnPrifddinas;
+            case "unlockCanoeAxe": return unlockCanoeAxe;
+            case "unlockXericsHonour": return unlockXericsHonour;
+            case "unlockDragontoothPassage": return unlockDragontoothPassage;
+            case "unlockMorUlRek": return unlockMorUlRek;
+            case "unlockBalloonLogBasket": return unlockBalloonLogBasket;
+            default: return null;
+        }
+    }
+
     // =========================================================================
-    // Getters (implements ShortestPathConfig)
+    // Getters
     // =========================================================================
 
     public boolean avoidWilderness() { return avoidWilderness; }
@@ -167,7 +249,6 @@ public class PluginSettings implements ShortestPathConfig, KeyedValues {
     public int unreachableTargetDistance() { return unreachableTargetDistance; }
     public boolean collisionAwareBlockedTargets() { return collisionAwareBlockedTargets; }
     public int aStarHeuristicWeight() { return aStarHeuristicWeight; }
-    // Not marked @Override: plugin checkouts without the sailing search don't have this option (see src/sailing)
     public boolean useSailingMoves() { return useSailingMoves; }
 
     public boolean usePoh() { return usePoh; }
@@ -218,7 +299,7 @@ public class PluginSettings implements ShortestPathConfig, KeyedValues {
     public boolean unlockBalloonLogBasket() { return unlockBalloonLogBasket; }
 
     // =========================================================================
-    // Written state setters (were interface methods; persisted by key)
+    // Built-item state setters
     // =========================================================================
 
     public void setBuiltTeleportationBoxes(String content) {
@@ -364,84 +445,4 @@ public class PluginSettings implements ShortestPathConfig, KeyedValues {
 
     public void setUnlockBalloonLogBasket(boolean v) { unlockBalloonLogBasket = v; }
     public void setBlockedTeleportItems(String v) { blockedTeleportItems = v != null ? v : ""; }
-
-    @Override
-    public Object value(String keyName) {
-        switch (keyName) {
-            case "avoidWilderness": return avoidWilderness;
-            case "useAgilityShortcuts": return useAgilityShortcuts;
-            case "useGrappleShortcuts": return useGrappleShortcuts;
-            case "useBoats": return useBoats;
-            case "useCanoes": return useCanoes;
-            case "useCharterShips": return useCharterShips;
-            case "useShips": return useShips;
-            case "useFairyRings": return useFairyRings;
-            case "useGnomeGliders": return useGnomeGliders;
-            case "useHotAirBalloons": return useHotAirBalloons;
-            case "useMagicCarpets": return useMagicCarpets;
-            case "useMagicMushtrees": return useMagicMushtrees;
-            case "useMinecarts": return useMinecarts;
-            case "useQuetzals": return useQuetzals;
-            case "useSpiritTrees": return useSpiritTrees;
-            case "useTeleportationItems": return useTeleportationItems;
-            case "useTeleportationLevers": return useTeleportationLevers;
-            case "useTeleportationPortals": return useTeleportationPortals;
-            case "useTeleportationSpells": return useTeleportationSpells;
-            case "useTeleportationSpellsHome": return useTeleportationSpellsHome;
-            case "useTeleportationMinigames": return useTeleportationMinigames;
-            case "useWildernessObelisks": return useWildernessObelisks;
-            case "useSeasonalTransports": return useSeasonalTransports;
-            case "respawnPrifddinas": return respawnPrifddinas;
-            case "unlockCanoeAxe": return unlockCanoeAxe;
-            case "unlockXericsHonour": return unlockXericsHonour;
-            case "unlockDragontoothPassage": return unlockDragontoothPassage;
-            case "unlockMorUlRek": return unlockMorUlRek;
-            case "includeBankPath": return includeBankPath;
-            case "currencyThreshold": return currencyThreshold;
-            case "unreachableTargetDistanceThreshold": return unreachableTargetDistance;
-            case "calculationCutoff": return calculationCutoff;
-            case "aStarHeuristicWeight": return aStarHeuristicWeight;
-            case "collisionAwareBlockedTargets": return collisionAwareBlockedTargets;
-            case "useSailingMoves": return useSailingMoves;
-            case "usePoh": return usePoh;
-            case "usePohFairyRing": return usePohFairyRing;
-            case "usePohSpiritTree": return usePohSpiritTree;
-            case "useTeleportationPortalsPoh": return useTeleportationPortalsPoh;
-            case "pohNexusPortals": return pohNexusPortals;
-            case "pohJewelleryBoxTier": return pohJewelleryBoxTier;
-            case "pohMountedItems": return pohMountedItems;
-            case "usePohObelisk": return usePohObelisk;
-            case "costAgilityShortcuts": return costAgilityShortcuts;
-            case "costGrappleShortcuts": return costGrappleShortcuts;
-            case "costBoats": return costBoats;
-            case "costCanoes": return costCanoes;
-            case "costCharterShips": return costCharterShips;
-            case "costShips": return costShips;
-            case "costFairyRings": return costFairyRings;
-            case "costGnomeGliders": return costGnomeGliders;
-            case "costHotAirBalloons": return costHotAirBalloons;
-            case "costMagicCarpets": return costMagicCarpets;
-            case "costMagicMushtrees": return costMagicMushtrees;
-            case "costMinecarts": return costMinecarts;
-            case "costQuetzals": return costQuetzals;
-            case "costQuetzalWhistle": return costQuetzalWhistle;
-            case "costSpiritTrees": return costSpiritTrees;
-            case "costNonConsumableTeleportationItems": return costNonConsumableTeleportationItems;
-            case "costConsumableTeleportationItems": return costConsumableTeleportationItems;
-            case "costTeleportationBoxes": return costTeleportationBoxes;
-            case "costTeleportationLevers": return costTeleportationLevers;
-            case "costTeleportationPortals": return costTeleportationPortals;
-            case "costTeleportationSpells": return costTeleportationSpells;
-            case "costTeleportationSpellsHome": return costTeleportationSpellsHome;
-            case "costTeleportationMinigames": return costTeleportationMinigames;
-            case "costWildernessObelisks": return costWildernessObelisks;
-            case "costSeasonalTransports": return costSeasonalTransports;
-            case "costBankVisit": return costBankVisit;
-            case "builtTeleportationBoxes": return builtTeleportationBoxes;
-            case "builtTeleportationPortalsPoh": return builtTeleportationPortalsPoh;
-            case "blockedTeleportItems": return blockedTeleportItems;
-            case "unlockBalloonLogBasket": return unlockBalloonLogBasket;
-            default: return null;
-        }
-    }
 }

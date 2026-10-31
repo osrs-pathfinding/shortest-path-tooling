@@ -52,6 +52,7 @@ public final class AccountCompiler {
         varbit(Quest.THE_GOLEM, VarbitID.GOLEM_A, 10),
         varbit(Quest.ICTHLARINS_LITTLE_HELPER, VarbitID.ICS_LITTLE_VAR, 26),
         varbit(Quest.TEARS_OF_GUTHIX, VarbitID.TOG_JUNA_BOWL, 2),
+        varbit(Quest.WHILE_GUTHIX_SLEEPS, VarbitID.WGS, 900),
         varbit(Quest.THE_LOST_TRIBE, VarbitID.LOST_TRIBE_QUEST, 12),
         varbit(Quest.SWAN_SONG, VarbitID.SWANSONG, 200),
         varbit(Quest.THE_FREMENNIK_ISLES, VarbitID.FRIS_QUEST, 340),

@@ -159,7 +159,7 @@ final class CanonicalItems {
             ItemID.AMULET_OF_THE_EYE, ItemID.RING_OF_SHADOWS_UNCHARGED, ItemID.BASIC_QUETZAL_WHISTLE,
             ItemID.ENHANCED_QUETZAL_WHISTLE, ItemID.PERFECTED_QUETZAL_WHISTLE, ItemID.PENDANT_OF_ATES,
             ItemID.BANKERS_BRIEFCASE, ItemID.GIANTSOUL_AMULET, ItemID.PERFECTED_QUETZAL_WHISTLEI,
-            ItemID.EVIL_EYE, ItemID.MAP_OF_ALACRITY
+            ItemID.EVIL_EYE, ItemID.MAP_OF_ALACRITY, ItemID.SAPPHIRE_LANTERN_4702
         };
         for (int id : extra) result.put(id, 1_000);
         result.put(ItemID.MAX_CAPE, 2_000);

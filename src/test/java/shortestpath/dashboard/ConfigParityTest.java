@@ -19,6 +19,7 @@ import shortestpath.TestShortestPathConfig;
 import shortestpath.profiles.PluginSettings;
 import shortestpath.settings.ConfigKey;
 import shortestpath.settings.Settings;
+import shortestpath.settings.ConfigKey;
 
 /**
  * Config-surface parity lint between {@link ShortestPathConfig} and the dashboard
@@ -172,6 +173,29 @@ public class ConfigParityTest {
 
     private static String setterName(String methodName) {
         return "set" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1);
+    }
+
+    @Test
+    public void hiddenSettingsReachThePlugin() throws Exception {
+        for (Method getter : PluginSettings.class.getDeclaredMethods()) {
+            if (getter.getParameterCount() != 0 || getter.getReturnType() == void.class) {
+                continue;
+            }
+            String key = getter.getName().equals("unreachableTargetDistance")
+                ? "unreachableTargetDistanceThreshold" : getter.getName();
+            ConfigKey row = ConfigKey.forKey(key);
+            if (row == null || !row.isKeyed()) {
+                continue;
+            }
+            PluginSettings twin = new PluginSettings();
+            assertEquals(key, getter.invoke(twin), Settings.wrap(twin).configuredValue(key));
+            Object sample = sampleValue(getter, getter.invoke(twin), getter.invoke(twin));
+            if (sample != null) {
+                PluginSettings.class.getDeclaredMethod(setterName(getter.getName()), getter.getReturnType())
+                    .invoke(twin, sample);
+                assertEquals(key, sample, Settings.wrap(twin).configuredValue(key));
+            }
+        }
     }
 
     @Test

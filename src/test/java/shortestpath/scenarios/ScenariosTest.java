@@ -24,6 +24,7 @@ import shortestpath.profiles.Profiles;
 import shortestpath.transport.Transport;
 import shortestpath.requirement.model.VarCheckType;
 import shortestpath.requirement.model.VarRequirement;
+import shortestpath.requirement.model.VarRequirement.VarType;
 
 public class ScenariosTest {
     private static final Path RESOURCES = Path.of("src/test/resources");
@@ -160,7 +161,7 @@ public class ScenariosTest {
         // varp 139 (LEGENDSQUEST progress) is in the committed transport data, so refresh()
         // snapshots it from the client.
         Transport transport = new Transport.TransportBuilder()
-            .varRequirements(Set.of(new VarRequirement(VarRequirement.VarType.VARPLAYER, 139, 49, VarCheckType.GREATER)))
+            .varRequirements(Set.of(new VarRequirement(VarType.VARPLAYER, 139, 49, VarCheckType.GREATER)))
             .build();
 
         CompiledAccount bypassed = unitTest().account(a -> a.varplayer(139, 0)).build().compile();

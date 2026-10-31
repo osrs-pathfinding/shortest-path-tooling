@@ -71,15 +71,14 @@ if (pluginHasSailing) {
     sourceSets.test.java.srcDir 'src/sailing/java'
 }
 
-// ConfigParityTest compares PluginSettings' defaults with the plugin's own test config, which stays
-// in shortest-path/src/test/java (no changes to the plugin build).
+// Share the plugin's test config and legacy search engine used by tooling benchmarks.
 compileTestJava.source fileTree(
     dir: new File(shortestPathProjectDir, 'src/test/java'),
     includes: [
         'shortestpath/TestShortestPathConfig.java',
         'shortestpath/pathfinder/Pathfinder.java',
-        'shortestpath/pathfinder/OrdinalDirection.java',
         'shortestpath/pathfinder/LegacyNeighborGen.java',
+        'shortestpath/pathfinder/OrdinalDirection.java',
     ]
 )
 

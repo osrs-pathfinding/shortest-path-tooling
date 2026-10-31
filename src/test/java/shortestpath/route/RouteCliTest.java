@@ -48,6 +48,14 @@ public class RouteCliTest {
     }
 
     @Test
+    public void maxedReachesTheGuthixianTempleThroughTheLightCreature() throws Exception {
+        JsonObject temple = queryArgs("--start", "3222,3218,0", "--end", "4065,4554,1",
+            "--profile", "maxed", "--json");
+        assertTrue(temple.get("reachable").getAsBoolean());
+        assertTrue(temple.getAsJsonArray("transports").toString().contains("Light creature"));
+    }
+
+    @Test
     public void suiteScenarioMatchesTheCanonicalRouteQuery() throws Exception {
         JsonObject positional = query("transport-heavy-0001", "maxed");
         JsonObject scenario = queryArgs("--suite", "canonical", "--scenario", "transport-heavy-0001/maxed", "--json");

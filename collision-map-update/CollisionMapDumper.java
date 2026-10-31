@@ -588,16 +588,26 @@ public class CollisionMapDumper
 		{3284, 2844, 2844}
 	};
 
-	private static final Set<Long> BLOCKED_TILES = blockedTiles(CRANDOR_SEALED_TILES);
+	// Elder Guards block ordinary walking; dialogue transports model passage.
+	private static final int[][] KING_AWOWOGEI_ENTRANCES = new int[][]
+	{
+		{2762, 2799, 2799},
+		{2759, 2802, 2802}
+	};
 
-	private static Set<Long> blockedTiles(int[][] rows)
+	private static final Set<Long> BLOCKED_TILES = blockedTiles(CRANDOR_SEALED_TILES, KING_AWOWOGEI_ENTRANCES);
+
+	private static Set<Long> blockedTiles(int[][]... groups)
 	{
 		Set<Long> tiles = new HashSet<>();
-		for (int[] row : rows)
+		for (int[][] rows : groups)
 		{
-			for (int x = row[1]; x <= row[2]; x++)
+			for (int[] row : rows)
 			{
-				tiles.add(((long) x << 32) | (row[0] & 0xffffffffL));
+				for (int x = row[1]; x <= row[2]; x++)
+				{
+					tiles.add(((long) x << 32) | (row[0] & 0xffffffffL));
+				}
 			}
 		}
 		return tiles;
@@ -749,6 +759,10 @@ public class CollisionMapDumper
 		BURGH_DE_ROTT_GATE_12817(12817),
 		BURGH_DE_ROTT_LOW_FENCE_12776(12776),
 
+		// The non-blocking diagonal tent opening (interactType=0) is otherwise
+		// treated as a solid wall, sealing off the Burthorpe clue boxes.
+		BURTHORPE_TENT_OPENING_3673(3673, FlagMap.TILE_DEFAULT, 2887, 3539, 0),
+
 		CELL_DOOR_9562(9562),
 
 		COOKING_GUILD_DOOR_10045(10045),
@@ -883,6 +897,10 @@ public class CollisionMapDumper
 		TAI_BWO_WANNAI_MEDIUM_FENCE_9028(9028),
 		TAI_BWO_WANNAI_VILLAGE_FENCE_9029(9029),
 
+		// Quest-gated lever and urn-riddle doors; passage is modelled by transports.
+		SCABARAS_LEVER_DOOR_43961(43961, 3405, 9248, 0),
+		SCABARAS_URN_RIDDLE_DOOR_43962(43962, 3389, 9248, 0),
+
 		TAVERLEY_DUNGEON_PRISON_DOOR_2143(2143),
 		TAVERLEY_DUNGEON_PRISON_DOOR_2144(2144),
 		TAVERLEY_DUNGEON_DUSTY_KEY_DOOR_2623(2623),
@@ -924,6 +942,12 @@ public class CollisionMapDumper
 		YANILLE_GRAPPLE_WALL_17048(17058),
 		YANILLE_MAGIC_GUILD_DOOR_1732(1732),
 		YANILLE_MAGIC_GUILD_DOOR_1733(1733),
+
+		// Market entrances require a diamond; model passage with transports.
+		ZANARIS_MARKET_DOOR_12045(12045, 2469, 4438, 0),
+		ZANARIS_MARKET_DOOR_12047(12047, 2469, 4437, 0),
+		ZANARIS_MARKET_SOUTH_DOOR_12045(12045, 2466, 4434, 0),
+		ZANARIS_MARKET_SOUTH_DOOR_12047(12047, 2465, 4434, 0),
 
 		ZANARIS_SHED_DOOR_2406(2406),
 		;

@@ -26,6 +26,8 @@ public class AccountCompilerTest {
         assertEquals(10, state.varplayers().get(VarPlayerID.DRAGONQUEST).intValue());
         assertEquals(0, state.varplayers().get(VarPlayerID.GRANDTREE).intValue());
         assertEquals(QuestState.IN_PROGRESS, state.questState(Quest.THE_GRAND_TREE));
+        assertEquals(900, compile(Account.builder().quest(Quest.WHILE_GUTHIX_SLEEPS, QuestState.FINISHED))
+            .varbits().get(VarbitID.WGS).intValue());
     }
 
     @Test
