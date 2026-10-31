@@ -26,7 +26,7 @@ scenario uses.
 length. *Reached* is the engine's verdict, `PathfinderResult.isReached()` (for a target that
 cannot be stood on, the plugin routes to its fallback tiles before searching);
 `Observation.isReached()` is the only definition. A suite may also keep exact
-lengths in `src/test/resources/scenarios/expected-lengths/<suite>.json`, which only the dashboard
+lengths in `scenarios/src/main/resources/scenarios/expected-lengths/<suite>.json`, which only the dashboard
 checks and `captureExpectedLengths` rewrites.
 
 ## Suites
@@ -40,7 +40,7 @@ fields.
 | Suite | Source | Scenarios |
 |---|---|---|
 | `routes`, `unit-tests`, `routing-issues`, `collision-map-issues`, `f2p-routes`, `seasonal-briefcase-routes`, `quetzal-whistle-routes`, `sailing-routes` | Java (`*Scenarios.define(Suite)`) | hand-written, with overrides |
-| `clue-locations-full` | route data `src/test/resources/scenarios/clue-locations.json` × `ALL` | clue locations |
+| `clue-locations-full` | route data `scenarios/src/main/resources/scenarios/clue-locations.json` × `ALL` | clue locations |
 | `canonical` | route data `corpus/corpus/routes-v1.json` × `early`/`mid`/`end`/`maxed` | the canonical corpus, tagged `smoke`/`standard`/`full` |
 
 `./gradlew -q scenarioIndex` prints every suite's scenarios as JSON; scripts read suites only from it.
@@ -161,7 +161,7 @@ used. To benchmark other scenarios, check out the tooling revision that has them
 
 ## Expected lengths
 
-Exact path lengths are fixtures, not part of a scenario: `src/test/resources/scenarios/expected-lengths/<suite>.json`
+Exact path lengths are fixtures, not part of a scenario: `scenarios/src/main/resources/scenarios/expected-lengths/<suite>.json`
 maps scenario name to path length (steps).
 
 - **Capture**: `./gradlew captureExpectedLengths -PdashboardSuite=S` runs the suite and rewrites the file

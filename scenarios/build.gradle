@@ -1,0 +1,46 @@
+plugins {
+    id 'java-library'
+}
+
+repositories {
+    maven {
+        url = 'https://repo.runelite.net'
+        content {
+            includeGroupByRegex("net\\.runelite.*")
+        }
+    }
+    mavenCentral()
+}
+
+// The scenario model and every suite: what to run and what counts as correct, with no runner. The
+// dashboard, benchmark and route CLI run them from the root project; other consumers (the planner's
+// workbench) depend on this project to list and run the same scenarios.
+dependencies {
+    api project(':routing')
+    api 'com.google.code.gson:gson:2.10.1'
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+}
+
+// The canonical corpus's routes, so a consumer without the repository finds them on the classpath
+// The legacy search engine the runner benchmarks against, kept in the plugin's test sources
+compileJava.source fileTree(
+    dir: new File(gradle.ext.shortestPathProjectDir, 'src/test/java'),
+    includes: [
+        'shortestpath/pathfinder/Pathfinder.java',
+        'shortestpath/pathfinder/LegacyNeighborGen.java',
+        'shortestpath/pathfinder/OrdinalDirection.java',
+    ]
+)
+
+processResources {
+    from(rootProject.file('corpus/corpus')) {
+        include 'routes-v1.json'
+        into 'scenarios/corpus'
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release.set(11)
+}

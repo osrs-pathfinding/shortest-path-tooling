@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import shortestpath.WorldPointUtil;
 import shortestpath.profiles.Profiles;
 
 /**
@@ -41,14 +42,16 @@ public final class Suites {
         SUITES.put("clue-locations-full", suite -> addRoutes(suite,
             Route.loadResource("/scenarios/clue-locations.json"), List.of("ALL")));
         SUITES.put("canonical", suite -> addRoutes(suite,
-            CanonicalCorpus.routes(CanonicalCorpus.dir()), List.copyOf(Profiles.canonicalNames())));
+            CanonicalCorpus.routes(), List.copyOf(Profiles.canonicalNames())));
     }
 
     private Suites() { }
 
     /**
      * Prints the scenario index as JSON, {@code {suite: [{name, category, profile, tiers,
-     * description}, ...]}}: {@code ./gradlew -q scenarioIndex}. Scripts read suites from it.
+     * description, start, target, allowTransports, expectedReachable, minimumLength?,
+     * expectedLength?}, ...]}}, points as {@code [x, y, plane]}: {@code ./gradlew -q scenarioIndex}.
+     * Scripts read suites from it.
      */
     public static void main(String[] args) throws IOException {
         JsonObject index = new JsonObject();
@@ -63,11 +66,25 @@ public final class Suites {
                 scenario.getTiers().stream().sorted().forEach(tiers::add);
                 entry.add("tiers", tiers);
                 entry.addProperty("description", scenario.getDescription());
+                entry.add("start", point(scenario.getRouteStart()));
+                entry.add("target", point(scenario.getTarget()));
+                entry.addProperty("allowTransports", scenario.isAllowTransports());
+                entry.addProperty("expectedReachable", scenario.isExpectedReachable());
+                scenario.getMinimumLength().ifPresent(length -> entry.addProperty("minimumLength", length));
+                scenario.getExpectedLength().ifPresent(length -> entry.addProperty("expectedLength", length));
                 scenarios.add(entry);
             }
             index.add(suite, scenarios);
         }
         System.out.println(new GsonBuilder().disableHtmlEscaping().create().toJson(index));
+    }
+
+    private static JsonArray point(int packed) {
+        JsonArray point = new JsonArray();
+        point.add(WorldPointUtil.unpackWorldX(packed));
+        point.add(WorldPointUtil.unpackWorldY(packed));
+        point.add(WorldPointUtil.unpackWorldPlane(packed));
+        return point;
     }
 
     public static Set<String> names() {

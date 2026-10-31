@@ -227,7 +227,7 @@ tasks.register('captureExpectedLengths', Test) {
     doNotTrackState('Capture always re-runs to write updated expected lengths.')
     group = 'verification'
     description = 'Runs one suite and writes actual path lengths into ' +
-            'src/test/resources/scenarios/expected-lengths/<suite>.json. ' +
+            'scenarios/src/main/resources/scenarios/expected-lengths/<suite>.json. ' +
             'Options: dashboardSuite (default: routes), ' +
             'dashboardFilter (capture only scenarios whose name or category contains it), ' +
             'dashboardProfile (default: auto — off above 200 scenarios; pass true/false to force), ' +
@@ -263,7 +263,7 @@ tasks.register('captureExpectedLengths', Test) {
     }
     systemProperty 'dashboard.heatmap', dashboardHeatmap.get()
     systemProperty 'dashboard.f2p', dashboardF2p.get()
-    systemProperty 'dashboard.sourceResourcesDir', sourceSets.test.resources.srcDirs.first().absolutePath
+    systemProperty 'dashboard.sourceResourcesDir', project(':scenarios').file('src/main/resources').absolutePath
     if (!dashboardTitle.get().isEmpty()) {
         systemProperty 'dashboard.title', dashboardTitle.get()
     }
@@ -279,7 +279,7 @@ tasks.register('captureExpectedLengths', Test) {
 // Prints every suite's scenarios as JSON; maintenance.py and import_issues.py read suites from it.
 tasks.register('scenarioIndex', JavaExec) {
     group = 'help'
-    description = 'Prints the scenario index: {suite: [{name, category, profile, tiers, description}]}.'
+    description = 'Prints the scenario index: {suite: [{name, category, profile, tiers, description, start, target, expectations}]}.'
     dependsOn 'testClasses'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'shortestpath.scenarios.Suites'
