@@ -66,7 +66,7 @@ import shortestpath.scenarios.Suites;
  *   <tr><td>{@code dashboard.bundleName}</td><td>{@code routes}</td></tr>
  *   <tr><td>{@code dashboard.title}</td><td>{@code Dashboard}</td></tr>
  *   <tr><td>{@code dashboard.tier}</td><td>unset; run only scenarios tagged with this tier
- *       (the canonical suite's {@code smoke}, {@code standard}, {@code full})</td></tr>
+ *       (the canonical suite's {@code smoke}, {@code standard}, {@code full}, {@code sailing})</td></tr>
  *   <tr><td>{@code dashboard.backend}</td><td>{@code legacy}; {@code astar} runs the A*
  *       pathfinder (unprofiled)</td></tr>
  *   <tr><td>{@code dashboard.filter}</td><td>unset; run only the scenarios whose name or
@@ -402,6 +402,20 @@ public class DashboardTest {
                 }
                 details.add("Preset: " + scenario.getProfile().name());
                 details.add("Expected reachable: " + expectedReachable);
+                // Benchmark harness: the cost and the A* phases, sailing included, for comparing runs
+                if (reached) {
+                    details.add("Cost: " + observation.getCost());
+                }
+                if (observation.getResult().getMessage() != null) {
+                    details.add("Message: " + observation.getResult().getMessage());
+                }
+                if (observation.getAStar() != null) {
+                    observation.getAStar().debugStats().forEach((label, value) -> details.add(label + ": " + value));
+                    if (observation.getAStar().getAStarStats() != null) {
+                        details.add("Popped: " + observation.getAStar().getAStarStats().statesPopped());
+                    }
+                    details.add("Total: " + observation.getTotalNanos());
+                }
 
                 PathfinderDashboardModels.RunRecord run = reportWriter.createRunRecord(
                     scenario.getName(),

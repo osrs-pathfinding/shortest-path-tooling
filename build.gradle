@@ -20,6 +20,7 @@ dependencies {
     // Plugin main sources via composite build (shortest-path is included in settings.gradle)
     testImplementation 'shortestpath:shortest-path'
     testImplementation project(':routing')
+    testImplementation project(':scenarios')
 
     // RuneLite — needed directly because the plugin declares client as compileOnly
     testImplementation group: 'net.runelite', name: 'client', version: runeLiteVersion
@@ -71,14 +72,13 @@ if (pluginHasSailing) {
     sourceSets.test.java.srcDir 'src/sailing/java'
 }
 
-// Share the plugin's test config and legacy search engine used by tooling benchmarks.
+// ConfigParityTest compares PluginSettings' defaults with the plugin's own test config, which stays
+// in shortest-path/src/test/java (no changes to the plugin build). The legacy search engine the
+// benchmarks use is compiled into the scenarios project, beside the runner.
 compileTestJava.source fileTree(
     dir: new File(shortestPathProjectDir, 'src/test/java'),
     includes: [
         'shortestpath/TestShortestPathConfig.java',
-        'shortestpath/pathfinder/Pathfinder.java',
-        'shortestpath/pathfinder/LegacyNeighborGen.java',
-        'shortestpath/pathfinder/OrdinalDirection.java',
     ]
 )
 

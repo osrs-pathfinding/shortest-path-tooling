@@ -85,6 +85,15 @@ public final class ScenarioRunner {
         this.aStarSession = aStarSession;
     }
 
+    /**
+     * Runs on A* with static routing data already built for the plugin's resources, such as a service's
+     * own, rather than building another copy.
+     */
+    public ScenarioRunner(AStarSession aStarSession, RoutingStatic routingStatic) {
+        this(Backend.ASTAR, aStarSession);
+        this.routingStatic = java.util.Objects.requireNonNull(routingStatic, "routingStatic");
+    }
+
     public Backend getBackend() { return backend; }
     public AStarSession getAStarSession() { return aStarSession; }
 
@@ -93,6 +102,10 @@ public final class ScenarioRunner {
         if (backend == Backend.ASTAR && routingStatic == null) {
             long started = System.nanoTime();
             routingStatic = new AStarRoutingStaticProvider(() -> new CollisionMap(SplitFlagMap.fromResources())).get();
+            // The accounts route on the shared resources' collision data: prepare the sea for that, as the plugin's
+            // provider does for its own
+            shortestpath.pathfinder.sailing.SailingWaters.prepare(
+                new CollisionMap(shortestpath.pathfinder.PluginResources.map()));
             routingStaticBuildNanos = System.nanoTime() - started;
         }
     }

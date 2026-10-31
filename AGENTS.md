@@ -64,7 +64,7 @@ only for datasets of ≤ 200 scenarios; pass `true`/`false` to force),
 `dashboardSeasonal`, `dashboardF2p`, `dashboardThreads` (parallel scenario
 workers; default `availableProcessors()-3`), `dashboardBackend` (`legacy`
 default or `astar`; A* runs are unprofiled). Other tasks: `captureExpectedLengths` (writes actual lengths
-into `src/test/resources/scenarios/expected-lengths/<suite>.json`) and the cache dumpers/probes in `gradle/cache-dumpers.gradle`
+into `scenarios/src/main/resources/scenarios/expected-lengths/<suite>.json`) and the cache dumpers/probes in `gradle/cache-dumpers.gradle`
 (`bankTileDump`, `sailingAmenityVarbitDump`, `leagueRegionDump`,
 `f2pRegionDump`, `leagueIdProbe`, `transportAnchorDrift`, the `briefcase*`
 scans, …). Dumpers take `-P<name>CacheDir=` and `-P<name>XteaPath=` props.

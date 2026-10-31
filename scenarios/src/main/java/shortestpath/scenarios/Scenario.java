@@ -1,5 +1,6 @@
 package shortestpath.scenarios;
 
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.OptionalDouble;
@@ -7,6 +8,7 @@ import java.util.OptionalInt;
 import java.util.function.Consumer;
 import shortestpath.WorldPointUtil;
 import shortestpath.accounts.Account;
+import shortestpath.accounts.Boats;
 import shortestpath.profiles.CompiledAccount;
 import shortestpath.profiles.PluginSettings;
 import shortestpath.profiles.Profile;
@@ -99,6 +101,10 @@ public final class Scenario {
     public Setup setup() {
         Setup setup = profile.setup(new ProfileContext(start, allowTransports));
         account.accept(setup.account);
+        if (boat != null && sailingSpeed.isPresent()) {
+            setup.account.boats(Boats.aboard(Boats.Kind.valueOf(boat.toUpperCase(Locale.ROOT)),
+                sailingSpeed.getAsDouble(), getRouteStart()));
+        }
         settings.accept(setup.settings);
         return setup;
     }

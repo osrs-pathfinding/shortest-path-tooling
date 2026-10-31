@@ -11,6 +11,7 @@ import net.runelite.api.Quest;
 import net.runelite.api.QuestState;
 import net.runelite.api.Skill;
 import shortestpath.accounts.Account;
+import shortestpath.accounts.Boats;
 import shortestpath.accounts.Diary;
 import shortestpath.accounts.PlantedSpiritTree;
 import shortestpath.accounts.Poh;
@@ -28,6 +29,16 @@ public final class CanonicalAccounts {
 
     private static final List<String> PROGRESS_PORTALS = List.of("Ardougne Portal", "Barrows Portal",
         "Camelot Portal", "Falador Portal", "Kourend Portal", "Varrock Portal");
+
+    /**
+     * Every canonical account owns a raft, a skiff and a sloop, may board them at any mooring its levels and quests let
+     * it use, and has fitted them with the best parts its levels can build: the sailing corpus's assumptions, since
+     * boat positions and parts are not modelled. Each has a hull its Sailing level builds, a different base speed
+     * each, so the four between them sail at every speed a hull gives: early an oak hull (1.5 tiles a tick), mid
+     * mahogany (2), end ironwood (2.5) and maxed rosewood (3).
+     */
+    private static final Boats BOATS = Boats.atEveryMooring(Boats.Kind.RAFT, Boats.Kind.SKIFF, Boats.Kind.SLOOP)
+        .fitted(Boats.Fitted.BEST_FOR_LEVELS);
 
     private static final Map<String, Supplier<Account>> ACCOUNTS = Map.of(
         "early", CanonicalAccounts::early,
@@ -52,6 +63,7 @@ public final class CanonicalAccounts {
                 false, false, false, false, List.of()))
             .unlock(Unlock.FAIRY_RINGS, Unlock.CORSAIR_COVE_RESOURCE_AREA, Unlock.DWARVEN_MINE_CREVICE)
             .plantedSpiritTrees()
+            .boats(BOATS.hull(Boats.Hull.OAK))
             .build();
     }
 
@@ -62,6 +74,7 @@ public final class CanonicalAccounts {
                 true, true, true, true, PROGRESS_PORTALS))
             .unlock(Unlock.reported())
             .plantedSpiritTrees(PlantedSpiritTree.FARMING_GUILD)
+            .boats(BOATS.hull(Boats.Hull.MAHOGANY))
             .build();
     }
 
@@ -73,6 +86,7 @@ public final class CanonicalAccounts {
             .unlock(Unlock.reported())
             .plantedSpiritTrees(PlantedSpiritTree.FARMING_GUILD, PlantedSpiritTree.PORT_SARIM)
             .questPoints(327)
+            .boats(BOATS.hull(Boats.Hull.IRONWOOD))
             .build();
     }
 
@@ -85,6 +99,7 @@ public final class CanonicalAccounts {
             .plantedSpiritTrees(PlantedSpiritTree.values())
             .questPoints(327)
             .totalLevel(2376)
+            .boats(BOATS.hull(Boats.Hull.ROSEWOOD))
             .build();
     }
 
@@ -136,9 +151,9 @@ public final class CanonicalAccounts {
             Quest.DEATH_TO_THE_DORGESHUUN, Quest.DRAGON_SLAYER_I, Quest.ENTER_THE_ABYSS,
             Quest.GARDEN_OF_TRANQUILLITY, Quest.HAUNTED_MINE, Quest.HOLY_GRAIL,
             Quest.IN_SEARCH_OF_THE_MYREQUE, Quest.LOST_CITY, Quest.MONKEY_MADNESS_I,
-            Quest.NATURE_SPIRIT, Quest.OBSERVATORY_QUEST, Quest.PLAGUE_CITY, Quest.PRIEST_IN_PERIL,
-            Quest.REGICIDE, Quest.SEA_SLUG, Quest.SHADES_OF_MORTTON, Quest.TAI_BWO_WANNAI_TRIO,
-            Quest.THE_CORSAIR_CURSE, Quest.THE_FREMENNIK_TRIALS, Quest.THE_GIANT_DWARF,
+            Quest.NATURE_SPIRIT, Quest.OBSERVATORY_QUEST, Quest.PANDEMONIUM, Quest.PLAGUE_CITY,
+            Quest.PRIEST_IN_PERIL, Quest.REGICIDE, Quest.SEA_SLUG, Quest.SHADES_OF_MORTTON,
+            Quest.TAI_BWO_WANNAI_TRIO, Quest.THE_CORSAIR_CURSE, Quest.THE_FREMENNIK_TRIALS, Quest.THE_GIANT_DWARF,
             Quest.THE_GRAND_TREE, Quest.THE_LOST_TRIBE, Quest.TREE_GNOME_VILLAGE,
             Quest.TWILIGHTS_PROMISE, Quest.WATCHTOWER);
     }
@@ -154,8 +169,8 @@ public final class CanonicalAccounts {
             Quest.IN_SEARCH_OF_THE_MYREQUE, Quest.LAND_OF_THE_GOBLINS, Quest.LEGENDS_QUEST,
             Quest.LOST_CITY, Quest.MAKING_FRIENDS_WITH_MY_ARM, Quest.MONKEY_MADNESS_I,
             Quest.MOUNTAIN_DAUGHTER, Quest.MOURNINGS_END_PART_I, Quest.NATURE_SPIRIT,
-            Quest.OBSERVATORY_QUEST, Quest.PLAGUE_CITY, Quest.PRIEST_IN_PERIL, Quest.REGICIDE,
-            Quest.SEA_SLUG, Quest.SHADES_OF_MORTTON, Quest.SHILO_VILLAGE, Quest.SINS_OF_THE_FATHER,
+            Quest.OBSERVATORY_QUEST, Quest.PANDEMONIUM, Quest.PLAGUE_CITY, Quest.PRIEST_IN_PERIL,
+            Quest.REGICIDE, Quest.SEA_SLUG, Quest.SHADES_OF_MORTTON, Quest.SHILO_VILLAGE, Quest.SINS_OF_THE_FATHER,
             Quest.SONG_OF_THE_ELVES, Quest.SWAN_SONG, Quest.TAI_BWO_WANNAI_TRIO,
             Quest.TEARS_OF_GUTHIX, Quest.THE_CORSAIR_CURSE, Quest.THE_DEPTHS_OF_DESPAIR,
             Quest.THE_FORSAKEN_TOWER, Quest.THE_FREMENNIK_ISLES, Quest.THE_FREMENNIK_TRIALS,

@@ -13,7 +13,7 @@ def dashboardDataset = providers.gradleProperty('dashboardDataset')
 // legacy or A* pathfinder (A* runs unprofiled).
 def dashboardBackend = providers.gradleProperty('dashboardBackend')
         .orElse('legacy')
-// Run only the scenarios tagged with this tier (the canonical suite's smoke/standard/full).
+// Run only the scenarios tagged with this tier (the canonical suite's smoke/standard/full/sailing).
 def dashboardTier = providers.gradleProperty('dashboardTier')
         .orElse('')
 // Run only the scenarios whose name or category contains this text (ignoring case).
@@ -81,7 +81,7 @@ def configureDashboard = { Test task, String suite, String dataset, String bundl
     task.ignoreFailures = true
     task.reports.junitXml.required = false
     task.reports.html.required = false
-    task.jvmArgs = ['-Xms1g', '-Xmx8g']
+    task.jvmArgs = ['-Xms1g', '-Xmx8g'] + (providers.gradleProperty('dashboardJfr').isPresent() ? ['-XX:StartFlightRecording=filename=' + providers.gradleProperty('dashboardJfr').get() + ',settings=/tmp/claude-1000/-home-matt-osrs-pathfinding/26f31ca7-472b-4a9a-a25e-38558a50dbfa/scratchpad/fast.jfc'] : [])
     task.testLogging.showStandardStreams = true
     task.systemProperty 'dashboard.outputRoot', dashboardOutputRoot.get().asFile.absolutePath
     task.systemProperty 'dashboard.bundleName', bundle
@@ -104,6 +104,7 @@ def configureDashboard = { Test task, String suite, String dataset, String bundl
     task.systemProperty 'dashboard.heatmap', dashboardHeatmap.get()
     task.systemProperty 'dashboard.seasonal', options.seasonal != null ? options.seasonal.toString() : dashboardSeasonal.get()
     task.systemProperty 'dashboard.f2p', dashboardF2p.get()
+    task.systemProperty 'dashboard.boats', providers.gradleProperty('dashboardBoats').orElse('true').get()
     if (!title.isEmpty()) {
         task.systemProperty 'dashboard.title', title
     }
@@ -217,7 +218,7 @@ tasks.register('sailingBenchmark', Test) {
     }
     doFirst {
         if (!pluginHasSailing) {
-            throw new GradleException('The plugin checkout has no sailing search; point -PshortestPathDir at one that does, ' +
+            throw new GradleException('The plugin checkout has no standalone sailing search; point -PshortestPathDir at one that does, ' +
                     'e.g. -PshortestPathDir=../shortest-path')
         }
     }
@@ -227,7 +228,7 @@ tasks.register('captureExpectedLengths', Test) {
     doNotTrackState('Capture always re-runs to write updated expected lengths.')
     group = 'verification'
     description = 'Runs one suite and writes actual path lengths into ' +
-            'src/test/resources/scenarios/expected-lengths/<suite>.json. ' +
+            'scenarios/src/main/resources/scenarios/expected-lengths/<suite>.json. ' +
             'Options: dashboardSuite (default: routes), ' +
             'dashboardFilter (capture only scenarios whose name or category contains it), ' +
             'dashboardProfile (default: auto — off above 200 scenarios; pass true/false to force), ' +
@@ -263,7 +264,7 @@ tasks.register('captureExpectedLengths', Test) {
     }
     systemProperty 'dashboard.heatmap', dashboardHeatmap.get()
     systemProperty 'dashboard.f2p', dashboardF2p.get()
-    systemProperty 'dashboard.sourceResourcesDir', sourceSets.test.resources.srcDirs.first().absolutePath
+    systemProperty 'dashboard.sourceResourcesDir', project(':scenarios').file('src/main/resources').absolutePath
     if (!dashboardTitle.get().isEmpty()) {
         systemProperty 'dashboard.title', dashboardTitle.get()
     }
@@ -279,7 +280,7 @@ tasks.register('captureExpectedLengths', Test) {
 // Prints every suite's scenarios as JSON; maintenance.py and import_issues.py read suites from it.
 tasks.register('scenarioIndex', JavaExec) {
     group = 'help'
-    description = 'Prints the scenario index: {suite: [{name, category, profile, tiers, description}]}.'
+    description = 'Prints the scenario index: {suite: [{name, category, profile, tiers, description, start, target, expectations}]}.'
     dependsOn 'testClasses'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'shortestpath.scenarios.Suites'

@@ -26,7 +26,7 @@ scenario uses.
 length. *Reached* is the engine's verdict, `PathfinderResult.isReached()` (for a target that
 cannot be stood on, the plugin routes to its fallback tiles before searching);
 `Observation.isReached()` is the only definition. A suite may also keep exact
-lengths in `src/test/resources/scenarios/expected-lengths/<suite>.json`, which only the dashboard
+lengths in `scenarios/src/main/resources/scenarios/expected-lengths/<suite>.json`, which only the dashboard
 checks and `captureExpectedLengths` rewrites.
 
 ## Suites
@@ -40,8 +40,8 @@ fields.
 | Suite | Source | Scenarios |
 |---|---|---|
 | `routes`, `unit-tests`, `routing-issues`, `collision-map-issues`, `f2p-routes`, `seasonal-briefcase-routes`, `quetzal-whistle-routes`, `sailing-routes` | Java (`*Scenarios.define(Suite)`) | hand-written, with overrides |
-| `clue-locations-full` | route data `src/test/resources/scenarios/clue-locations.json` × `ALL` | clue locations |
-| `canonical` | route data `corpus/corpus/routes-v1.json` × `early`/`mid`/`end`/`maxed` | the canonical corpus, tagged `smoke`/`standard`/`full` |
+| `clue-locations-full` | route data `scenarios/src/main/resources/scenarios/clue-locations.json` × `ALL` | clue locations |
+| `canonical` | route data `corpus/corpus/routes-v1.json` × `early`/`mid`/`end`/`maxed` | the canonical corpus, tagged `smoke`/`standard`/`full`, plus the `sailing` routes (only `sailing`) |
 
 `./gradlew -q scenarioIndex` prints every suite's scenarios as JSON; scripts read suites only from it.
 
@@ -119,7 +119,9 @@ A route file is a JSON array in the canonical corpus route format:
 
 Optional fields: `start` (absent: the Grand Exchange), `allowTransports` (default true), `tiers`,
 `negativeProfiles` (profiles that must not reach it), `profiles` (instead of the suite's),
-`category` (default: the id without its number), and the provenance strings `startName`,
+`category` (default: the id without its number), `aboard` (`raft`, `skiff` or `sloop`: the player
+starts at sea, at `start`, aboard that boat of the profile's, with its other boats moored as usual),
+and the provenance strings `startName`,
 `targetName`, `startSource`, `targetSource`. Unknown fields are rejected — overrides belong in Java.
 Each route runs with each profile as scenario `<id>/<profile>`.
 
@@ -161,7 +163,7 @@ used. To benchmark other scenarios, check out the tooling revision that has them
 
 ## Expected lengths
 
-Exact path lengths are fixtures, not part of a scenario: `src/test/resources/scenarios/expected-lengths/<suite>.json`
+Exact path lengths are fixtures, not part of a scenario: `scenarios/src/main/resources/scenarios/expected-lengths/<suite>.json`
 maps scenario name to path length (steps).
 
 - **Capture**: `./gradlew captureExpectedLengths -PdashboardSuite=S` runs the suite and rewrites the file

@@ -12,6 +12,8 @@ import shortestpath.accounts.canonical.CanonicalAccounts;
 /** The canonical routes in {@code corpus/corpus/routes-v1.json}. */
 public class CanonicalCorpusTest {
     private static final Set<String> TIERS = Set.of("smoke", "standard", "full");
+    /** Routes that need an engine feature not built yet; kept out of the other tiers. */
+    private static final Set<String> SAILING = Set.of("sailing");
 
     @Test
     public void routesAreWellFormed() throws IOException {
@@ -21,7 +23,8 @@ public class CanonicalCorpusTest {
             assertTrue("route IDs must be unique: " + id, ids.add(id));
             assertTrue(id + ": has a start", route.getStart() != WorldPointUtil.UNDEFINED);
             assertTrue(id + ": invalid tiers " + route.getTiers(),
-                route.getTiers().contains("full") && TIERS.containsAll(route.getTiers()));
+                route.getTiers().equals(SAILING)
+                    || route.getTiers().contains("full") && TIERS.containsAll(route.getTiers()));
             assertTrue(id + ": invalid negative profiles " + route.getNegativeProfiles(),
                 CanonicalAccounts.NAMES.containsAll(route.getNegativeProfiles()));
         }

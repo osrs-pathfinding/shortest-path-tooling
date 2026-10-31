@@ -14,8 +14,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import shortestpath.WorldPointUtil;
+import shortestpath.accounts.Boats;
 import shortestpath.profiles.Profiles;
 
 /**
@@ -31,13 +33,16 @@ import shortestpath.profiles.Profiles;
  * Required: {@code id}, {@code name}, {@code target}. Optional: {@code start} (absent: the default
  * start), {@code allowTransports} (default true), {@code tiers}, {@code negativeProfiles} (profiles
  * that must not reach the target), {@code profiles} (overrides the suite's profiles for this route),
- * {@code category} (default: the id without its trailing number), and the provenance strings
+ * {@code category} (default: the id without its trailing number), {@code aboard} ({@code raft}, {@code skiff} or
+ * {@code sloop}: the player starts at sea aboard that boat of the profile's, its others moored as usual; the start
+ * is then a tile at sea), and the provenance strings
  * {@code startName}, {@code targetName}, {@code startSource}, {@code targetSource}. Other fields are
  * rejected.
  */
 public final class Route {
     private static final Set<String> FIELDS = Set.of("id", "name", "category", "start", "target", "startName",
-        "targetName", "startSource", "targetSource", "allowTransports", "tiers", "negativeProfiles", "profiles");
+        "targetName", "startSource", "targetSource", "allowTransports", "tiers", "negativeProfiles", "profiles",
+        "aboard");
 
     private final String id;
     private final String name;
@@ -48,6 +53,7 @@ public final class Route {
     private final Set<String> tiers;
     private final Set<String> negativeProfiles;
     private final List<String> profiles;
+    private final Boats.Kind aboard;
 
     private Route(JsonObject json, String source) {
         for (String field : json.keySet()) {
@@ -64,6 +70,10 @@ public final class Route {
         tiers = Collections.unmodifiableSet(new LinkedHashSet<>(strings(json, "tiers")));
         negativeProfiles = Collections.unmodifiableSet(new LinkedHashSet<>(strings(json, "negativeProfiles")));
         profiles = json.has("profiles") ? Collections.unmodifiableList(strings(json, "profiles")) : null;
+        aboard = json.has("aboard") ? Boats.Kind.valueOf(string(json, "aboard", source).toUpperCase(Locale.ROOT)) : null;
+        if (aboard != null && start == WorldPointUtil.UNDEFINED) {
+            throw new IllegalArgumentException(source + ": route " + id + " is aboard but has no start at sea");
+        }
     }
 
     public String getId() { return id; }
@@ -77,6 +87,8 @@ public final class Route {
     public Set<String> getNegativeProfiles() { return negativeProfiles; }
     /** The profiles this route runs with, or {@code null} for the suite's. */
     public List<String> getProfiles() { return profiles; }
+    /** The boat the player starts aboard at sea, or {@code null} on foot. */
+    public Boats.Kind getAboard() { return aboard; }
 
     /** This route with {@code profile}: scenario {@code <id>/<profile>}. */
     public Scenario.Builder scenario(String profile) {
@@ -86,7 +98,12 @@ public final class Route {
             .profile(Profiles.get(profile))
             .allowTransports(allowTransports)
             .tiers(tiers)
-            .expectReachable(!negativeProfiles.contains(profile));
+            .expectReachable(!negativeProfiles.contains(profile))
+            .account(account -> {
+                if (aboard != null) {
+                    account.boats(account.boats().boardedAt(aboard, start));
+                }
+            });
     }
 
     public static List<Route> load(Path path) throws IOException {

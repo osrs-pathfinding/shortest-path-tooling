@@ -27,7 +27,7 @@ import shortestpath.requirement.model.VarRequirement;
 import shortestpath.requirement.model.VarRequirement.VarType;
 
 public class ScenariosTest {
-    private static final Path RESOURCES = Path.of("src/test/resources");
+    private static final Path RESOURCES = Path.of("scenarios/src/main/resources");
 
     @Test
     public void everyExpectedLengthsFileNamesASuite() throws IOException {
@@ -43,15 +43,16 @@ public class ScenariosTest {
     public void canonicalIsEveryRouteWithEveryProfileTaggedWithItsTiers() throws IOException {
         List<Route> routes = CanonicalCorpus.routes(CanonicalCorpus.dir());
         List<Scenario> canonical = Suites.load("canonical");
-        assertEquals(routes.size() * 4, canonical.size());
-        for (String tier : List.of("smoke", "standard", "full")) {
-            long tierRoutes = routes.stream().filter(route -> route.getTiers().contains(tier)).count();
-            assertEquals(tier, tierRoutes * 4, Suites.withTier(canonical, tier).size());
+        assertEquals(routes.stream().mapToInt(ScenariosTest::profileCount).sum(), canonical.size());
+        for (String tier : List.of("smoke", "standard", "full", "sailing")) {
+            int tierScenarios = routes.stream().filter(route -> route.getTiers().contains(tier))
+                .mapToInt(ScenariosTest::profileCount).sum();
+            assertEquals(tier, tierScenarios, Suites.withTier(canonical, tier).size());
         }
         Map<String, Scenario> byName = canonical.stream()
             .collect(Collectors.toMap(Scenario::getName, scenario -> scenario));
         for (Route route : routes) {
-            for (String profile : List.of("early", "mid", "end", "maxed")) {
+            for (String profile : profiles(route)) {
                 Scenario scenario = byName.get(route.getId() + "/" + profile);
                 assertEquals(route.getName(), scenario.getDescription());
                 assertEquals(profile, scenario.getProfile().name());
@@ -227,5 +228,14 @@ public class ScenariosTest {
 
     private static Scenario unitTestNamed(String name) {
         return Scenario.scenario(name, "test").to(2971, 2968, 0).profile(UNIT_TEST).build();
+    }
+
+    // A route runs with every canonical profile unless it names its own
+    private static List<String> profiles(Route route) {
+        return route.getProfiles() != null ? route.getProfiles() : List.of("early", "mid", "end", "maxed");
+    }
+
+    private static int profileCount(Route route) {
+        return profiles(route).size();
     }
 }
