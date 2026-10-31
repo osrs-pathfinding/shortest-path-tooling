@@ -244,3 +244,33 @@ def test_zero_baseline_with_zero_post_passes(tmp_path):
     pre = _mutated(PRE, tmp_path, "pre.json", zero)
     post = _mutated(POST, tmp_path, "post.json", zero)
     assert bc.main([str(pre), str(post)]) == 0
+
+
+# ---------- malformed / mixed inputs take the clean error path ----------
+
+
+@pytest.mark.parametrize("payload", ["[]", "null", "42", '"text"'])
+def test_non_object_top_level_json_is_a_clean_error(
+        tmp_path, capsys, payload):
+    bad = tmp_path / "bad.json"
+    bad.write_text(payload)
+    assert bc.main([str(PRE), str(bad)]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("error:")
+    assert "not an object" in err
+
+
+def test_non_utf8_json_is_a_clean_error(tmp_path, capsys):
+    bad = tmp_path / "bad.json"
+    bad.write_bytes(b'{"x": "\xff\xfe"}')
+    assert bc.main([str(PRE), str(bad)]) == 1
+    assert capsys.readouterr().err.startswith("error:")
+
+
+def test_mixed_none_and_string_scenario_keys_do_not_crash(tmp_path):
+    def mixed(obj):
+        obj["observations"][0]["suite"] = None
+    pre = _mutated(PRE, tmp_path, "pre.json", mixed)
+    post = _mutated(POST, tmp_path, "post.json", mixed)
+    # Must not raise TypeError sorting (None, str) against (str, str).
+    assert bc.main([str(pre), str(post)]) == 0

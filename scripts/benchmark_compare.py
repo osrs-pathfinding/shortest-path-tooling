@@ -56,9 +56,15 @@ def load_side(path):
     out = []
     for f in files:
         try:
-            out.append(json.loads(f.read_text()))
-        except (json.JSONDecodeError, OSError) as e:
+            env = json.loads(f.read_text())
+        except (ValueError, OSError) as e:
+            # ValueError covers JSONDecodeError and UnicodeDecodeError.
             raise ValueError(f"cannot read benchmark JSON {f}: {e}")
+        if not isinstance(env, dict):
+            raise ValueError(
+                f"benchmark JSON {f} is not an object "
+                f"(got {type(env).__name__})")
+        out.append(env)
     return out
 
 
@@ -147,7 +153,9 @@ def _samples(rows, metric):
 
 def compare_scenarios(pre_rows, post_rows, breaches, warnings):
     """Per-scenario metric-median tripwires over the common key set."""
-    common = sorted(set(pre_rows) & set(post_rows))
+    # Keys may mix None with strings; compare their string forms.
+    common = sorted(set(pre_rows) & set(post_rows),
+                    key=lambda k: tuple(map(str, k)))
     for key in pre_rows:
         if key not in post_rows:
             breaches.append(
