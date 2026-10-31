@@ -123,9 +123,16 @@ def files_at_ref(repo, ref):
     return [n for n in names.splitlines() if n.endswith(".java")]
 
 
+def require_files(repo, ref, files):
+    """Fail on an empty listing: `TOTAL 0 files` must never read as green."""
+    if not files:
+        raise RuntimeError(f"no {SRC_ROOT}/*.java files at {ref} in {repo}")
+    return files
+
+
 def measure(repo, ref):
     sizes = {}
-    for path in files_at_ref(repo, ref):
+    for path in require_files(repo, ref, files_at_ref(repo, ref)):
         content = git(repo, "show", f"{ref}:{path}")
         sizes[path] = stripped_size(content)
     return sizes

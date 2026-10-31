@@ -298,3 +298,28 @@ def test_main_multi_ref_bad_ref_exits_nonzero(
     assert "bogus" in captured.err
     assert captured.out == ""
     assert not csv_path.exists()
+
+
+# ---------- empty measurement ----------
+
+
+def test_measure_rejects_a_ref_with_no_java_files(monkeypatch):
+    monkeypatch.setattr(mt.mf, "git", make_fake_git("", {}))
+    with pytest.raises(RuntimeError, match="no src/main/java/.*at ref1"):
+        mt.measure("repo", "ref1", ENC)
+
+
+def test_main_empty_measurement_exits_nonzero(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(mt.mf, "git", make_fake_git("", {}))
+    csv_path = tmp_path / "out.csv"
+    monkeypatch.setattr(
+        sys, "argv",
+        ["measure_tokens.py", "--ref", "ref1", "--csv", str(csv_path)])
+    with pytest.raises(SystemExit) as exc:
+        mt.main()
+    assert exc.value.code != 0
+    captured = capsys.readouterr()
+    assert "no src/main/java" in captured.err
+    assert "ref1" in captured.err
+    assert captured.out == ""
+    assert not csv_path.exists()

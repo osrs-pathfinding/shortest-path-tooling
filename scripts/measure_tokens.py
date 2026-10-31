@@ -55,7 +55,7 @@ ENCODING = "cl100k_base"
 def measure(repo, ref, enc):
     """{path: token-count} over the stripped blobs of src/main/java."""
     counts = {}
-    for path in mf.files_at_ref(repo, ref):
+    for path in mf.require_files(repo, ref, mf.files_at_ref(repo, ref)):
         content = mf.git(repo, "show", f"{ref}:{path}")
         counts[path] = len(enc.encode(mf.strip_comments(content)))
     return counts
