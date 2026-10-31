@@ -60,6 +60,9 @@ commit hint, or stages it directly with `--commit`.
 `--local` regenerates the zip through the runelite pipeline instead
 (clone -> dumper inject -> `:cache:shadowJar` -> `java -jar` -> zip), for
 when upstream's automation lags or breaks. See Notes for first-run cost.
+The write path also regenerates `routing-cuts.bin` (KaHIP; `--skip-cuts`
+keeps the committed cuts) and `routing-components.bin`, so every artifact
+lands in one commit; the layer is rebuilt even with `--skip-cuts`.
 
 `--local --compare-only` is the deep audit: the same regeneration
 pipeline, but the artifact lands at `build/validate-collision-map.zip`

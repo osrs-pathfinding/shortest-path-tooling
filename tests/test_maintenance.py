@@ -436,6 +436,8 @@ def local_kind(cmd):
         return "apply-reverse-check"
     if cmd[:2] == ["git", "apply"]:
         return "apply"
+    if cmd[0].endswith("gradlew") and "routingComponents" in cmd:
+        return "routingComponents"
     if cmd[0].endswith("gradlew") and "routingCuts" in cmd:
         return "routingCuts"
     if cmd[0].endswith("gradlew"):
@@ -455,6 +457,7 @@ def make_local_run(repo, calls, *, branch="maint-x",
                    fetch_rc=0, reset_rc=0, clone_rc=0,
                    apply_check_rc=0, reverse_check_rc=1, apply_rc=0,
                    shadow_rc=0, java_rc=0, zip_rc=0, cuts_rc=0,
+                   components_rc=0,
                    diff_stdout="EDGE TOTALS\n"):
     """fake mm.run for the --local pipeline; fabricates the filesystem
     effects each step would produce under the tmp repo."""
@@ -511,6 +514,8 @@ def make_local_run(repo, calls, *, branch="maint-x",
             return cp(cmd, rc=zip_rc)
         if kind == "routingCuts":
             return cp(cmd, rc=cuts_rc)
+        if kind == "routingComponents":
+            return cp(cmd, stderr="components failed", rc=components_rc)
         if kind == "compare":
             return cp(cmd, diff_stdout)
         raise AssertionError(f"unexpected argv: {cmd}")
@@ -519,7 +524,7 @@ def make_local_run(repo, calls, *, branch="maint-x",
 
 
 def prepare_local(tmp_path, monkeypatch, *, cache_ready=True,
-                  existing_zip=True, **run_kwargs):
+                  existing_zip=True, new_layout=False, **run_kwargs):
     """Common --local setup: redirected repo, stubbed tool check, fake
     run seam.  Returns (repo, submodule, calls)."""
     repo, submodule = redirect_repo(tmp_path, monkeypatch)
@@ -532,6 +537,12 @@ def prepare_local(tmp_path, monkeypatch, *, cache_ready=True,
     resources.mkdir(parents=True)
     if existing_zip:
         (resources / "collision-map.zip").write_bytes(b"OLDZIP")
+    if new_layout:
+        # The plugin keeps its cuts in the test resources once the
+        # routing component layer ships.
+        test_resources = submodule / "src" / "test" / "resources"
+        test_resources.mkdir(parents=True)
+        (test_resources / "routing-cuts.bin").write_bytes(b"CUTS")
     if cache_ready:
         (repo / "cache").mkdir()
         (repo / "keys.json").write_text(
@@ -626,6 +637,85 @@ def test_collision_map_local_skip_cuts(tmp_path, monkeypatch, capsys):
     assert rc == 0
     assert "routingCuts" not in [local_kind(c) for c, _ in calls]
     assert "stale" in capsys.readouterr().err
+
+
+NEW_LAYOUT_KINDS = [
+    "branch", "upstream", "status", "download", "clone",
+    "apply-check", "apply", "shadowJar", "java", "zip",
+    "routingCuts", "routingComponents", "compare"]
+
+
+def test_collision_map_local_new_layout_sequence(tmp_path, monkeypatch):
+    # With the cuts in src/test/resources the layer is regenerated
+    # right after the cuts and before the comparison.
+    repo, submodule, calls = prepare_local(
+        tmp_path, monkeypatch, cache_ready=False, new_layout=True)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    assert [local_kind(c) for c, _ in calls] == NEW_LAYOUT_KINDS
+    cuts = next(c for c, _ in calls if local_kind(c) == "routingCuts")
+    assert cuts[3] == ("-ProutingCutsOutput=" + str(
+        submodule / "src" / "test" / "resources" / "routing-cuts.bin"))
+    assert not (submodule / "src" / "main" / "resources" /
+                "routing-cuts.bin").exists()
+
+
+def test_collision_map_local_regenerates_routing_components(
+        tmp_path, monkeypatch, capsys):
+    repo, submodule, calls = prepare_local(
+        tmp_path, monkeypatch, new_layout=True)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    argv, cwd = next((c, w) for c, w in calls
+                     if local_kind(c) == "routingComponents")
+    assert argv[0] == str(repo / "gradlew")
+    assert argv[1] == "routingComponents"
+    assert "-ProutingCutsFile=" + str(
+        submodule / "src" / "test" / "resources" /
+        "routing-cuts.bin") in argv
+    assert "-ProutingComponentsOutput=" + str(
+        submodule / "src" / "main" / "resources" /
+        "routing-components.bin") in argv
+    assert cwd == repo
+    assert "routing-components.bin regenerated" in capsys.readouterr().out
+
+
+def test_collision_map_local_skip_cuts_still_regenerates_components(
+        tmp_path, monkeypatch, capsys):
+    # The layer must match whatever cuts are committed, so it is
+    # rebuilt even when the cuts are not.
+    repo, submodule, calls = prepare_local(
+        tmp_path, monkeypatch, new_layout=True)
+    monkeypatch.setenv("PATH", "/nonexistent")
+    rc = mm.main(["collision-map", "--local", "--skip-cuts"])
+    assert rc == 0
+    kinds = [local_kind(c) for c, _ in calls]
+    assert "routingCuts" not in kinds
+    assert kinds.index("routingComponents") < kinds.index("compare")
+    assert "stale" in capsys.readouterr().err
+
+
+def test_collision_map_local_components_failure_fails(
+        tmp_path, monkeypatch, capsys):
+    repo, submodule, calls = prepare_local(
+        tmp_path, monkeypatch, new_layout=True, components_rc=1)
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "routingComponents failed" in captured.err
+    assert "components failed" in captured.err
+    assert "compare" not in [local_kind(c) for c, _ in calls]
+
+
+def test_compare_only_new_layout_skips_regeneration(
+        tmp_path, monkeypatch):
+    repo, submodule, calls = prepare_local(
+        tmp_path, monkeypatch, new_layout=True)
+    rc = mm.main(["collision-map", "--local", "--compare-only"])
+    assert rc == 0
+    kinds = [local_kind(c) for c, _ in calls]
+    assert "routingCuts" not in kinds
+    assert "routingComponents" not in kinds
 
 
 def test_collision_map_local_cleans_stale_output(tmp_path, monkeypatch):

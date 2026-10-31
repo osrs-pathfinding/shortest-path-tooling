@@ -845,6 +845,16 @@ def do_collision_map_local(args: argparse.Namespace) -> int:
         cuts_rc = regenerate_routing_cuts(args, build)
         if cuts_rc != 0:
             return cuts_rc
+        # Once the plugin ships the precomputed routing component
+        # layer it is derived from the map and the committed cuts, so
+        # it is regenerated here too — also when --skip-cuts kept the
+        # old cuts — and all artifacts land in one commit.
+        cuts_path, components_path = routing_artifact_paths()
+        if components_path is not None:
+            components_rc = regenerate_routing_components(
+                cuts_path, components_path)
+            if components_rc != 0:
+                return components_rc
 
     if baseline is not None and baseline.exists():
         diff = run([sys.executable,
@@ -881,13 +891,33 @@ def do_collision_map_local(args: argparse.Namespace) -> int:
     return 0
 
 
+def routing_artifact_paths() -> "tuple[Path, Path | None]":
+    """Return (cuts_path, components_path) for the plugin's layout.
+
+    A plugin that ships routing-components.bin keeps the cuts in
+    src/test/resources (an offline input); the older layout keeps them
+    in src/main/resources and has no component layer (None)."""
+    test_cuts = SUBMODULE / "src" / "test" / "resources" / \
+        "routing-cuts.bin"
+    if test_cuts.is_file():
+        return (test_cuts,
+                SUBMODULE / "src" / "main" / "resources" /
+                "routing-components.bin")
+    return (SUBMODULE / "src" / "main" / "resources" /
+            "routing-cuts.bin", None)
+
+
 def regenerate_routing_cuts(args: argparse.Namespace, build: Path) -> int:
     """Regenerate routing-cuts.bin for the freshly written collision
     map, mirroring the ExtractCollisionMap workflow's KaHIP step."""
+    cuts_out, components_out = routing_artifact_paths()
     if getattr(args, "skip_cuts", False):
         print("warning: --skip-cuts left a stale routing-cuts.bin "
               "(fingerprint no longer matches collision-map.zip)",
               file=sys.stderr)
+        if components_out is not None:
+            print("routing-components.bin is regenerated from the "
+                  "committed cuts", file=sys.stderr)
         return 0
     separator = getattr(args, "kahip_node_separator", None) \
         or "node_separator"
@@ -897,8 +927,6 @@ def regenerate_routing_cuts(args: argparse.Namespace, build: Path) -> int:
               "--kahip-node-separator=<path>, or --skip-cuts.",
               file=sys.stderr)
         return 1
-    cuts_out = (SUBMODULE / "src" / "main" / "resources" /
-                "routing-cuts.bin")
     proc = run([str(REPO / "gradlew"), "routingCuts",
                 f"-PkahipNodeSeparator={separator}",
                 f"-ProutingCutsOutput={cuts_out}"],
@@ -910,6 +938,25 @@ def regenerate_routing_cuts(args: argparse.Namespace, build: Path) -> int:
             print(tail, file=sys.stderr)
         return 1
     print(f"routing-cuts.bin regenerated -> {cuts_out}")
+    return 0
+
+
+def regenerate_routing_components(cuts_path: Path,
+                                  components_path: Path) -> int:
+    """Regenerate routing-components.bin from the plugin's collision
+    map and the given cuts, mirroring the ExtractCollisionMap
+    workflow's component step."""
+    proc = run([str(REPO / "gradlew"), "routingComponents",
+                f"-ProutingCutsFile={cuts_path}",
+                f"-ProutingComponentsOutput={components_path}"],
+               cwd=REPO, timeout=RUNELITE_BUILD_TIMEOUT_SECONDS)
+    if proc.returncode != 0:
+        print("routingComponents failed:", file=sys.stderr)
+        tail = _stderr_tail(proc)
+        if tail:
+            print(tail, file=sys.stderr)
+        return 1
+    print(f"routing-components.bin regenerated -> {components_path}")
     return 0
 
 
@@ -1594,7 +1641,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--skip-cuts", action="store_true",
         help="With --local: do not regenerate routing-cuts.bin "
              "(leaves a stale artifact — the zip fingerprint inside "
-             "it no longer matches)")
+             "it no longer matches); routing-components.bin, when the "
+             "plugin ships one, is still regenerated from the "
+             "committed cuts")
 
     rg = sub.add_parser(
         "regions",

@@ -90,8 +90,10 @@ The default remains the `./shortest-path` Git submodule.
 | `./gradlew sailingBenchmark` | Time the experimental sailing search against the existing search on routes at sea (needs a plugin checkout with the sailing search) |
 | `./gradlew bankTileDump -PbankTileCacheDir=<dir> -PbankTileXteaPath=<keys.json>` | Dump bank-object placements from an OSRS cache to TSV |
 | `./gradlew sailingAmenityVarbitDump -PsailingAmenityCacheDir=<dir> -PsailingAmenityXteaPath=<keys.json>` | Dump Sailing island amenity varbits from an OSRS cache |
-| `./gradlew routingCuts -PkahipNodeSeparator=<path>` | Generate the A* pathfinder's `routing-cuts.bin` with KaHIP (see below) |
-| `./gradlew routingCutsReport` | Report how many committed cuts still apply to the current collision map |
+| `./gradlew routingCuts -PkahipNodeSeparator=<path>` | Generate the A* pathfinder's `routing-cuts.bin` with KaHIP; the cuts are an offline input in the plugin's `src/test/resources` (see below) |
+| `./gradlew routingCutsReport` | Report how many cuts still apply to the current collision map (`-ProutingCutsFile=<path>`, default: the plugin's committed cuts) |
+| `./gradlew routingComponents` | Regenerate the plugin's `routing-components.bin` from its collision map and cuts (see below) |
+| `./gradlew routingStaticDigest` | Print a SHA-256 over every field of the plugin's A* routing data; pass `-PshortestPathDir` to compare checkouts |
 | `./gradlew benchmark --args="..."` | Run a benchmark manifest's scenarios (used by collisionlab/osrs-benchmarks) |
 | `./gradlew route -ProuteArgs="..."` | Query one canonical route and print its selected path |
 
@@ -108,25 +110,37 @@ corpus ID (`--route ID --profile PROFILE`) or by coordinates:
   route
 ```
 
-## A* routing cuts
+## A* routing components and cuts
 
-The plugin's A* pathfinder derives its routing data from `collision-map.zip`
-at runtime, using a small list of separator cut edges (`routing-cuts.bin`) to
-split large walking areas. `routingCuts` regenerates that file with KaHIP's
-`node_separator`, using the plugin's own walking graph:
+The plugin's A* pathfinder ships `routing-components.bin`, a routing component
+for every collision-walkable tile, derived from `collision-map.zip` and a small
+list of separator cut edges (`routing-cuts.bin`) that splits large walking
+areas. The cuts are an offline input in the plugin's `src/test/resources`.
+`routingCuts` regenerates them with KaHIP's `node_separator`, using the
+plugin's own walking graph:
 
 ```bash
 ./gradlew routingCuts \
   -PshortestPathDir=../shortest-path \
   -PkahipNodeSeparator=$(command -v node_separator) \
-  -ProutingCutsOutput=../shortest-path/src/main/resources/routing-cuts.bin
+  -ProutingCutsOutput=../shortest-path/src/test/resources/routing-cuts.bin
+```
+
+`routingComponents` then derives the layer from the collision map and the cuts:
+
+```bash
+./gradlew routingComponents \
+  -PshortestPathDir=../shortest-path \
+  -ProutingCutsFile=../shortest-path/src/test/resources/routing-cuts.bin \
+  -ProutingComponentsOutput=../shortest-path/src/main/resources/routing-components.bin
 ```
 
 KaHIP is not a Gradle dependency. Use `nix-shell -p kahip` or build KaHIP with
 CMake (`-DNOMPI=On`) and pass the binary path. The plugin's weekly
-`ExtractCollisionMap` workflow runs this task after dumping a new collision map
-and commits both files together. Stale cuts only slow preparation down; they
-never make exact routes wrong.
+`ExtractCollisionMap` workflow runs both tasks after dumping a new collision
+map and commits all three files together, and the plugin's
+`RoutingComponentsFreshnessTest` fails when the layer is stale. Stale cuts only
+slow preparation down; they never make exact routes wrong.
 
 ## Maintenance
 
