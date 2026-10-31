@@ -16,6 +16,10 @@ v1.22.2-submission tree at ``2069bf9f`` (749,126 stripped chars, i.e.
 which reads ~11% low on that point).  Treat this harness's absolute
 number as calibrated within ~±5% of the reviewer's private counter.
 
+Requires ``tiktoken`` (``pip install tiktoken``). It is deliberately not in
+requirements.txt: the encoding is downloaded on first use, so CI does not
+install it and tests/test_measure_tokens.py skips itself there.
+
 Usage:
   python3 measure_tokens.py [--ref <git-ref>] [--repo <submodule-path>]
                             [--top N] [--csv FILE]
