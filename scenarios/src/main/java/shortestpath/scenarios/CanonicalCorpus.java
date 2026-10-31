@@ -10,7 +10,7 @@ import java.util.List;
  * and its routes, {@code corpus/routes-v1.json}; without the directory, the copy this project packages
  * ({@code /scenarios/corpus/routes-v1.json}), for consumers outside the repository. The {@code canonical} suite runs every route with
  * every canonical profile as {@code <route id>/<profile>}, the benchmark adapter's case names, tagged
- * with the route's tiers ({@code smoke}, {@code standard}, {@code full}).
+ * with the route's tiers ({@code smoke}, {@code standard}, {@code full}, or only {@code sailing}).
  */
 public final class CanonicalCorpus {
     private CanonicalCorpus() { }

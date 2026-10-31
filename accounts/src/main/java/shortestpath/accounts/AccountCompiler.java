@@ -148,7 +148,7 @@ public final class AccountCompiler {
         return new ClientState(account.levels(), account.defaultLevel(), totalLevel,
             varbits, varplayers, account.quests(), account.defaultQuestState(),
             inventory, account.equipment(), account.bank(), account.worldTypes(), account.location(),
-            account.nowMinutes(), trees);
+            account.nowMinutes(), trees, account.boats());
     }
 
     private static int minigameTeleportUsedAt(Account account) {

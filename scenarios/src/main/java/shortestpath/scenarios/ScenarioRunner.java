@@ -102,6 +102,10 @@ public final class ScenarioRunner {
         if (backend == Backend.ASTAR && routingStatic == null) {
             long started = System.nanoTime();
             routingStatic = new AStarRoutingStaticProvider(() -> new CollisionMap(SplitFlagMap.fromResources())).get();
+            // The accounts route on the shared resources' collision data: prepare the sea for that, as the plugin's
+            // provider does for its own
+            shortestpath.pathfinder.sailing.SailingWaters.of(
+                new CollisionMap(shortestpath.pathfinder.PluginResources.map()));
             routingStaticBuildNanos = System.nanoTime() - started;
         }
     }
@@ -148,8 +152,8 @@ public final class ScenarioRunner {
         prepare();
         AStarRoutingSession session = session(config, scenario.getTarget());
         long started = System.nanoTime();
-        AStarPathfinder pathfinder = new AStarPathfinder(config, routingStatic, session, start, targets, null,
-            config.getAStarHeuristicWeight());
+        AStarPathfinder pathfinder = new AStarPathfinder(config, () -> routingStatic, session, start, shortestpath.pathfinder.Targets.at(targets), null,
+            config.getAStarHeuristicWeight(), config.prepareSailingCapability());
         pathfinder.run();
         long total = System.nanoTime() - started;
         return new Observation(scenario, backend, account, pathfinder.getResult(), pathfinder, null, total);
