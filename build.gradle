@@ -74,11 +74,16 @@ if (pluginHasSailing) {
 
 // ConfigParityTest compares PluginSettings' defaults with the plugin's own test config, which stays
 // in shortest-path/src/test/java (no changes to the plugin build). The legacy search engine the
-// benchmarks use is compiled into the scenarios project, beside the runner.
+// benchmarks use is compiled into the scenarios project, beside the runner. The routing-component
+// generator, its writer and the routing cuts are shared here too: the plugin keeps them in its test
+// sources, and an entry matches nothing in a plugin checkout that has not moved or added that file yet.
 compileTestJava.source fileTree(
     dir: new File(shortestPathProjectDir, 'src/test/java'),
     includes: [
         'shortestpath/TestShortestPathConfig.java',
+        'shortestpath/pathfinder/astar/RoutingStaticBuilder.java',
+        'shortestpath/pathfinder/astar/RoutingCuts.java',
+        'shortestpath/pathfinder/astar/ComponentLayerWriter.java',
     ]
 )
 

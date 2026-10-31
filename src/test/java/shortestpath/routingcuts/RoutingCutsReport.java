@@ -16,14 +16,15 @@ import shortestpath.transport.Transport;
 /**
  * Reports how well a cut file fits the plugin's current collision map: how many cuts no longer
  * apply, the resulting component sizes, and how long the A* routing data takes to build.
- * Arguments: {@code [CUTS]}; defaults to the plugin's packaged {@code routing-cuts.bin}.
+ * Arguments: {@code CUTS}, the path of the cut file; there is no classpath default, since the
+ * plugin's resources may not include it and a missing file would silently report zero cuts.
  */
 public final class RoutingCutsReport
 {
 	public static void main(String[] args) throws Exception
 	{
-		RoutingCuts cuts = args.length > 0 ? RoutingCuts.read(Files.readAllBytes(Paths.get(args[0])))
-			: RoutingCuts.loadFromResources();
+		if (args.length != 1) throw new IllegalArgumentException("usage: RoutingCutsReport CUTS");
+		RoutingCuts cuts = RoutingCuts.read(Files.readAllBytes(Paths.get(args[0])));
 		byte[] collisionZip;
 		try (InputStream stream = ShortestPathPlugin.class.getResourceAsStream("/collision-map.zip"))
 		{

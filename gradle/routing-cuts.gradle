@@ -6,10 +6,22 @@
 // Usage:
 //   ./gradlew routingCuts -PshortestPathDir=../shortest-path \
 //       -PkahipNodeSeparator=/path/to/node_separator \
-//       -ProutingCutsOutput=../shortest-path/src/main/resources/routing-cuts.bin
+//       -ProutingCutsOutput=../shortest-path/src/test/resources/routing-cuts.bin
 //
 // node_separator defaults to the one on PATH. The upstream ExtractCollisionMap workflow runs this
 // task after dumping a new collision map and commits both files together.
+//
+// routingComponents then derives routing-components.bin, the precomputed routing components the
+// plugin loads at runtime, from that collision map and those cuts:
+//   ./gradlew routingComponents -PshortestPathDir=../shortest-path \
+//       -ProutingComponentsOutput=../shortest-path/src/main/resources/routing-components.bin
+//
+// routingStaticDigest prints a SHA-256 over every field of the RoutingStatic the plugin checkout
+// builds, to show that two plugin trees (or two derivations) route identically.
+//
+// The cuts file defaults to the plugin's src/test/resources/routing-cuts.bin, or to
+// src/main/resources/routing-cuts.bin in a checkout that has not moved it yet; the tasks always get
+// an explicit path, because the plugin's test resources are not on this build's classpath.
 def routingCutsDefaultOutput = layout.buildDirectory.file('routing-cuts/routing-cuts.bin').get().asFile.absolutePath
 def routingCutsOutput = providers.gradleProperty('routingCutsOutput').orElse(routingCutsDefaultOutput)
 def kahipNodeSeparator = providers.gradleProperty('kahipNodeSeparator').orElse('node_separator')
@@ -36,18 +48,54 @@ tasks.register('routingCuts', JavaExec) {
 // Reports how many cuts in a routing-cuts.bin no longer apply to the plugin's current collision
 // map, the resulting component sizes, and the A* routing data build time.
 //   ./gradlew routingCutsReport -PshortestPathDir=../shortest-path [-ProutingCutsFile=<path>]
-def routingCutsFile = providers.gradleProperty('routingCutsFile').orElse('')
+def routingPluginDir = gradle.ext.shortestPathProjectDir
+def routingCutsDefaultFile = new File(routingPluginDir, 'src/test/resources/routing-cuts.bin').isFile()
+        ? new File(routingPluginDir, 'src/test/resources/routing-cuts.bin')
+        : new File(routingPluginDir, 'src/main/resources/routing-cuts.bin')
+def routingCutsFile = providers.gradleProperty('routingCutsFile').orElse(routingCutsDefaultFile.absolutePath)
 
 tasks.register('routingCutsReport', JavaExec) {
     group = 'routing'
     description = 'Reports how well routing-cuts.bin fits the current collision map. ' +
-            'Optional: -ProutingCutsFile=<path> (default: the plugin resource).'
+            'Optional: -ProutingCutsFile=<path> (default: the plugin checkout\'s routing-cuts.bin).'
     dependsOn 'testClasses'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'shortestpath.routingcuts.RoutingCutsReport'
     outputs.upToDateWhen { false }
     jvmArgs = ['-Xms1g', '-Xmx8g']
     doFirst {
-        args = routingCutsFile.get().isEmpty() ? [] : [file(routingCutsFile.get()).absolutePath]
+        args = [file(routingCutsFile.get()).absolutePath]
     }
+}
+
+// Derives routing-components.bin from the plugin's collision-map.zip and a routing-cuts.bin.
+//   ./gradlew routingComponents -PshortestPathDir=../shortest-path [-ProutingCutsFile=<path>] \
+//       [-ProutingComponentsOutput=<path>]
+def routingComponentsOutput = providers.gradleProperty('routingComponentsOutput')
+        .orElse(layout.buildDirectory.file('routing-components/routing-components.bin').get().asFile.absolutePath)
+
+tasks.register('routingComponents', JavaExec) {
+    group = 'routing'
+    description = 'Generates routing-components.bin from the plugin collision map and routing cuts. ' +
+            'Optional: -ProutingCutsFile=<path>, -ProutingComponentsOutput=<path>.'
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'shortestpath.pathfinder.astar.ComponentLayerWriter'
+    outputs.upToDateWhen { false }
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    doFirst {
+        args = [file(routingCutsFile.get()).absolutePath, file(routingComponentsOutput.get()).absolutePath]
+    }
+}
+
+// Prints "routing-static-sha256 <hex>" for the RoutingStatic the plugin checkout builds.
+//   ./gradlew -q routingStaticDigest [-PshortestPathDir=<plugin checkout>]
+tasks.register('routingStaticDigest', JavaExec) {
+    group = 'routing'
+    description = 'Prints a SHA-256 over every field of the plugin checkout\'s RoutingStatic.'
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'shortestpath.routingcuts.RoutingStaticDigest'
+    outputs.upToDateWhen { false }
+    jvmArgs = ['-Xms1g', '-Xmx8g']
 }
