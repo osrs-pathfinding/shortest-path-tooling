@@ -1,0 +1,29 @@
+// --- Sailing data ---
+//
+// Writes the plugin's sailing data from its collision map and moorings: the collision map's sailing layer
+// (sailing/tiles and sailing/index: the sea and each boat kind's bodies of water) and the sailing transports
+// (transports/sailing_*.tsv: each boat kind's leg times between moorings at every hull speed).
+//
+// Usage:
+//   ./gradlew sailingData -PshortestPathDir=../shortest-path [-PsailingDataResources=<resources dir>]
+//
+// Writes into the plugin checkout's src/main/resources by default. Run it whenever the collision map, the moorings
+// or the plugin's sailing rules change, and before routingCuts, whose fingerprint covers the whole collision map.
+// The plugin's SailingTransportsTest fails while the committed data is stale. The upstream ExtractCollisionMap
+// workflow runs it after dumping a new collision map.
+def sailingDataResources = providers.gradleProperty('sailingDataResources')
+        .orElse(new File(gradle.ext.shortestPathProjectDir, 'src/main/resources').absolutePath)
+
+tasks.register('sailingData', JavaExec) {
+    group = 'routing'
+    description = 'Writes the sailing layer and sailing transports into the plugin checkout. ' +
+            'Optional: -PsailingDataResources=<resources dir>.'
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'shortestpath.sailingdata.SailingTimesGenerator'
+    outputs.upToDateWhen { false }
+    maxHeapSize = '4g'
+    doFirst {
+        args = [file(sailingDataResources.get()).absolutePath]
+    }
+}
