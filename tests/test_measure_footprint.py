@@ -158,7 +158,7 @@ def test_git_invokes_subprocess_with_list_argv(monkeypatch):
     def fake_run(cmd, **kwargs):
         calls["cmd"] = cmd
         calls.update(kwargs)
-        return cp(cmd, stdout="ok\n")
+        return cp(cmd, stdout=b"ok\n")
 
     monkeypatch.setattr(mf.subprocess, "run", fake_run)
     assert mf.git("some-repo", "status") == "ok\n"
@@ -166,13 +166,15 @@ def test_git_invokes_subprocess_with_list_argv(monkeypatch):
     assert isinstance(calls["cmd"], list)
     assert calls["check"] is True
     assert calls["capture_output"] is True
-    assert calls["text"] is True
+    # bytes, not text mode: no universal-newline translation, no
+    # UnicodeDecodeError on a non-UTF-8 blob.
+    assert not calls.get("text")
     assert "shell" not in calls
 
 
 def test_git_surfaces_stderr_on_failure(monkeypatch):
     def fake_run(cmd, **kwargs):
-        raise subprocess.CalledProcessError(128, cmd, stderr="fatal: boom\n")
+        raise subprocess.CalledProcessError(128, cmd, stderr=b"fatal: boom\n")
 
     monkeypatch.setattr(mf.subprocess, "run", fake_run)
     with pytest.raises(RuntimeError, match="fatal: boom"):
@@ -480,3 +482,36 @@ def test_main_empty_measurement_exits_nonzero(tmp_path, monkeypatch, capsys):
     assert "ref1" in captured.err
     assert captured.out == ""
     assert not csv_path.exists()
+
+
+# ---------- git() byte handling ----------
+
+
+def test_git_preserves_crlf_line_endings(monkeypatch):
+    # `wc -c` convention: a CRLF blob keeps its CR, so the stripped size
+    # counts it (universal-newline translation would drop one char/line).
+    monkeypatch.setattr(
+        mf.subprocess, "run",
+        lambda cmd, **kw: cp(cmd, stdout=b"int a;\r\nint b;\r\n"))
+    out = mf.git("repo", "show", "ref:A.java")
+    assert out == "int a;\r\nint b;\r\n"
+    assert mf.stripped_size(out) == 2 * len("int a;\r") + 2
+
+
+def test_git_tolerates_non_utf8_blob(monkeypatch):
+    monkeypatch.setattr(
+        mf.subprocess, "run",
+        lambda cmd, **kw: cp(cmd, stdout=b"String s = \"caf\xe9\";\n"))
+    out = mf.git("repo", "show", "ref:A.java")
+    assert out.startswith('String s = "caf')
+    assert "\ufffd" in out
+
+
+def test_git_failure_tolerates_non_utf8_stderr(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        raise subprocess.CalledProcessError(
+            128, cmd, stderr=b"fatal: bad \xff ref\n")
+
+    monkeypatch.setattr(mf.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError, match="fatal: bad"):
+        mf.git("some-repo", "status")

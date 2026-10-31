@@ -48,7 +48,7 @@ def test_ci_installs_test_deps():
     runs = _run_commands(_validate_job())
     assert "pip install -r requirements.txt" in runs
     deps = (ROOT / "requirements.txt").read_text().split()
-    for dep in ("pytest", "pyyaml", "tqdm"):
+    for dep in ("pytest", "pyyaml", "tqdm", "tiktoken"):
         assert dep in deps
 
 

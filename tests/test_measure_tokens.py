@@ -323,3 +323,20 @@ def test_main_empty_measurement_exits_nonzero(tmp_path, monkeypatch, capsys):
     assert "ref1" in captured.err
     assert captured.out == ""
     assert not csv_path.exists()
+
+
+# ---------- special-token literals ----------
+
+
+def test_measure_counts_special_token_literal_as_text(monkeypatch):
+    # tiktoken raises on "<|endoftext|>" unless disallowed_special=().
+    listing = "src/main/java/shortestpath/A.java\n"
+    blob = 'String s = "<|endoftext|>";\n'
+    blobs = {"src/main/java/shortestpath/A.java": blob}
+    monkeypatch.setattr(mt.mf, "git", make_fake_git(listing, blobs))
+    counts = mt.measure("repo", "ref1", ENC)
+    assert counts == {
+        "src/main/java/shortestpath/A.java": len(
+            ENC.encode(blob, disallowed_special=()))
+    }
+    assert counts["src/main/java/shortestpath/A.java"] > 0

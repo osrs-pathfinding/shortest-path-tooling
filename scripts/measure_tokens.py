@@ -57,7 +57,10 @@ def measure(repo, ref, enc):
     counts = {}
     for path in mf.require_files(repo, ref, mf.files_at_ref(repo, ref)):
         content = mf.git(repo, "show", f"{ref}:{path}")
-        counts[path] = len(enc.encode(mf.strip_comments(content)))
+        # disallowed_special=(): source text may legitimately contain a
+        # special-token literal such as "<|endoftext|>"; count it as text.
+        counts[path] = len(enc.encode(mf.strip_comments(content),
+                                      disallowed_special=()))
     return counts
 
 
