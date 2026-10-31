@@ -106,15 +106,26 @@ def stripped_size(text):
     return sum(len(ln) + 1 for ln in kept)
 
 
+def _decode(data):
+    """Bytes -> str without newline translation; undecodable bytes become
+    U+FFFD instead of aborting the run."""
+    if isinstance(data, bytes):
+        return data.decode("utf-8", errors="replace")
+    return data or ""
+
+
 def git(repo, *args):
+    # Capture bytes, not text: text=True applies universal-newline
+    # translation (CRLF files would count one char per line fewer than
+    # `wc -c`) and raises UnicodeDecodeError on a non-UTF-8 blob.
     try:
-        return subprocess.run(
-            ["git", "-C", repo, *args], check=True, capture_output=True, text=True
-        ).stdout
+        return _decode(subprocess.run(
+            ["git", "-C", repo, *args], check=True, capture_output=True
+        ).stdout)
     except subprocess.CalledProcessError as e:
         raise RuntimeError(
             f"git -C {repo} {' '.join(args)} failed with exit code "
-            f"{e.returncode}:\n{(e.stderr or '').strip()}"
+            f"{e.returncode}:\n{_decode(e.stderr).strip()}"
         ) from e
 
 
@@ -123,9 +134,16 @@ def files_at_ref(repo, ref):
     return [n for n in names.splitlines() if n.endswith(".java")]
 
 
+def require_files(repo, ref, files):
+    """Fail on an empty listing: `TOTAL 0 files` must never read as green."""
+    if not files:
+        raise RuntimeError(f"no {SRC_ROOT}/*.java files at {ref} in {repo}")
+    return files
+
+
 def measure(repo, ref):
     sizes = {}
-    for path in files_at_ref(repo, ref):
+    for path in require_files(repo, ref, files_at_ref(repo, ref)):
         content = git(repo, "show", f"{ref}:{path}")
         sizes[path] = stripped_size(content)
     return sizes

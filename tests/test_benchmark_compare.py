@@ -143,19 +143,56 @@ def test_one_sided_envelope_metric_fails(tmp_path, capsys):
     assert "static_build_allocated_bytes" in capsys.readouterr().out
 
 
-def test_missing_scenario_metric_narrows_and_reports(tmp_path, capsys):
+def test_scenario_metric_dropped_everywhere_is_a_breach(tmp_path, capsys):
+    # graph_prepare_ns is gone from every post row: the gate would narrow
+    # to total_ns alone, so a truncated/crashed run must read as a breach.
     def strip(obj):
         for obs in obj["observations"]:
             obs.pop("graph_prepare_ns", None)
+    post = _mutated(POST, tmp_path, "post.json", strip)
+    assert bc.main([str(PRE), str(post)]) != 0
+    out = capsys.readouterr().out
+    assert "BREACH" in out
+    assert "graph_prepare_ns" in out
+
+
+def test_single_scenario_losing_metrics_is_reported_not_failed(
+        tmp_path, capsys):
+    # Other scenarios still carry both metrics, so one scenario losing all
+    # its comparable metrics is reported (not silently skipped) but does
+    # not fail the run.
+    def strip(obj):
+        for obs in obj["observations"]:
             if obs["scenario"] == "gps-natural-0012/early":
                 obs["total_ns"] = None
+                obs["graph_prepare_ns"] = None
     post = _mutated(POST, tmp_path, "post.json", strip)
     assert bc.main([str(PRE), str(post)]) == 0
     out = capsys.readouterr().out
-    # graph_prepare_ns is absent on the post side everywhere: the gate
-    # narrows to total_ns only. gps-natural-0012/early loses its last
-    # comparable metric and is reported, not silently skipped.
+    assert "gps-natural-0012/early: no comparable metrics" in out
+
+
+def test_scenario_missing_from_post_is_a_breach(tmp_path, capsys):
+    def drop(obj):
+        obj["observations"] = [
+            o for o in obj["observations"]
+            if o["scenario"] != "gps-natural-0012/early"]
+    post = _mutated(POST, tmp_path, "post.json", drop)
+    assert bc.main([str(PRE), str(post)]) != 0
+    out = capsys.readouterr().out
+    assert "BREACH: scenario only in pre" in out
     assert "gps-natural-0012/early" in out
+
+
+def test_scenario_only_in_post_is_a_warning(tmp_path, capsys):
+    def drop(obj):
+        obj["observations"] = [
+            o for o in obj["observations"]
+            if o["scenario"] != "gps-natural-0012/early"]
+    pre = _mutated(PRE, tmp_path, "pre.json", drop)
+    assert bc.main([str(pre), str(POST)]) == 0
+    out = capsys.readouterr().out
+    assert "WARN: scenario only in post" in out
 
 
 def test_bad_json_fails(tmp_path, capsys):
@@ -168,3 +205,72 @@ def test_empty_directory_fails(tmp_path):
     empty = tmp_path / "empty"
     empty.mkdir()
     assert bc.main([str(PRE), str(empty)]) != 0
+
+
+# ---------- zero baselines ----------
+
+
+def test_delta_pct_zero_baseline_is_unbounded_not_nan():
+    assert bc.delta_pct(0, 10**9) == float("inf")
+    assert bc.delta_pct(0, 0) == 0.0
+
+
+def test_zero_baseline_envelope_metric_still_breaches(tmp_path, capsys):
+    # A baseline reporting 0 allocated bytes (counter unavailable) must not
+    # let a huge post value read green via a NaN comparison.
+    pre = _mutated(PRE, tmp_path, "pre.json", lambda o: o[
+        "execution_metadata"]["memory"].update(
+            static_build_allocated_bytes=0))
+    post = _mutated(POST, tmp_path, "post.json", lambda o: o[
+        "execution_metadata"]["memory"].update(
+            static_build_allocated_bytes=10**9))
+    assert bc.main([str(pre), str(post)]) != 0
+    assert "static_build_allocated_bytes" in capsys.readouterr().out
+
+
+def test_zero_baseline_scenario_metric_still_breaches(tmp_path, capsys):
+    def zero(obj):
+        for obs in obj["observations"]:
+            obs["graph_prepare_ns"] = 0
+    pre = _mutated(PRE, tmp_path, "pre.json", zero)
+    assert bc.main([str(pre), str(POST)]) != 0
+    assert "graph_prepare_ns" in capsys.readouterr().out
+
+
+def test_zero_baseline_with_zero_post_passes(tmp_path):
+    def zero(obj):
+        for obs in obj["observations"]:
+            obs["graph_prepare_ns"] = 0
+    pre = _mutated(PRE, tmp_path, "pre.json", zero)
+    post = _mutated(POST, tmp_path, "post.json", zero)
+    assert bc.main([str(pre), str(post)]) == 0
+
+
+# ---------- malformed / mixed inputs take the clean error path ----------
+
+
+@pytest.mark.parametrize("payload", ["[]", "null", "42", '"text"'])
+def test_non_object_top_level_json_is_a_clean_error(
+        tmp_path, capsys, payload):
+    bad = tmp_path / "bad.json"
+    bad.write_text(payload)
+    assert bc.main([str(PRE), str(bad)]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("error:")
+    assert "not an object" in err
+
+
+def test_non_utf8_json_is_a_clean_error(tmp_path, capsys):
+    bad = tmp_path / "bad.json"
+    bad.write_bytes(b'{"x": "\xff\xfe"}')
+    assert bc.main([str(PRE), str(bad)]) == 1
+    assert capsys.readouterr().err.startswith("error:")
+
+
+def test_mixed_none_and_string_scenario_keys_do_not_crash(tmp_path):
+    def mixed(obj):
+        obj["observations"][0]["suite"] = None
+    pre = _mutated(PRE, tmp_path, "pre.json", mixed)
+    post = _mutated(POST, tmp_path, "post.json", mixed)
+    # Must not raise TypeError sorting (None, str) against (str, str).
+    assert bc.main([str(pre), str(post)]) == 0

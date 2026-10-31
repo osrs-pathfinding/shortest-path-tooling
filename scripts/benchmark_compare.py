@@ -16,11 +16,16 @@ Per-scenario tripwires on ``(suite, scenario)`` joins: ``total_ns`` /
 the lever, so this is a tripwire, not a budget.
 
 A metric present on only one side is a breach (a crashed or truncated
-manifest must not read as green); absent on both, it is skipped.  A
-scenario row missing metric keys evaluates only on present metrics; a
-scenario with zero comparable metrics is reported.  An empty
-scenario-key intersection fails — never a vacuous pass.  Exit 0 when
-every gate holds, non-zero otherwise; stdout names every breach.
+manifest must not read as green); absent on both, it is skipped.  The
+same holds for scenarios: a scenario in the baseline but missing from
+the candidate is a breach, and so is a scenario metric that has samples
+on one side and on none of the common scenarios of the other (a
+truncated run must not narrow the gate).  A scenario only in the
+candidate is a warning.  A single scenario row missing a metric key
+evaluates only on its present metrics; a scenario with zero comparable
+metrics is reported.  An empty scenario-key intersection fails — never
+a vacuous pass.  Exit 0 when every gate holds, non-zero otherwise;
+stdout names every breach.
 """
 
 import argparse
@@ -51,9 +56,15 @@ def load_side(path):
     out = []
     for f in files:
         try:
-            out.append(json.loads(f.read_text()))
-        except (json.JSONDecodeError, OSError) as e:
+            env = json.loads(f.read_text())
+        except (ValueError, OSError) as e:
+            # ValueError covers JSONDecodeError and UnicodeDecodeError.
             raise ValueError(f"cannot read benchmark JSON {f}: {e}")
+        if not isinstance(env, dict):
+            raise ValueError(
+                f"benchmark JSON {f} is not an object "
+                f"(got {type(env).__name__})")
+        out.append(env)
     return out
 
 
@@ -77,7 +88,10 @@ def collect(envs, *path):
 
 def delta_pct(pre, post):
     if pre <= 0:
-        return float("nan")
+        # No usable baseline: NaN would make every ``change > limit`` gate
+        # read False, so any growth over a zero baseline is an unbounded
+        # regression instead (and 0 -> 0 is no change).
+        return float("inf") if post > 0 else 0.0
     return (post - pre) / pre * 100.0
 
 
@@ -139,13 +153,23 @@ def _samples(rows, metric):
 
 def compare_scenarios(pre_rows, post_rows, breaches, warnings):
     """Per-scenario metric-median tripwires over the common key set."""
-    common = sorted(set(pre_rows) & set(post_rows))
+    # Keys may mix None with strings; compare their string forms.
+    common = sorted(set(pre_rows) & set(post_rows),
+                    key=lambda k: tuple(map(str, k)))
     for key in pre_rows:
         if key not in post_rows:
-            warnings.append(f"WARN: scenario only in pre: {key[0]}/{key[1]}")
+            breaches.append(
+                f"BREACH: scenario only in pre: {key[0]}/{key[1]}")
     for key in post_rows:
         if key not in pre_rows:
             warnings.append(f"WARN: scenario only in post: {key[0]}/{key[1]}")
+    for metric in SCENARIO_METRICS:
+        pre_n = sum(1 for k in common if _samples(pre_rows[k], metric))
+        post_n = sum(1 for k in common if _samples(post_rows[k], metric))
+        if bool(pre_n) != bool(post_n):
+            breaches.append(
+                f"BREACH: scenario metric {metric} present on only one "
+                f"side ({pre_n}/{post_n} common scenarios)")
     for key in common:
         label = f"{key[0]}/{key[1]}"
         comparable = 0

@@ -16,6 +16,10 @@ v1.22.2-submission tree at ``2069bf9f`` (749,126 stripped chars, i.e.
 which reads ~11% low on that point).  Treat this harness's absolute
 number as calibrated within ~±5% of the reviewer's private counter.
 
+Requires ``tiktoken`` (``pip install tiktoken``). It is deliberately not in
+requirements.txt: the encoding is downloaded on first use, so CI does not
+install it and tests/test_measure_tokens.py skips itself there.
+
 Usage:
   python3 measure_tokens.py [--ref <git-ref>] [--repo <submodule-path>]
                             [--top N] [--csv FILE]
@@ -55,9 +59,12 @@ ENCODING = "cl100k_base"
 def measure(repo, ref, enc):
     """{path: token-count} over the stripped blobs of src/main/java."""
     counts = {}
-    for path in mf.files_at_ref(repo, ref):
+    for path in mf.require_files(repo, ref, mf.files_at_ref(repo, ref)):
         content = mf.git(repo, "show", f"{ref}:{path}")
-        counts[path] = len(enc.encode(mf.strip_comments(content)))
+        # disallowed_special=(): source text may legitimately contain a
+        # special-token literal such as "<|endoftext|>"; count it as text.
+        counts[path] = len(enc.encode(mf.strip_comments(content),
+                                      disallowed_special=()))
     return counts
 
 
