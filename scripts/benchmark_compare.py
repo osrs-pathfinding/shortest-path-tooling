@@ -77,7 +77,10 @@ def collect(envs, *path):
 
 def delta_pct(pre, post):
     if pre <= 0:
-        return float("nan")
+        # No usable baseline: NaN would make every ``change > limit`` gate
+        # read False, so any growth over a zero baseline is an unbounded
+        # regression instead (and 0 -> 0 is no change).
+        return float("inf") if post > 0 else 0.0
     return (post - pre) / pre * 100.0
 
 

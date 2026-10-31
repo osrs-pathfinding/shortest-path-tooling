@@ -168,3 +168,42 @@ def test_empty_directory_fails(tmp_path):
     empty = tmp_path / "empty"
     empty.mkdir()
     assert bc.main([str(PRE), str(empty)]) != 0
+
+
+# ---------- zero baselines ----------
+
+
+def test_delta_pct_zero_baseline_is_unbounded_not_nan():
+    assert bc.delta_pct(0, 10**9) == float("inf")
+    assert bc.delta_pct(0, 0) == 0.0
+
+
+def test_zero_baseline_envelope_metric_still_breaches(tmp_path, capsys):
+    # A baseline reporting 0 allocated bytes (counter unavailable) must not
+    # let a huge post value read green via a NaN comparison.
+    pre = _mutated(PRE, tmp_path, "pre.json", lambda o: o[
+        "execution_metadata"]["memory"].update(
+            static_build_allocated_bytes=0))
+    post = _mutated(POST, tmp_path, "post.json", lambda o: o[
+        "execution_metadata"]["memory"].update(
+            static_build_allocated_bytes=10**9))
+    assert bc.main([str(pre), str(post)]) != 0
+    assert "static_build_allocated_bytes" in capsys.readouterr().out
+
+
+def test_zero_baseline_scenario_metric_still_breaches(tmp_path, capsys):
+    def zero(obj):
+        for obs in obj["observations"]:
+            obs["graph_prepare_ns"] = 0
+    pre = _mutated(PRE, tmp_path, "pre.json", zero)
+    assert bc.main([str(pre), str(POST)]) != 0
+    assert "graph_prepare_ns" in capsys.readouterr().out
+
+
+def test_zero_baseline_with_zero_post_passes(tmp_path):
+    def zero(obj):
+        for obs in obj["observations"]:
+            obs["graph_prepare_ns"] = 0
+    pre = _mutated(PRE, tmp_path, "pre.json", zero)
+    post = _mutated(POST, tmp_path, "post.json", zero)
+    assert bc.main([str(pre), str(post)]) == 0
