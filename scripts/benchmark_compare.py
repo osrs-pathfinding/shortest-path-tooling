@@ -16,11 +16,16 @@ Per-scenario tripwires on ``(suite, scenario)`` joins: ``total_ns`` /
 the lever, so this is a tripwire, not a budget.
 
 A metric present on only one side is a breach (a crashed or truncated
-manifest must not read as green); absent on both, it is skipped.  A
-scenario row missing metric keys evaluates only on present metrics; a
-scenario with zero comparable metrics is reported.  An empty
-scenario-key intersection fails — never a vacuous pass.  Exit 0 when
-every gate holds, non-zero otherwise; stdout names every breach.
+manifest must not read as green); absent on both, it is skipped.  The
+same holds for scenarios: a scenario in the baseline but missing from
+the candidate is a breach, and so is a scenario metric that has samples
+on one side and on none of the common scenarios of the other (a
+truncated run must not narrow the gate).  A scenario only in the
+candidate is a warning.  A single scenario row missing a metric key
+evaluates only on its present metrics; a scenario with zero comparable
+metrics is reported.  An empty scenario-key intersection fails — never
+a vacuous pass.  Exit 0 when every gate holds, non-zero otherwise;
+stdout names every breach.
 """
 
 import argparse
@@ -145,10 +150,18 @@ def compare_scenarios(pre_rows, post_rows, breaches, warnings):
     common = sorted(set(pre_rows) & set(post_rows))
     for key in pre_rows:
         if key not in post_rows:
-            warnings.append(f"WARN: scenario only in pre: {key[0]}/{key[1]}")
+            breaches.append(
+                f"BREACH: scenario only in pre: {key[0]}/{key[1]}")
     for key in post_rows:
         if key not in pre_rows:
             warnings.append(f"WARN: scenario only in post: {key[0]}/{key[1]}")
+    for metric in SCENARIO_METRICS:
+        pre_n = sum(1 for k in common if _samples(pre_rows[k], metric))
+        post_n = sum(1 for k in common if _samples(post_rows[k], metric))
+        if bool(pre_n) != bool(post_n):
+            breaches.append(
+                f"BREACH: scenario metric {metric} present on only one "
+                f"side ({pre_n}/{post_n} common scenarios)")
     for key in common:
         label = f"{key[0]}/{key[1]}"
         comparable = 0

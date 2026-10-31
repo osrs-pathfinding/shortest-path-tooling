@@ -143,19 +143,56 @@ def test_one_sided_envelope_metric_fails(tmp_path, capsys):
     assert "static_build_allocated_bytes" in capsys.readouterr().out
 
 
-def test_missing_scenario_metric_narrows_and_reports(tmp_path, capsys):
+def test_scenario_metric_dropped_everywhere_is_a_breach(tmp_path, capsys):
+    # graph_prepare_ns is gone from every post row: the gate would narrow
+    # to total_ns alone, so a truncated/crashed run must read as a breach.
     def strip(obj):
         for obs in obj["observations"]:
             obs.pop("graph_prepare_ns", None)
+    post = _mutated(POST, tmp_path, "post.json", strip)
+    assert bc.main([str(PRE), str(post)]) != 0
+    out = capsys.readouterr().out
+    assert "BREACH" in out
+    assert "graph_prepare_ns" in out
+
+
+def test_single_scenario_losing_metrics_is_reported_not_failed(
+        tmp_path, capsys):
+    # Other scenarios still carry both metrics, so one scenario losing all
+    # its comparable metrics is reported (not silently skipped) but does
+    # not fail the run.
+    def strip(obj):
+        for obs in obj["observations"]:
             if obs["scenario"] == "gps-natural-0012/early":
                 obs["total_ns"] = None
+                obs["graph_prepare_ns"] = None
     post = _mutated(POST, tmp_path, "post.json", strip)
     assert bc.main([str(PRE), str(post)]) == 0
     out = capsys.readouterr().out
-    # graph_prepare_ns is absent on the post side everywhere: the gate
-    # narrows to total_ns only. gps-natural-0012/early loses its last
-    # comparable metric and is reported, not silently skipped.
+    assert "gps-natural-0012/early: no comparable metrics" in out
+
+
+def test_scenario_missing_from_post_is_a_breach(tmp_path, capsys):
+    def drop(obj):
+        obj["observations"] = [
+            o for o in obj["observations"]
+            if o["scenario"] != "gps-natural-0012/early"]
+    post = _mutated(POST, tmp_path, "post.json", drop)
+    assert bc.main([str(PRE), str(post)]) != 0
+    out = capsys.readouterr().out
+    assert "BREACH: scenario only in pre" in out
     assert "gps-natural-0012/early" in out
+
+
+def test_scenario_only_in_post_is_a_warning(tmp_path, capsys):
+    def drop(obj):
+        obj["observations"] = [
+            o for o in obj["observations"]
+            if o["scenario"] != "gps-natural-0012/early"]
+    pre = _mutated(PRE, tmp_path, "pre.json", drop)
+    assert bc.main([str(pre), str(POST)]) == 0
+    out = capsys.readouterr().out
+    assert "WARN: scenario only in post" in out
 
 
 def test_bad_json_fails(tmp_path, capsys):
