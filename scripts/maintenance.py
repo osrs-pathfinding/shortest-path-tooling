@@ -896,15 +896,19 @@ def routing_artifact_paths() -> "tuple[Path, Path | None]":
 
     A plugin that ships routing-components.bin keeps the cuts in
     src/test/resources (an offline input); the older layout keeps them
-    in src/main/resources and has no component layer (None)."""
-    test_cuts = SUBMODULE / "src" / "test" / "resources" / \
-        "routing-cuts.bin"
-    if test_cuts.is_file():
-        return (test_cuts,
-                SUBMODULE / "src" / "main" / "resources" /
-                "routing-components.bin")
-    return (SUBMODULE / "src" / "main" / "resources" /
-            "routing-cuts.bin", None)
+    in src/main/resources and has no component layer (None). The new
+    layout is recognised by anything that exists only in it — the
+    committed layer, the layer writer or the moved cuts — so a missing
+    cuts file does not make the checkout look like the old layout."""
+    main_resources = SUBMODULE / "src" / "main" / "resources"
+    test_resources = SUBMODULE / "src" / "test" / "resources"
+    components = main_resources / "routing-components.bin"
+    writer = (SUBMODULE / "src" / "test" / "java" / "shortestpath" /
+              "pathfinder" / "astar" / "ComponentLayerWriter.java")
+    test_cuts = test_resources / "routing-cuts.bin"
+    if components.is_file() or writer.is_file() or test_cuts.is_file():
+        return (test_cuts, components)
+    return (main_resources / "routing-cuts.bin", None)
 
 
 def regenerate_routing_cuts(args: argparse.Namespace, build: Path) -> int:
@@ -946,6 +950,12 @@ def regenerate_routing_components(cuts_path: Path,
     """Regenerate routing-components.bin from the plugin's collision
     map and the given cuts, mirroring the ExtractCollisionMap
     workflow's component step."""
+    if not cuts_path.is_file():
+        print(f"routing-cuts.bin not found at {cuts_path}: the "
+              "component layer is derived from it. Regenerate the "
+              "cuts (drop --skip-cuts) or restore the file.",
+              file=sys.stderr)
+        return 1
     proc = run([str(REPO / "gradlew"), "routingComponents",
                 f"-ProutingCutsFile={cuts_path}",
                 f"-ProutingComponentsOutput={components_path}"],

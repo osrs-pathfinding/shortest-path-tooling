@@ -513,6 +513,11 @@ def make_local_run(repo, calls, *, branch="maint-x",
             Path(cwd, "collision-map.zip").write_bytes(b"NEWZIP")
             return cp(cmd, rc=zip_rc)
         if kind == "routingCuts":
+            for arg in cmd:
+                if arg.startswith("-ProutingCutsOutput="):
+                    out = Path(arg.split("=", 1)[1])
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    out.write_bytes(b"CUTS")
             return cp(cmd, rc=cuts_rc)
         if kind == "routingComponents":
             return cp(cmd, stderr="components failed", rc=components_rc)
@@ -658,6 +663,45 @@ def test_collision_map_local_new_layout_sequence(tmp_path, monkeypatch):
         submodule / "src" / "test" / "resources" / "routing-cuts.bin"))
     assert not (submodule / "src" / "main" / "resources" /
                 "routing-cuts.bin").exists()
+
+
+def test_collision_map_local_new_layout_without_cuts_file_keeps_layout(
+        tmp_path, monkeypatch):
+    # A checkout that lost its cuts file is still the new layout: the
+    # committed layer marks it, so the cuts are rewritten under
+    # src/test/resources and no stray copy lands in the jar's
+    # resources.
+    repo, submodule, calls = prepare_local(
+        tmp_path, monkeypatch, new_layout=True)
+    test_cuts = (submodule / "src" / "test" / "resources" /
+                 "routing-cuts.bin")
+    test_cuts.unlink()
+    (submodule / "src" / "main" / "resources" /
+     "routing-components.bin").write_bytes(b"LAYER")
+    rc = mm.main(["collision-map", "--local"])
+    assert rc == 0
+    cuts = next(c for c, _ in calls if local_kind(c) == "routingCuts")
+    assert cuts[3] == "-ProutingCutsOutput=" + str(test_cuts)
+    assert test_cuts.is_file()
+    assert not (submodule / "src" / "main" / "resources" /
+                "routing-cuts.bin").exists()
+    assert "routingComponents" in [local_kind(c) for c, _ in calls]
+
+
+def test_collision_map_local_skip_cuts_without_cuts_file_fails(
+        tmp_path, monkeypatch, capsys):
+    # --skip-cuts relies on the committed cuts; a missing file must
+    # fail clearly instead of silently dropping the component layer.
+    repo, submodule, calls = prepare_local(
+        tmp_path, monkeypatch, new_layout=True)
+    (submodule / "src" / "test" / "resources" /
+     "routing-cuts.bin").unlink()
+    (submodule / "src" / "main" / "resources" /
+     "routing-components.bin").write_bytes(b"LAYER")
+    rc = mm.main(["collision-map", "--local", "--skip-cuts"])
+    assert rc == 1
+    assert "routing-cuts.bin not found" in capsys.readouterr().err
+    assert "routingComponents" not in [local_kind(c) for c, _ in calls]
 
 
 def test_collision_map_local_regenerates_routing_components(
