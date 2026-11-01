@@ -22,14 +22,17 @@ import shortestpath.pathfinder.SplitFlagMap;
  * {@code int[]} and {@code char[]} elements as little-endian ints, {@code byte[]} raw,
  * {@code boolean[]} one byte each, {@code long[]} as two little-endian ints (low, then high), and
  * object arrays element by element. Boxed numbers, booleans, characters, strings and bit sets write
- * their {@code toString()} bytes. Any other object is visited once, writing every instance field of
- * its class and superclasses in declaration order: primitives as their string form, references
- * recursively.
+ * the length of their {@code toString()} bytes as a little-endian int, then those bytes. Any other
+ * object is visited once, writing every instance field of its class and superclasses in declaration
+ * order: primitives in a fixed width ({@code boolean} and {@code byte} one byte, {@code short},
+ * {@code char} and {@code int} a little-endian int, {@code long} and {@code double} two
+ * little-endian ints, low then high, {@code float} its bits as an int), references recursively.
+ * Adjacent primitive and text values therefore cannot run together into one encoding.
  */
 public final class RoutingStaticDigest
 {
 	/** The digest of the pinned reference tree, for comparison only: its data may have moved on. */
-	private static final String REFERENCE = "eae908c1f8d0114a9800208a04d9aeb6fdd86958a026ca8249793ef202265fcc";
+	private static final String REFERENCE = "20675c4a0341cd97b1ce5df0518028f436949321536b2346111c8cf4bb9562d8";
 
 	private final ByteArrayOutputStream pending = new ByteArrayOutputStream();
 	private final MessageDigest digest;
@@ -102,6 +105,7 @@ public final class RoutingStaticDigest
 			|| value instanceof String || value instanceof BitSet)
 		{
 			byte[] text = value.toString().getBytes(StandardCharsets.UTF_8);
+			writeInt(text.length);
 			pending.write(text, 0, text.length);
 		}
 		else if (seen.put(value, Boolean.TRUE) == null)
@@ -114,8 +118,7 @@ public final class RoutingStaticDigest
 					field.setAccessible(true);
 					if (field.getType().isPrimitive())
 					{
-						byte[] text = String.valueOf(field.get(value)).getBytes(StandardCharsets.UTF_8);
-						pending.write(text, 0, text.length);
+						writePrimitive(field.getType(), field.get(value));
 					}
 					else
 					{
@@ -125,6 +128,40 @@ public final class RoutingStaticDigest
 			}
 		}
 		if (pending.size() >= 1 << 20) flush();
+	}
+
+	private void writePrimitive(Class<?> type, Object value)
+	{
+		if (type == boolean.class)
+		{
+			pending.write((Boolean) value ? 1 : 0);
+		}
+		else if (type == byte.class)
+		{
+			pending.write((Byte) value);
+		}
+		else if (type == char.class)
+		{
+			writeInt((Character) value);
+		}
+		else if (type == short.class)
+		{
+			writeInt((Short) value);
+		}
+		else if (type == int.class)
+		{
+			writeInt((Integer) value);
+		}
+		else if (type == float.class)
+		{
+			writeInt(Float.floatToRawIntBits((Float) value));
+		}
+		else
+		{
+			long bits = type == double.class ? Double.doubleToRawLongBits((Double) value) : (Long) value;
+			writeInt((int) bits);
+			writeInt((int) (bits >>> 32));
+		}
 	}
 
 	private void writeInt(int value)
