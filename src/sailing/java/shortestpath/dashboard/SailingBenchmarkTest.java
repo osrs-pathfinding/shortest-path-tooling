@@ -6,6 +6,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -102,6 +104,11 @@ public class SailingBenchmarkTest {
         String pathUnit;
         int legs;
         double distanceTiles;
+        /** SHA-256 of the path's steps (see {@link #pathHash}); identical across the timed rounds of one search. */
+        String pathSha256;
+        int pathCost;
+        int closestTile;
+        String termination;
         double medianMs;
         double fastestMs;
         double medianWallMs;
@@ -328,8 +335,41 @@ public class SailingBenchmarkTest {
         return searches;
     }
 
+    /**
+     * SHA-256, in lowercase hex, over every path step: its packed position as 4 little-endian bytes, its
+     * bank-visit ordinal as one byte and one byte that is 1 for a transport step and 0 otherwise.
+     */
+    static String pathHash(List<PathStep> path) {
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
+        }
+        for (PathStep step : path) {
+            int packed = step.getPackedPosition();
+            digest.update(new byte[] {(byte) packed, (byte) (packed >>> 8), (byte) (packed >>> 16),
+                (byte) (packed >>> 24), (byte) step.getBankVisitState().ordinal(),
+                (byte) (step.getTransport() == null ? 0 : 1)});
+        }
+        StringBuilder hex = new StringBuilder();
+        for (byte value : digest.digest()) {
+            hex.append(String.format(Locale.ROOT, "%02x", value));
+        }
+        return hex.toString();
+    }
+
     private static void describePath(Result result, PathfinderResult found, Search search) {
         List<PathStep> path = found.getPathSteps();
+        String hash = pathHash(path);
+        if (result.pathSha256 != null && !result.pathSha256.equals(hash)) {
+            throw new IllegalStateException("Non-deterministic search: " + result.route + " / " + result.search
+                + " found a different path in a later round (" + result.pathSha256 + " then " + hash + ")");
+        }
+        result.pathSha256 = hash;
+        result.pathCost = found.getPathCost();
+        result.closestTile = found.getClosestReachedPoint();
+        result.termination = found.getTerminationReason().name();
         result.reached = found.isReached();
         result.nodesChecked = found.getNodesChecked() + found.getTransportsChecked();
         result.distanceTiles = 0;

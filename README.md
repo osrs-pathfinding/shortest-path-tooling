@@ -96,6 +96,7 @@ The default remains the `./shortest-path` Git submodule.
 | `./gradlew routingStaticDigest` | Print a SHA-256 over every field of the plugin's A* routing data; pass `-PshortestPathDir` to compare checkouts |
 | `./gradlew benchmark --args="..."` | Run a benchmark manifest's scenarios (used by collisionlab/osrs-benchmarks) |
 | `./gradlew route -ProuteArgs="..."` | Query one canonical route and print its selected path |
+| `./gradlew pathDump -PwalkTier=smoke -PpathDumpOutput=<file>` | Dump the walking paths, click points and kept steps of every canonical scenario in a tier (`smoke`, `standard` or `full`) as JSON lines; pass `-PshortestPathDir` to dump another plugin checkout |
 
 The route query uses the same profiles and runner as `benchmark`. PROFILE is any
 profile (`early`/`mid`/`end`/`maxed` or a dashboard preset such as `UNIT_TEST`), and
@@ -109,6 +110,17 @@ corpus ID (`--route ID --profile PROFILE`) or by coordinates:
   -ProuteArgs='maxed 2411 4434 0 2995 3114 0 --json' \
   route
 ```
+
+### Comparing two plugin checkouts
+
+Dump the walks of each checkout with `pathDump` (same tier, `-PshortestPathDir` set to the old
+and then the new tree) and classify them with `scripts/walk_diff.py OLD NEW`: every (route,
+account) is strict (identical), equivalent (same cost, length, transports and leg starts, only
+interior tiles, click points or leg end tiles that still serve the next action differ) or
+divergent; the script exits 1 on any divergent walk and 2 on unusable input (`--summary PATH`
+writes a JSON summary, `--list` names every non-strict scenario).
+`scripts/sailing_benchmark_compare.py OLD NEW` compares two `sailingBenchmark` JSON files and exits
+0 only when every sailing search is identical, path hashes included (timings are ignored).
 
 ## A* routing components and cuts
 
