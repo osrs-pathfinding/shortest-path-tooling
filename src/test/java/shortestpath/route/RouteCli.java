@@ -5,9 +5,11 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import shortestpath.WorldPointUtil;
+import shortestpath.pathfinder.AlternativeRoute;
 import shortestpath.pathfinder.BankVisitState;
 import shortestpath.pathfinder.PathStep;
 import shortestpath.pathfinder.AStarPathfinder;
@@ -22,6 +24,7 @@ import shortestpath.scenarios.Scenario;
 import shortestpath.scenarios.ScenarioRunner;
 import shortestpath.scenarios.Suites;
 import shortestpath.pathfinder.astar.AStarForwardSearch;
+import shortestpath.pathfinder.astar.ReusePenalty;
 import shortestpath.transport.Transport;
 
 /** Command-line frontend for querying one route: a canonical route, coordinates, or any suite scenario. */
@@ -142,12 +145,78 @@ public final class RouteCli {
         Observation observation = runner.run(query.scenario);
         List<MatchedTransport> transports = observation.isReached()
             ? transports(observation.getResult().getPathSteps(), observation.getAccount().getConfig()) : List.of();
+        List<AlternativeRoute> alternatives = arguments.alternatives > 0 && observation.getAStar() != null
+            ? observation.getAStar().findAlternatives(arguments.alternatives) : List.of();
         if (arguments.json) {
-            System.out.println(new GsonBuilder().serializeNulls().create().toJson(
-                jsonResult(query, arguments.algorithm, observation, transports)));
+            JsonObject output = jsonResult(query, arguments.algorithm, observation, transports);
+            if (arguments.alternatives > 0) {
+                output.add("alternatives", jsonAlternatives(alternatives, observation.getResult().getPathCost()));
+            }
+            System.out.println(new GsonBuilder().serializeNulls().create().toJson(output));
         } else {
             printHuman(query, arguments.algorithm, observation, transports, arguments.counters);
+            if (arguments.alternatives > 0) {
+                printAlternatives(observation, alternatives);
+            }
         }
+    }
+
+    /** The journeys of a route: what makes it a different choice, in the order they are taken. */
+    static List<Transport> journeys(List<PathStep> path) {
+        List<Transport> journeys = new ArrayList<>();
+        for (PathStep step : path) {
+            if (step.getTransport() != null && ReusePenalty.isJourney(step.getTransport())) {
+                journeys.add(step.getTransport());
+            }
+        }
+        return journeys;
+    }
+
+    static String journeyLabel(Transport transport) {
+        String label = transport.getDisplayInfo() != null && !transport.getDisplayInfo().isEmpty()
+            ? transport.getDisplayInfo()
+            : transport.getObjectInfo() != null && !transport.getObjectInfo().isEmpty()
+                ? transport.getObjectInfo() : transport.getType().name();
+        return label + " -> " + coordinate(transport.getDestination());
+    }
+
+    private static void printAlternatives(Observation observation, List<AlternativeRoute> alternatives) {
+        PathfinderResult result = observation.getResult();
+        System.out.println("journeys:");
+        journeys(result.getPathSteps()).forEach(journey -> System.out.println("  " + journeyLabel(journey)));
+        System.out.println("alternatives: " + alternatives.size());
+        int number = 1;
+        for (AlternativeRoute alternative : alternatives) {
+            System.out.println("alternative " + number++ + ": cost " + alternative.getPathCost()
+                + " (+" + (alternative.getPathCost() - result.getPathCost()) + "), reused "
+                + alternative.getReusedJourneys() + ", " + alternative.getNodesChecked() + " nodes, "
+                + alternative.getSearchNanos() / 1_000_000.0 + " ms");
+            journeys(alternative.getPathSteps()).forEach(journey -> System.out.println("  " + journeyLabel(journey)));
+        }
+    }
+
+    static JsonArray jsonAlternatives(List<AlternativeRoute> alternatives, int firstCost) {
+        JsonArray values = new JsonArray();
+        for (AlternativeRoute alternative : alternatives) {
+            JsonObject value = new JsonObject();
+            value.addProperty("cost", alternative.getPathCost());
+            value.addProperty("extraCost", alternative.getPathCost() - firstCost);
+            value.addProperty("reusedJourneys", alternative.getReusedJourneys());
+            value.addProperty("nodesChecked", alternative.getNodesChecked());
+            value.addProperty("searchMs", alternative.getSearchNanos() / 1_000_000.0);
+            value.add("journeys", jsonJourneys(alternative.getPathSteps()));
+            JsonArray path = new JsonArray();
+            alternative.getPathSteps().forEach(step -> path.add(coordinate(step.getPackedPosition())));
+            value.add("path", path);
+            values.add(value);
+        }
+        return values;
+    }
+
+    static JsonArray jsonJourneys(List<PathStep> path) {
+        JsonArray values = new JsonArray();
+        journeys(path).forEach(journey -> values.add(journeyLabel(journey)));
+        return values;
     }
 
     private static void printHuman(Query query, String algorithm, Observation observation,
@@ -426,6 +495,7 @@ public final class RouteCli {
         String suite;
         String scenario;
         boolean list;
+        int alternatives;
 
         private Arguments(List<String> routeIds, List<String> profiles, String routeSelector,
                 String profile, int start, int target,
@@ -442,6 +512,23 @@ public final class RouteCli {
         }
 
         static Arguments parse(String[] rawArgs) {
+            List<String> args = new ArrayList<>(Arrays.asList(rawArgs));
+            int flag = args.indexOf("--alternatives");
+            int alternatives = 0;
+            if (flag >= 0) {
+                if (flag + 1 >= args.size()) throw usage();
+                alternatives = integer("--alternatives", args.remove(flag + 1));
+                args.remove(flag);
+            }
+            Arguments arguments = parseQuery(args.toArray(new String[0]));
+            if (alternatives > 0 && !arguments.algorithm.equals("astar")) {
+                throw new IllegalArgumentException("--alternatives needs --algorithm astar");
+            }
+            arguments.alternatives = alternatives;
+            return arguments;
+        }
+
+        private static Arguments parseQuery(String[] rawArgs) {
             List<String> positional = new ArrayList<>();
             String profile = null;
             String routeSelector = null;
@@ -564,7 +651,7 @@ public final class RouteCli {
                 + "| --start X,Y,PLANE --end X,Y,PLANE --profile PROFILE "
                 + "| PROFILE START_X START_Y START_PLANE TARGET_X TARGET_Y TARGET_PLANE "
                 + "| ROUTE PROFILE [ROUTE PROFILE ...]"
-                + "| --suite SUITE (--scenario NAME | --list)) [--algorithm legacy|astar] [--json] [--counters]"
+                + "| --suite SUITE (--scenario NAME | --list)) [--algorithm legacy|astar] [--json] [--counters] [--alternatives N]"
                 + "; PROFILE is any profile (early, mid, end, maxed, ALL, UNIT_TEST, SEASONAL, ...)");
         }
     }

@@ -47,6 +47,21 @@ tasks.register('benchmark', JavaExec) {
     }
 }
 
+// Finds alternative routes for a suite's tier and writes what it found.
+tasks.register('alternativesReport', JavaExec) {
+    group = 'verification'
+    description = 'Finds alternative routes for a suite tier: -PalternativesSuite (canonical), ' +
+            '-PalternativesTier (standard), -PalternativesCount (2), -PalternativesOut (build/alternatives.jsonl).'
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'shortestpath.route.AlternativesReport'
+    systemProperty 'corpus.dir', corpusDir.absolutePath
+    args providers.gradleProperty('alternativesSuite').getOrElse('canonical'),
+        providers.gradleProperty('alternativesTier').getOrElse('standard'),
+        providers.gradleProperty('alternativesCount').getOrElse('2'),
+        providers.gradleProperty('alternativesOut').getOrElse(layout.buildDirectory.file('alternatives.jsonl').get().asFile.path)
+}
+
 // Runs one canonical route for one account profile and prints the selected path.
 tasks.register('route', JavaExec) {
     group = 'verification'
