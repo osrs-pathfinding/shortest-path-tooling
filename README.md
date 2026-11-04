@@ -118,7 +118,10 @@ and then the new tree) and classify them with `scripts/walk_diff.py OLD NEW`: ev
 account) is strict (identical), equivalent (same cost, length, transports and leg starts, only
 interior tiles, click points or leg end tiles that still serve the next action differ) or
 divergent; the script exits 1 on any divergent walk and 2 on unusable input (`--summary PATH`
-writes a JSON summary, `--list` names every non-strict scenario).
+writes a JSON summary, `--list` names every non-strict scenario). It also counts zigzags on both
+sides (two diagonal moves turning 90 degrees, a dogleg the game does not walk) with the role of
+the middle tile (click, kept step or interior), and marks a rise as `MORE THAN OLD`; equal cost
+alone cannot show that a walk is the one the game takes.
 `scripts/sailing_benchmark_compare.py OLD NEW` compares two `sailingBenchmark` JSON files and exits
 0 only when every sailing search is identical, path hashes included (timings are ignored).
 

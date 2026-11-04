@@ -453,6 +453,55 @@ def test_the_script_runs_as_a_program_and_exits_with_the_verdict(tmp_path):
     assert unusable.returncode == 2
 
 
+def dogleg_row(name="z/early"):
+    """North-east then north-west into a click, then straight north: one zigzag at the click."""
+    steps = [step(3200, 3200), step(3200, 3201), step(3201, 3202), step(3200, 3203), step(3200, 3204)]
+    return row(name=name, steps=steps, clicks=[2, 4])
+
+
+@pytest.mark.parametrize("second, zigzag", [((3200, 3202), True), ((3202, 3200), True), ((3200, 3200), False)],
+                         ids=["NE-NW", "NE-SE", "NE-SW"])
+def test_a_zigzag_is_two_diagonals_turning_90_degrees(second, zigzag):
+    # NE then NW and NE then SE turn 90 degrees; NE then SW reverses (180 degrees) and is not one.
+    steps = [step(3200, 3200), step(3201, 3201), step(*second)]
+    assert wd.zigzags(row(steps=steps, clicks=[2])) == ([(1, "interior")] if zigzag else [])
+
+
+def test_straight_and_cardinal_turns_are_no_zigzag():
+    steps = [step(3200, 3200), step(3201, 3201), step(3202, 3202), step(3202, 3203), step(3203, 3203),
+             step(3204, 3202)]
+    assert wd.zigzags(row(steps=steps, clicks=[5])) == []
+
+
+def test_a_zigzag_names_the_role_of_its_middle_tile():
+    assert wd.zigzags(dogleg_row()) == [(2, "click")]
+    kept = dogleg_row()
+    kept["clicks"], kept["kept"] = [4], [2]
+    assert wd.zigzags(kept) == [(2, "kept")]
+
+
+def test_moves_across_a_transport_or_bank_change_are_no_zigzag():
+    across = [step(3200, 3200), step(3201, 3201), step(3200, 3202, flag=1)]
+    banked = [step(3200, 3200), step(3201, 3201), step(3200, 3202, bank=1)]
+    assert wd.zigzags(row(steps=across)) == []
+    assert wd.zigzags(row(steps=banked)) == []
+
+
+def test_zigzags_are_counted_per_side_and_reported_without_changing_the_verdict(tmp_path, capsys):
+    straight_north = [step(3200, 3200 + k) for k in range(5)]
+    old = [row(name="z/early", steps=straight_north, clicks=[2, 4]), walking_row(name="a/early")]
+    new = [dogleg_row(), walking_row(name="a/early")]
+    summary = tmp_path / "summary.json"
+    assert run(tmp_path, old, new, "--summary", str(summary)) == 0
+    out = capsys.readouterr().out
+    assert "zigzags (two diagonals turning 90 degrees): old 0 in 0 scenarios, new 1 in 1 scenarios  MORE THAN OLD" in out
+    data = json.loads(summary.read_text())
+    assert data["tiers"] == {"strict": 1, "equivalent": 1, "divergent": 0}
+    assert data["zigzags"]["old"] == {"zigzags": 0, "scenarios": 0, "roles": {}, "cases": []}
+    assert data["zigzags"]["new"] == {"zigzags": 1, "scenarios": 1, "roles": {"click": 1},
+                                      "cases": [{"scenario": "z/early", "index": 2, "role": "click"}]}
+
+
 def test_legs_are_maximal_walking_runs():
     steps = transport_row()["steps"]
     assert wd.legs(steps) == [(0, 3), (4, 6)]

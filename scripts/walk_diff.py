@@ -17,6 +17,13 @@ only when the dump proves the new end tile still serves the next action: the til
 local transport must be a usable origin of it (``usableFromPrevious``), and the tile before a
 global teleport must be one it can be cast from (``castableFromPrevious``).
 
+Equal cost does not make a walk one the game takes, so both dumps are also scanned for
+*zigzags*: two consecutive diagonal walking moves that turn by 90 degrees (north-east then
+north-west, south-east then north-east, ...), a dogleg the game's own walking never draws on
+open ground.  The count, the scenarios it occurs in and whether the middle tile is a click, a
+kept step or an interior tile are printed and written to the summary for both sides; more
+zigzags in the new dump are reported but do not change the exit status.
+
 Exit status: 0 when nothing is divergent, 1 when at least one case is, 2 when the input is
 unusable (a missing or empty file, a header or line that is not valid, differing tiers, or
 differing scenario sets).  ``--summary PATH`` writes a JSON summary; ``--list`` prints every
@@ -88,6 +95,40 @@ def legs(steps):
             out.append((start, i - 1))
         start = i
     return out
+
+
+def zigzags(row):
+    """(middle index, role) of every zigzag in ``row``: two diagonal walking moves turning 90 degrees.
+
+    The role says what the middle tile is: ``click``, ``kept`` (a kept step) or ``interior``.
+    """
+    steps = row["steps"]
+    clicks, kept = set(row["clicks"]), set(row["kept"])
+    out = []
+    for i in range(1, len(steps) - 1):
+        if not (is_walk(steps[i - 1], steps[i]) and is_walk(steps[i], steps[i + 1])):
+            continue
+        (ax, ay, _), (bx, by, _), (cx, cy, _) = (unpack(steps[j][0]) for j in (i - 1, i, i + 1))
+        first, second = (bx - ax, by - ay), (cx - bx, cy - by)
+        if 0 in first or 0 in second:
+            continue
+        if (first[0] == -second[0]) != (first[1] == -second[1]):
+            out.append((i, "click" if i in clicks else "kept" if i in kept else "interior"))
+    return out
+
+
+def zigzag_counts(rows):
+    """Total zigzags, scenarios with one, totals by middle-tile role, and the first cases."""
+    total, scenarios, roles, cases = 0, 0, collections.Counter(), []
+    for name in sorted(rows):
+        found = zigzags(rows[name])
+        total += len(found)
+        scenarios += 1 if found else 0
+        for index, role in found:
+            roles[role] += 1
+            if len(cases) < 20:
+                cases.append({"scenario": name, "index": index, "role": role})
+    return {"zigzags": total, "scenarios": scenarios, "roles": dict(roles), "cases": cases}
 
 
 def records_by_index(row):
@@ -255,6 +296,7 @@ def summarise(old_header, new_header, old, new, results):
         "kept_cases": [{"scenario": name, "kept": len(new[name]["kept"])}
                        for name in sorted(new) if new[name]["kept"]][:20],
         "bank_cases": [{"scenario": name} for name in sorted(new) if has_bank_change(new[name])][:20],
+        "zigzags": {"old": zigzag_counts(old), "new": zigzag_counts(new)},
     }
 
 
@@ -303,6 +345,10 @@ def run(args):
     reasons = collections.Counter(entry["reason"] for entry in summary["divergent"])
     for reason, count in sorted(reasons.items()):
         print("  divergent   %-52s %d" % (reason, count))
+    zig = summary["zigzags"]
+    print("zigzags (two diagonals turning 90 degrees): old %d in %d scenarios, new %d in %d scenarios%s"
+          % (zig["old"]["zigzags"], zig["old"]["scenarios"], zig["new"]["zigzags"], zig["new"]["scenarios"],
+             "  MORE THAN OLD" if zig["new"]["zigzags"] > zig["old"]["zigzags"] else ""))
     if args.list:
         for name, result in results.items():
             if result.tier != "strict":
