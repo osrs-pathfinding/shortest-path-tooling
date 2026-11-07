@@ -261,6 +261,34 @@ def cacheDumperSpecs = [
         sysPropKeys: [cacheDir: 'transport.drift.cacheDir',
                       xtea: 'transport.drift.xteaPath'],
     ],
+    // Builds the transport candidates snapshot: cache connectors
+    // (ladders, stairs, trapdoors, cave entrances, agility shortcuts)
+    // that no transport row covers, with their paired far ends. Writes
+    // routing/src/main/resources/candidates/connectors.json, which the
+    // workbench judges live (shortestpath.candidates.TransportCandidates),
+    // and a report with the lexicon, shortcut marker, pairing precision
+    // and the listed items. See docs/transport-candidates.md.
+    [
+        name: 'transportCandidates',
+        description: 'Writes the transport candidates snapshot of uncovered cache connectors. ' +
+                'Required: -PtransportCandidatesCacheDir=<cache dir>, -PtransportCandidatesXteaPath=<keys.json>. ' +
+                'Optional: -PtransportCandidatesCacheLabel="openrs2 <id>, build <n>".',
+        testClass: 'shortestpath/dump/candidates/TransportCandidatesDumperTest.class',
+        cachePrefix: 'transportCandidates',
+        xteaPrefix: 'transportCandidates',
+        sysProps: [
+            'transport.candidates.dump': 'true',
+            'transport.candidates.cacheLabel': providers.gradleProperty('transportCandidatesCacheLabel')
+                    .getOrElse('unknown').toString(),
+            'transport.candidates.output': "${rootDir}/routing/src/main/resources/candidates/connectors.json".toString(),
+            'transport.candidates.scope': "${rootDir}/routing/src/main/resources/candidates/candidate_scope.tsv".toString(),
+            'transport.candidates.pluginDir': "${rootDir}/shortest-path".toString(),
+            'transport.candidates.report': layout.buildDirectory
+                    .file('transport-candidates.txt').get().asFile.absolutePath,
+        ],
+        sysPropKeys: [cacheDir: 'transport.candidates.cacheDir',
+                      xtea: 'transport.candidates.xteaPath'],
+    ],
     // Scans committed destination rows against the live cache for
     // deleted/moved objects — a destination has no object anchor, so
     // rows are matched on menu actions near the tile (advisory).

@@ -66,7 +66,8 @@ workers; default `availableProcessors()-3`), `dashboardBackend` (`legacy`
 default or `astar`; A* runs are unprofiled). Other tasks: `captureExpectedLengths` (writes actual lengths
 into `scenarios/src/main/resources/scenarios/expected-lengths/<suite>.json`) and the cache dumpers/probes in `gradle/cache-dumpers.gradle`
 (`bankTileDump`, `sailingAmenityVarbitDump`, `leagueRegionDump`,
-`f2pRegionDump`, `leagueIdProbe`, `transportAnchorDrift`, the `briefcase*`
+`f2pRegionDump`, `leagueIdProbe`, `transportAnchorDrift`,
+`transportCandidates` (see `docs/transport-candidates.md`), the `briefcase*`
 scans, …). Dumpers take `-P<name>CacheDir=` and `-P<name>XteaPath=` props.
 
 Profiling is expensive — check the `[profiled|unprofiled]` tag on the
