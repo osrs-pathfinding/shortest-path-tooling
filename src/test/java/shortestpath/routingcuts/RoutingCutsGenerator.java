@@ -13,6 +13,7 @@ import java.util.Set;
 import shortestpath.ShortestPathPlugin;
 import shortestpath.pathfinder.CollisionMap;
 import shortestpath.pathfinder.SplitFlagMap;
+import shortestpath.pathfinder.sailing.SailingMoorings;
 import shortestpath.pathfinder.astar.RoutingCuts;
 import shortestpath.pathfinder.astar.RoutingStaticBuilder;
 import shortestpath.transport.Transport;
@@ -208,7 +209,8 @@ public final class RoutingCutsGenerator
 		}
 		CollisionMap collision = new CollisionMap(SplitFlagMap.fromResources());
 		Map<Integer, Set<Transport>> transports = ResourceLoader.transports();
-		CutGraph graph = CutGraph.of(RoutingStaticBuilder.walkingGraph(collision, transports));
+		// The moorings are joined by the sea, as the plugin's routing data takes them
+		CutGraph graph = CutGraph.of(RoutingStaticBuilder.walkingGraph(collision, transports, SailingMoorings.landTiles()));
 
 		RoutingCutsGenerator generator = new RoutingCutsGenerator(graph, DEFAULT_PARAMETERS,
 			new KahipNodeSeparator(kahip, DEFAULT_PARAMETERS, workDirectory));
