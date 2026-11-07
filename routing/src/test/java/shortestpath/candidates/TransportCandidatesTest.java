@@ -23,6 +23,8 @@ public class TransportCandidatesTest {
     static final class Grid implements Walking {
         final int[] tiles;
         final Map<Integer, Integer> component = new HashMap<>();
+        /** Whether component 2 is reached too, as it is when another transport leads there. */
+        boolean upstairsReached;
 
         Grid() {
             List<Integer> all = new ArrayList<>();
@@ -47,7 +49,7 @@ public class TransportCandidatesTest {
         @Override public int indexOf(int tile) { int i = Arrays.binarySearch(tiles, tile); return i < 0 ? -1 : i; }
         @Override public int naturalComponentCount() { return 3; }
         @Override public int naturalComponent(int index) { return component.get(tiles[index]); }
-        @Override public boolean isStructurallyReachable(int c) { return c == 1; }
+        @Override public boolean isStructurallyReachable(int c) { return c == 1 || c == 2 && upstairsReached; }
     }
 
     static Connector ladder(int id, String option, int x, int y, int plane, Connector partner) {
@@ -186,6 +188,35 @@ public class TransportCandidatesTest {
         int origin = WorldPointUtil.packWorldPoint(108, 108, 0);
         assertEquals(0, TransportCandidates.judge(snapshot, new Grid(), transports(origin, "Climb Rocks 99"), Map.of(), Scope.none())
             .items.size());
+    }
+
+    @Test
+    public void listsAMapLinkBetweenReachedAreasThatNoTransportNearItsIconModels() {
+        ConnectorSnapshot snapshot = snapshot();
+        snapshot.mapLinks.add(link(100, 100, 0, 104, 104, 1));
+        snapshot.mapLinks.add(link(104, 104, 1, 100, 100, 0));
+        Grid grid = new Grid();
+        grid.upstairsReached = true;
+        Report report = TransportCandidates.judge(snapshot, grid, Map.of(), Map.of(), Scope.none());
+        assertEquals(1, report.items.size());
+        Report.Item item = report.items.get(0);
+        assertEquals("link", item.kind);
+        assertEquals(List.of("unmodelled", "unmodelled"), item.connectors.stream().map(c -> c.role).collect(java.util.stream.Collectors.toList()));
+
+        // A transport starting near the ground floor icon and landing upstairs models that direction only.
+        Transport stairs = new Transport.TransportBuilder().origin(WorldPointUtil.packWorldPoint(108, 100, 0))
+            .destination(WorldPointUtil.packWorldPoint(106, 106, 1)).type(TransportType.TRANSPORT).build();
+        Map<Integer, Set<Transport>> transports = Map.of(stairs.getOrigin(), Set.of(stairs));
+        Report half = TransportCandidates.judge(snapshot, grid, transports, Map.of(), Scope.none());
+        assertEquals(List.of("modelled", "unmodelled"), half.items.get(0).connectors.stream().map(c -> c.role).collect(java.util.stream.Collectors.toList()));
+
+        // Modelled both ways, it is not listed.
+        Transport down = new Transport.TransportBuilder().origin(WorldPointUtil.packWorldPoint(104, 104, 1))
+            .destination(WorldPointUtil.packWorldPoint(101, 101, 0)).type(TransportType.TRANSPORT).build();
+        Map<Integer, Set<Transport>> both = Map.of(stairs.getOrigin(), Set.of(stairs), down.getOrigin(), Set.of(down));
+        Report none = TransportCandidates.judge(snapshot, grid, both, Map.of(), Scope.none());
+        assertEquals(0, none.items.size());
+        assertEquals(Integer.valueOf(2), none.funnel.get("map links a transport models"));
     }
 
     @Test

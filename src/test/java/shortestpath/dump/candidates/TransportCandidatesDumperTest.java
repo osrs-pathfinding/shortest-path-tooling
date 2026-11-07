@@ -102,14 +102,13 @@ public class TransportCandidatesDumperTest {
             scope = Scope.read(stream);
         }
         Report report = TransportCandidates.judge(snapshot, walking, transports, PluginResources.destinations(), scope);
-        writeReport(reportPath, cacheLabel, plugin, cache, shortcuts, links, WorldMapLinks.joinedByRows(links, walking, transports),
-            snapshot, precision, report);
+        writeReport(reportPath, cacheLabel, plugin, cache, shortcuts, links, snapshot, precision, report);
         System.out.println("Snapshot: " + snapshotPath + " (" + snapshot.connectors.size() + " connectors); report: " + reportPath);
         report.funnel.forEach((k, v) -> System.out.println("  " + k + ": " + v));
     }
 
     private static void writeReport(Path path, String cacheLabel, String plugin, CacheConnectors cache, ShortcutIcons shortcuts,
-                                    List<ConnectorSnapshot.MapLink> links, int linksJoined, ConnectorSnapshot snapshot,
+                                    List<ConnectorSnapshot.MapLink> links, ConnectorSnapshot snapshot,
                                     Map<String, int[]> precision, Report report) throws IOException {
         if (path.getParent() != null) Files.createDirectories(path.getParent());
         try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(path, StandardCharsets.UTF_8))) {
@@ -123,7 +122,7 @@ public class TransportCandidatesDumperTest {
                 + shortcuts.matched + "; entries with no icon within " + ShortcutIcons.RUNELITE_REACH + ": "
                 + (AgilityShortcut.values().length - shortcuts.known.size()));
             out.println("\n## World map links");
-            out.println("  links: " + links.size() + "; ends' areas directly joined by a transport row: " + linksJoined);
+            out.println("  links: " + links.size() + " (both directions)");
             out.println("\n## Extraction");
             snapshot.extraction.forEach((k, v) -> out.println("  " + k + ": " + v));
             out.println("\n## Pairing rules on covered connectors (partner where the row lands / elsewhere)");

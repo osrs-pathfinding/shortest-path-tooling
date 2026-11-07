@@ -10,20 +10,24 @@ import shortestpath.transport.Transport;
  * task) and judged against whatever plugin data is loaded, so the list follows the data as it changes.
  * See docs/transport-candidates.md.
  *
- * <p>Two candidate sets, each explained on its class:
+ * <p>Three candidate sets, each explained on its class:
  * <ul>
  * <li>{@link UnreachedAreas}: areas nothing reaches, with the connectors and world map links that
  * would join them to reached ground;</li>
- * <li>{@link AgilityShortcuts}: agility shortcut map icons with no transport nearby.</li>
+ * <li>{@link AgilityShortcuts}: agility shortcut map icons with no transport nearby;</li>
+ * <li>{@link MapLinks}: world map links between reached areas with no transport from near the icon
+ * into the other end's area.</li>
  * </ul>
  * Everything they set aside is counted in the report's funnel, not listed.
  */
 public final class TransportCandidates {
-    public static final String RULE = "Lists two things. An unreached area: a walking area of at least "
+    public static final String RULE = "Lists three things. An unreached area: a walking area of at least "
         + UnreachedAreas.MIN_AREA_TILES + " tiles that no chain of transports reaches from Lumbridge (ignoring requirements), "
         + "with the cache connectors (ladders, stairs, trapdoors, cave entrances) or world map links that would join it to "
         + "reached ground and have no transport row. An agility shortcut: the game's shortcut map icon beside reached ground "
-        + "with no transport within " + AgilityShortcuts.COVER + " tiles.";
+        + "with no transport within " + AgilityShortcuts.COVER + " tiles. An unmodelled map link: a world map link (a dungeon's "
+        + "entrance icon and the dungeon) between two reached areas with no transport starting within " + MapLinks.ROW_REACH
+        + " tiles of the icon and landing in the other end's area.";
 
     private TransportCandidates() { }
 
@@ -43,6 +47,7 @@ public final class TransportCandidates {
         Coverage coverage = new Coverage(transports);
         report.items.addAll(UnreachedAreas.list(snapshot, walking, coverage, scope, transports, destinations, report.funnel));
         report.items.addAll(AgilityShortcuts.list(snapshot, walking, coverage, scope, report.funnel));
+        report.items.addAll(MapLinks.list(snapshot, walking, transports, scope, report.funnel));
         return report;
     }
 }

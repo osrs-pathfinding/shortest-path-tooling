@@ -38,7 +38,10 @@ public final class Report {
 
     /** One connector of a listed item, with the role the judgement gave it. */
     public static final class Candidate {
-        /** {@code way-out}, {@code way-in}, {@code open-end} or {@code shortcut} (an obstacle). */
+        /**
+         * {@code way-out}, {@code way-in}, {@code open-end}, {@code shortcut} (an obstacle), or for a map
+         * link item {@code unmodelled} or {@code modelled} (each direction of the link).
+         */
         public final String role;
         public final Connector connector;
         /** Where it is used from: a walkable tile next to (or on) the footprint, nearest the centre. */
@@ -51,11 +54,14 @@ public final class Report {
         }
     }
 
-    /** A review item: an unreached area and its connectors ({@link UnreachedAreas}), or one shortcut ({@link AgilityShortcuts}). */
+    /**
+     * A review item: an unreached area and its connectors ({@link UnreachedAreas}), one shortcut
+     * ({@link AgilityShortcuts}), or one world map link ({@link MapLinks}).
+     */
     public static final class Item {
         /** Stable across cache builds: a hash of the placements the item is about. */
         public String id;
-        /** {@code area} or {@code shortcut}. */
+        /** {@code area}, {@code shortcut} or {@code link}. */
         public String kind;
         public String title;
         /** Unreached area only: walkable tiles, bounds {minX, minY, maxX, maxY, plane}, and what it contains. */

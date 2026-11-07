@@ -1,13 +1,15 @@
 # Transport candidates
 
-Places where the game cache shows a connection the plugin has no transport for, in two
+Places where the game cache shows a connection the plugin has no transport for, in three
 lists:
 
 - **Unreached areas:** a ladder, staircase, trapdoor, cave entrance or world map link that
   would join an area nothing reaches.
 - **Agility shortcuts:** the game's shortcut map icon with no transport nearby.
+- **Unmodelled map links:** a world map link (a dungeon's entrance icon and the dungeon)
+  that no transport near the icon models.
 
-Both lists come from a program, not from hand-curation. The criteria are fixed in code,
+All three lists come from a program, not from hand-curation. The criteria are fixed in code,
 and the same cache, plugin data and scope file always produce the same list. They are
 re-judged against whatever plugin data is loaded, so the lists follow the data as rows are
 added.
@@ -37,6 +39,7 @@ calls it live:
 | `TransportCandidates` | Entry point: judges a snapshot against loaded plugin data |
 | `UnreachedAreas` | Candidate set 1: unreached areas and the connectors and links into them |
 | `AgilityShortcuts` | Candidate set 2: shortcut icons with no transport nearby |
+| `MapLinks` | Candidate set 3: world map links between reached areas that no transport models |
 | `Coverage` | Whether a transport row already covers a connector |
 | `Scope` | Map boxes left out (`candidate_scope.tsv`), each with a reason |
 | `Walking` | The plugin's walking areas and their reachability from Lumbridge |
@@ -146,8 +149,8 @@ connectors have no known far end.
 | areas whose connectors all lead somewhere unknown | 560 |
 | **listed areas** | **127** |
 
-Each list has its own budget: at most 150 areas and 50 shortcuts. If a list grows past its
-budget, tighten its rule rather than paging through it.
+Each list has its own budget: at most 150 areas, 50 shortcuts and 50 map links. If a list
+grows past its budget, tighten its rule rather than paging through it.
 
 ## World map links
 
@@ -160,8 +163,32 @@ A link's ends are icon positions, not exact tiles. The gate uses the walkable ti
 each icon, within 5 tiles. A link is a pair with rule `map-link`, so it can be the way in
 or out of an unreached area like any connector.
 
-As a sanity check, 186 of the 406 links join two walking areas that a transport row
-already joins directly. On cache 2757, 90 links pass the gate.
+On cache 2757, 90 links pass the unreached-area gate.
+
+### Unmodelled map links
+
+A link between two reached areas is **modelled** when a transport starts within 15 tiles of
+its icon and lands in the walking area of the link's other end. The test is local to the
+icon, not to the two areas. A dungeon with one modelled entrance and a second unmodelled one
+joins the same two areas, and the second entrance is still listed.
+
+A link and its reverse (each icon within 15 tiles of the other's) are one item. The item is
+listed when either direction is unmodelled, and each direction shows whether it's modelled.
+
+On cache 2757:
+
+| Step | Count |
+|---|---|
+| links | 406 |
+| an end off walkable ground | 49 |
+| into an unreached area (listed as areas) | 167 |
+| within one walking area | 0 |
+| modelled by a transport | 181 |
+| **listed** | **9** |
+
+Most listed links are one-way dungeon exits, plus Zanaris's way back to the Lumbridge shed
+(its way in is modelled). An exit can also be modelled by an object more than 15 tiles from
+the icon, which review sorts out.
 
 ## Agility shortcuts
 
@@ -196,7 +223,7 @@ Add each step only when the list is worked down and a 20-item precision sample o
 passes (at least 80% real gaps):
 
 1. Smaller unreached areas (below 50 tiles).
-2. Areas whose connectors lead somewhere unknown (the 532), ranked by contents.
+2. Areas whose connectors lead somewhere unknown (the 560), ranked by contents.
 3. Local joins: areas reached only through a teleport or a long way round.
 4. Family signal: the same object id is a transport elsewhere but not here.
 5. Weaker pairing rules (`id` or `offset` alone) once they're made more precise.
