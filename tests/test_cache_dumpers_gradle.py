@@ -56,6 +56,7 @@ EXPECTED_TASKS = frozenset({
     "briefcaseTeleportTables",
     "sailingWaterProbe",
     "animDurationDump",
+    "transportCandidates",
 })
 
 # The exact -D keys each task emits — what the Java call sites read.
@@ -87,6 +88,14 @@ EXPECTED_SYSPROPS = {
                              "transport.drift.xteaPath",
                              "transport.drift.tsvDir",
                              "transport.drift.outPath"},
+    "transportCandidates": {"transport.candidates.dump",
+                            "transport.candidates.cacheLabel",
+                            "transport.candidates.output",
+                            "transport.candidates.scope",
+                            "transport.candidates.pluginDir",
+                            "transport.candidates.report",
+                            "transport.candidates.cacheDir",
+                            "transport.candidates.xteaPath"},
     "destinationDrift": {"destination.drift.scan",
                          "destination.drift.cacheDir",
                          "destination.drift.xteaPath",
@@ -184,7 +193,7 @@ def _specs():
     return specs
 
 
-def test_all_18_task_names_in_spec():
+def test_all_19_task_names_in_spec():
     assert frozenset(_specs()) == EXPECTED_TASKS
 
 
