@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import shortestpath.WorldPointUtil;
 import shortestpath.pathfinder.ActiveSearch;
 import shortestpath.pathfinder.PathStep;
+import shortestpath.pathfinder.PathTerminationReason;
 import shortestpath.pathfinder.Pathfinder;
 import shortestpath.pathfinder.PathfinderResult;
 import shortestpath.pathfinder.sailing.BoatHull;
@@ -363,6 +364,11 @@ public class SailingBenchmarkTest {
         List<PathStep> path = found.getPathSteps();
         String hash = pathHash(path);
         if (result.pathSha256 != null && !result.pathSha256.equals(hash)) {
+            if (found.getTerminationReason() == PathTerminationReason.CUTOFF_REACHED) {
+                // A search cut off by its time limit may legitimately route to a different closest tile each
+                // round; keep the first round's figures rather than abort a long run and lose every result.
+                return;
+            }
             throw new IllegalStateException("Non-deterministic search: " + result.route + " / " + result.search
                 + " found a different path in a later round (" + result.pathSha256 + " then " + hash + ")");
         }
