@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import shortestpath.PrimitiveIntHashMap;
 import shortestpath.WorldPointUtil;
@@ -24,7 +25,7 @@ import shortestpath.pathfinder.CollisionMap;
 import shortestpath.pathfinder.PathStep;
 import shortestpath.pathfinder.PathfinderConfig;
 import shortestpath.pathfinder.PathfinderResult;
-import shortestpath.pathfinder.astar.TeleportCapability;
+import shortestpath.pathfinder.WildernessChecker;
 import shortestpath.scenarios.Observation;
 import shortestpath.scenarios.Scenario;
 import shortestpath.scenarios.ScenarioRunner;
@@ -152,7 +153,8 @@ public final class PathDump {
         if (local) {
             usable = previous != null && usableFrom(config, previous, transport);
         } else {
-            castable = previous != null && TeleportCapability.at(previous.getPackedPosition()).canCast(transport);
+            castable = previous != null
+                && transport.isUsableAtWildernessLevel(wildernessLevelOf(previous.getPackedPosition()));
         }
         Map<String, Object> record = new LinkedHashMap<>();
         record.put("index", index);
@@ -177,11 +179,31 @@ public final class PathDump {
         for (Transport candidate : candidates) {
             if (candidate.getDestination() == taken.getDestination()
                 && candidate.getType() == taken.getType()
-                && candidate.getDuration() == taken.getDuration()) {
+                && candidate.getDuration() == taken.getDuration()
+                && candidate.getMaxWildernessLevel() == taken.getMaxWildernessLevel()
+                && candidate.isConsumable() == taken.isConsumable()
+                && Objects.equals(candidate.getObjectInfo(), taken.getObjectInfo())
+                && Objects.equals(candidate.getDisplayInfo(), taken.getDisplayInfo())
+                && Objects.equals(candidate.getItemRequirements(), taken.getItemRequirements())) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * The wilderness level a teleport is cast at from {@code packedPoint}, as the highest level the tile may be
+     * in, derived from {@link WildernessChecker} rather than the plugin's capability bands, so the cast check does
+     * not share the table the canonicalizer under test consults.
+     */
+    private static int wildernessLevelOf(int packedPoint) {
+        if (WildernessChecker.isInLevel30Wilderness(packedPoint)) {
+            return 31;
+        }
+        if (WildernessChecker.isInLevel20Wilderness(packedPoint)) {
+            return 30;
+        }
+        return WildernessChecker.isInWilderness(packedPoint) ? 20 : 0;
     }
 
     private static boolean walk(PathStep a, PathStep b) {
