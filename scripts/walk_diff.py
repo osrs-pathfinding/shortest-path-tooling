@@ -221,7 +221,7 @@ def load(path):
     try:
         with open(path, encoding="utf-8") as handle:
             lines = [(number, line) for number, line in enumerate(handle, 1) if line.strip()]
-    except OSError as error:
+    except (OSError, UnicodeDecodeError) as error:
         raise Unusable("%s: %s" % (path, error))
     if not lines:
         raise Unusable("%s: empty dump" % path)
@@ -239,6 +239,14 @@ def load(path):
         where = "%s:%d" % (path, number)
         if not isinstance(row, dict) or any(key not in row for key in REQUIRED_ROW_KEYS):
             raise Unusable("%s: not a scenario row" % where)
+        if not isinstance(row["scenario"], str):
+            raise Unusable("%s: scenario is not a string" % where)
+        for key in ("steps", "clicks", "kept"):
+            if not isinstance(row[key], list):
+                raise Unusable("%s: %s is not a list" % (where, key))
+        for key in ("clicks", "kept"):
+            if not all(isinstance(index, int) for index in row[key]):
+                raise Unusable("%s: %s holds a non-integer" % (where, key))
         for entry in row["steps"]:
             if not (isinstance(entry, list) and len(entry) == 3):
                 raise Unusable("%s: malformed step %r" % (where, entry))

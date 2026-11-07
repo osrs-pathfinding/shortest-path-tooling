@@ -401,6 +401,39 @@ def test_exit_2_on_a_row_missing_its_steps(tmp_path):
     assert wd.main([old, new]) == 2
 
 
+@pytest.mark.parametrize("key", ["steps", "clicks", "kept"])
+def test_exit_2_on_a_row_whose_list_is_not_a_list(tmp_path, key):
+    broken = walking_row()
+    broken[key] = None
+    old = write(tmp_path / "old.jsonl", [walking_row()])
+    new = write(tmp_path / "new.jsonl", [broken])
+    assert wd.main([old, new]) == 2
+    assert wd.main([new, old]) == 2
+
+
+def test_exit_2_on_a_row_with_a_non_integer_click(tmp_path):
+    broken = walking_row()
+    broken["clicks"] = [["x"]]
+    old = write(tmp_path / "old.jsonl", [walking_row()])
+    new = write(tmp_path / "new.jsonl", [broken])
+    assert wd.main([old, new]) == 2
+
+
+def test_exit_2_on_a_row_with_a_non_string_scenario(tmp_path):
+    broken = walking_row()
+    broken["scenario"] = ["a", "b"]
+    old = write(tmp_path / "old.jsonl", [walking_row()])
+    new = write(tmp_path / "new.jsonl", [broken])
+    assert wd.main([old, new]) == 2
+
+
+def test_exit_2_on_a_dump_that_is_not_utf8(tmp_path):
+    old = write(tmp_path / "old.jsonl", [walking_row()])
+    new = tmp_path / "new.jsonl"
+    new.write_bytes(b"\xff\xfe\x00garbage\n")
+    assert wd.main([old, str(new)]) == 2
+
+
 def test_exit_2_on_a_duplicate_scenario(tmp_path):
     rows = [walking_row(), walking_row()]
     assert run(tmp_path, rows, rows) == 2
