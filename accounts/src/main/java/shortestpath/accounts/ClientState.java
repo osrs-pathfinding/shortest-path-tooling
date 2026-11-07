@@ -34,12 +34,14 @@ public final class ClientState {
     private final Account.Location location;
     private final Long nowMinutes;
     private final Set<String> plantedSpiritTrees;
+    private final Boats boats;
 
     ClientState(Map<Skill, Integer> levels, int defaultLevel, int totalLevel,
             Map<Integer, Integer> varbits, Map<Integer, Integer> varplayers,
             Map<Quest, QuestState> questStates, QuestState defaultQuestState,
             Map<Integer, Integer> inventory, Map<Integer, Integer> equipment, Map<Integer, Integer> bank,
-            Set<WorldType> worldTypes, Account.Location location, Long nowMinutes, Set<String> plantedSpiritTrees) {
+            Set<WorldType> worldTypes, Account.Location location, Long nowMinutes, Set<String> plantedSpiritTrees,
+            Boats boats) {
         this.levels = Collections.unmodifiableMap(copy(Skill.class, levels));
         this.defaultLevel = defaultLevel;
         this.totalLevel = totalLevel;
@@ -55,6 +57,7 @@ public final class ClientState {
         this.location = location;
         this.nowMinutes = nowMinutes;
         this.plantedSpiritTrees = plantedSpiritTrees == null ? null : Collections.unmodifiableSet(plantedSpiritTrees);
+        this.boats = boats == null ? Boats.NONE : boats;
     }
 
     private static <K extends Enum<K>, V> EnumMap<K, V> copy(Class<K> type, Map<K, V> values) {
@@ -90,4 +93,6 @@ public final class ClientState {
     public Long nowMinutes() { return nowMinutes; }
     /** Planted spirit trees by plugin name; {@code null} leaves the plugin to detect them. */
     public Set<String> plantedSpiritTrees() { return plantedSpiritTrees; }
+    /** The boats the account owns and where they can be boarded. */
+    public Boats boats() { return boats; }
 }
