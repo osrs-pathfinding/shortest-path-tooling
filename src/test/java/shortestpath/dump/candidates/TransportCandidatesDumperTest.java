@@ -39,7 +39,8 @@ import shortestpath.transport.Transport;
  * <ul>
  * <li>uncovered connectors with their far ends ({@link CacheConnectors}, {@link ConnectorPairing});</li>
  * <li>world map links ({@link WorldMapLinks});</li>
- * <li>agility shortcut icons ({@link ShortcutIcons}).</li>
+ * <li>agility shortcut icons ({@link ShortcutIcons});</li>
+ * <li>dungeon entrance icons ({@link DungeonIcons}).</li>
  * </ul>
  *
  * Run via:
@@ -75,6 +76,7 @@ public class TransportCandidatesDumperTest {
             cache.scan(objects, CacheUtils.loadRegions(store, CacheUtils.loadXteaKeys(xteaPath)), coverage, ShortcutIcons.obstacleIds());
         }
         ShortcutIcons shortcuts = new ShortcutIcons(cache);
+        DungeonIcons dungeons = new DungeonIcons(cache, shortcuts.markerArea);
         Map<String, int[]> precision = new ConnectorPairing(cache.placements).pairAll(cache.placements, transports);
 
         ConnectorSnapshot snapshot = new ConnectorSnapshot();
@@ -83,6 +85,8 @@ public class TransportCandidatesDumperTest {
         snapshot.shortcutMarker = shortcuts.marker;
         snapshot.mapLinks = links;
         snapshot.shortcutIcons = shortcuts.icons;
+        snapshot.dungeonMarker = dungeons.marker;
+        snapshot.dungeonIcons = dungeons.icons;
         cache.placements.stream().filter(p -> !p.covered).map(p -> p.connector)
             .sorted(Comparator.comparingInt((Connector c) -> c.plane).thenComparingInt(c -> c.x).thenComparingInt(c -> c.y)
                 .thenComparingInt(c -> c.objectId))
@@ -102,12 +106,13 @@ public class TransportCandidatesDumperTest {
             scope = Scope.read(stream);
         }
         Report report = TransportCandidates.judge(snapshot, walking, transports, PluginResources.destinations(), scope);
-        writeReport(reportPath, cacheLabel, plugin, cache, shortcuts, links, snapshot, precision, report);
+        writeReport(reportPath, cacheLabel, plugin, cache, shortcuts, dungeons, links, snapshot, precision, report);
         System.out.println("Snapshot: " + snapshotPath + " (" + snapshot.connectors.size() + " connectors); report: " + reportPath);
         report.funnel.forEach((k, v) -> System.out.println("  " + k + ": " + v));
     }
 
     private static void writeReport(Path path, String cacheLabel, String plugin, CacheConnectors cache, ShortcutIcons shortcuts,
+                                    DungeonIcons dungeons,
                                     List<ConnectorSnapshot.MapLink> links, ConnectorSnapshot snapshot,
                                     Map<String, int[]> precision, Report report) throws IOException {
         if (path.getParent() != null) Files.createDirectories(path.getParent());
@@ -121,6 +126,9 @@ public class TransportCandidatesDumperTest {
             out.println("  RuneLite AgilityShortcut entries: " + AgilityShortcut.values().length + "; icons matched to one: "
                 + shortcuts.matched + "; entries with no icon within " + ShortcutIcons.RUNELITE_REACH + ": "
                 + (AgilityShortcut.values().length - shortcuts.known.size()));
+            out.println("\n## Dungeon entrance icon");
+            out.println("  " + dungeons.marker.field + ": " + dungeons.marker.icons + " placements, " + dungeons.marker.iconsNearRows
+                + " within " + DungeonIcons.ROW_REACH + " tiles of a going-down or going-in row's origin");
             out.println("\n## World map links");
             out.println("  links: " + links.size() + " (both directions)");
             out.println("\n## Extraction");

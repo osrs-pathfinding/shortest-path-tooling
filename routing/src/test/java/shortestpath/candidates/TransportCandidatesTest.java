@@ -219,11 +219,40 @@ public class TransportCandidatesTest {
         assertEquals(Integer.valueOf(2), none.funnel.get("map links a transport models"));
     }
 
+    static ConnectorSnapshot.EntranceIcon entrance(int x, int y, int plane, Connector... connectors) {
+        ConnectorSnapshot.EntranceIcon icon = new ConnectorSnapshot.EntranceIcon();
+        icon.x = x; icon.y = y; icon.plane = plane;
+        icon.connectors.addAll(List.of(connectors));
+        return icon;
+    }
+
+    @Test
+    public void listsADungeonEntranceIconWithNoTransportAndNoMapLinkBesideIt() {
+        Connector ladder = ladder(40, "Climb-down", 103, 103, 0, null);
+        ConnectorSnapshot snapshot = snapshot();
+        snapshot.dungeonIcons.add(entrance(104, 104, 0, ladder));
+        snapshot.dungeonIcons.add(entrance(104, 104, 1)); // the same icon on another plane
+        Report report = TransportCandidates.judge(snapshot, new Grid(), Map.of(), Map.of(), Scope.none());
+        assertEquals(1, report.items.size());
+        assertEquals("dungeon", report.items.get(0).kind);
+        assertEquals("entrance", report.items.get(0).connectors.get(0).role);
+        assertEquals(Integer.valueOf(1), report.funnel.get("dungeon icons repeating another"));
+
+        // A transport beside the icon covers it; a world map link beside it is judged as a link.
+        int origin = WorldPointUtil.packWorldPoint(107, 107, 0);
+        assertEquals(0, TransportCandidates.judge(snapshot, new Grid(), transports(origin, "Climb-down Ladder 99"), Map.of(),
+            Scope.none()).items.size());
+        snapshot.mapLinks.add(link(108, 100, 0, 500, 500, 0));
+        Report linked = TransportCandidates.judge(snapshot, new Grid(), Map.of(), Map.of(), Scope.none());
+        assertEquals(Integer.valueOf(1), linked.funnel.get("dungeon entrances beside a world map link"));
+        assertEquals(0, linked.items.stream().filter(i -> i.kind.equals("dungeon")).count());
+    }
+
     @Test
     public void snapshotRoundTripsOneConnectorPerLine() {
         Connector down = ladder(11, "Climb-down", 105, 105, 1, null);
         ConnectorSnapshot snapshot = snapshot(ladder(10, "Climb-up", 105, 105, 0, down), down);
-        snapshot.shortcutMarker = new ConnectorSnapshot.ShortcutMarker();
+        snapshot.shortcutMarker = new ConnectorSnapshot.IconMarker();
         String json = snapshot.toJson();
         assertEquals(2, json.lines().filter(line -> line.startsWith("    {\"objectId\"")).count());
         ConnectorSnapshot read = ConnectorSnapshot.read(new StringReader(json));
