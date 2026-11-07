@@ -22,7 +22,8 @@ public final class Report {
     public Map<String, Integer> extraction;
     /** Counts at each step of the judgement, in order. */
     public Map<String, Integer> funnel = new LinkedHashMap<>();
-    public ConnectorSnapshot.ShortcutMarker shortcutMarker;
+    public ConnectorSnapshot.IconMarker shortcutMarker;
+    public ConnectorSnapshot.IconMarker dungeonMarker;
     public List<Item> items = new ArrayList<>();
 
     /** A tile, as the planner's other tools serialise one. */
@@ -40,7 +41,8 @@ public final class Report {
     public static final class Candidate {
         /**
          * {@code way-out}, {@code way-in}, {@code open-end}, {@code shortcut} (an obstacle), or for a map
-         * link item {@code unmodelled} or {@code modelled} (each direction of the link).
+         * link item {@code unmodelled} or {@code modelled} (each direction of the link), or {@code entrance}
+         * (a connector beside a dungeon entrance icon).
          */
         public final String role;
         public final Connector connector;
@@ -56,12 +58,13 @@ public final class Report {
 
     /**
      * A review item: an unreached area and its connectors ({@link UnreachedAreas}), one shortcut
-     * ({@link AgilityShortcuts}), or one world map link ({@link MapLinks}).
+     * ({@link AgilityShortcuts}), one world map link ({@link MapLinks}), or one dungeon entrance
+     * ({@link DungeonEntrances}).
      */
     public static final class Item {
         /** Stable across cache builds: a hash of the placements the item is about. */
         public String id;
-        /** {@code area}, {@code shortcut} or {@code link}. */
+        /** {@code area}, {@code shortcut}, {@code link} or {@code dungeon}. */
         public String kind;
         public String title;
         /** Unreached area only: walkable tiles, bounds {minX, minY, maxX, maxY, plane}, and what it contains. */

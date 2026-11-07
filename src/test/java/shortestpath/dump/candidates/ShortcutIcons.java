@@ -2,12 +2,9 @@ package shortestpath.dump.candidates;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.game.AgilityShortcut;
@@ -15,9 +12,8 @@ import shortestpath.candidates.Connector;
 import shortestpath.candidates.ConnectorSnapshot;
 
 /**
- * The agility shortcut map icons. The game draws the icon with invisible map-function objects beside
- * each shortcut, not on the obstacle, so the icon is found from the data: the map icon most often
- * placed within {@link #VOTE_REACH} tiles of an {@code agility_shortcuts.tsv} origin.
+ * The agility shortcut map icons: the map icon most often placed within {@link #VOTE_REACH} tiles of
+ * an {@code agility_shortcuts.tsv} origin ({@link MapIcons}).
  *
  * <p>Each icon is matched to the nearest entry of RuneLite's {@link AgilityShortcut} enum (BSD-2,
  * used at build time only) within {@link #RUNELITE_REACH} tiles, for a description, a level and
@@ -31,7 +27,9 @@ final class ShortcutIcons {
     /** How close a shortcut row's origin must be for the marker report to count an icon as known. */
     static final int ROW_REACH = 5;
 
-    final ConnectorSnapshot.ShortcutMarker marker = new ConnectorSnapshot.ShortcutMarker();
+    final ConnectorSnapshot.IconMarker marker = new ConnectorSnapshot.IconMarker();
+    /** The shortcut icon's {@code mapAreaId}, or -1. */
+    final int markerArea;
     final List<ConnectorSnapshot.ShortcutIcon> icons = new ArrayList<>();
     /** Icons matched to a RuneLite entry, and the entries matched. */
     int matched;
@@ -45,25 +43,15 @@ final class ShortcutIcons {
     }
 
     ShortcutIcons(CacheConnectors cache) throws IOException {
-        List<int[]> origins = new ArrayList<>();
-        for (String[] cells : CacheConnectors.rows("/transports/agility_shortcuts.tsv")) {
-            if (!cells[0].isBlank()) origins.add(Arrays.stream(cells[0].trim().split("\\s+")).mapToInt(Integer::parseInt).toArray());
-        }
-        Map<Integer, Integer> votes = new HashMap<>();
-        for (int[] icon : cache.icons) {
-            if (nearest(origins, icon[1], icon[2], icon[3]) <= VOTE_REACH) votes.merge(icon[0], 1, Integer::sum);
-        }
-        // Ties go to the lower map icon id, so the choice never depends on map iteration order.
-        int markerArea = votes.entrySet().stream()
-            .max(Map.Entry.<Integer, Integer>comparingByValue().thenComparing(Map.Entry.comparingByKey(Comparator.reverseOrder())))
-            .map(Map.Entry::getKey).orElse(-1);
+        List<int[]> origins = MapIcons.origins("/transports/agility_shortcuts.tsv", option -> true);
+        markerArea = MapIcons.vote(cache.icons, origins, VOTE_REACH, Set.of());
         for (int[] placed : cache.icons) {
             if (placed[0] == markerArea) icons.add(icon(placed, cache));
         }
         icons.sort(Comparator.comparingInt((ConnectorSnapshot.ShortcutIcon i) -> i.plane).thenComparingInt(i -> i.x).thenComparingInt(i -> i.y));
         marker.field = markerArea < 0 ? null : "mapAreaId=" + markerArea;
         marker.icons = icons.size();
-        marker.iconsNearRows = (int) icons.stream().filter(i -> nearest(origins, i.x, i.y, i.plane) <= ROW_REACH).count();
+        marker.iconsNearRows = (int) icons.stream().filter(i -> MapIcons.nearest(origins, i.x, i.y, i.plane) <= ROW_REACH).count();
     }
 
     private ConnectorSnapshot.ShortcutIcon icon(int[] placed, CacheConnectors cache) {
@@ -103,11 +91,5 @@ final class ShortcutIcons {
     private static boolean near(Connector c, ConnectorSnapshot.ShortcutIcon icon, int reach) {
         int d = c.distance(icon.x, icon.y, icon.plane);
         return d >= 0 && d <= reach;
-    }
-
-    private static int nearest(List<int[]> origins, int x, int y, int plane) {
-        int best = Integer.MAX_VALUE;
-        for (int[] o : origins) if (o[2] == plane) best = Math.min(best, Math.max(Math.abs(o[0] - x), Math.abs(o[1] - y)));
-        return best;
     }
 }

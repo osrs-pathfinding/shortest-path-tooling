@@ -31,12 +31,16 @@ public final class ConnectorSnapshot {
     /** Counts of the extraction funnel, in order. */
     public Map<String, Integer> extraction = new LinkedHashMap<>();
     /** The agility shortcut map icon and how well it matches the plugin's shortcut rows. */
-    public ShortcutMarker shortcutMarker;
+    public IconMarker shortcutMarker;
+    /** The dungeon entrance map icon and how well it matches the plugin's rows going down or in. */
+    public IconMarker dungeonMarker;
     public List<Connector> connectors = new ArrayList<>();
     /** The world map's links between its maps (a dungeon's entrance icon and the dungeon), both directions. */
     public List<MapLink> mapLinks = new ArrayList<>();
     /** Every placement of the agility shortcut map icon. */
     public List<ShortcutIcon> shortcutIcons = new ArrayList<>();
+    /** Every placement of the dungeon entrance map icon. */
+    public List<EntranceIcon> dungeonIcons = new ArrayList<>();
 
     /** A tile. */
     public static final class Tile {
@@ -53,14 +57,14 @@ public final class ConnectorSnapshot {
     }
 
     /**
-     * The game draws the agility shortcut icon with invisible map-function objects placed beside each
-     * shortcut, not on the obstacle itself. The marker is the map icon most often placed within 3 tiles
-     * of {@code agility_shortcuts.tsv} origins.
+     * A world map icon the game draws with invisible map-function objects placed beside what it marks
+     * (an agility shortcut, a dungeon entrance), not on the object itself. The dumper finds which icon
+     * it is from the data: the one most often placed beside the plugin's rows of that kind.
      */
-    public static final class ShortcutMarker {
+    public static final class IconMarker {
         /** e.g. {@code mapAreaId=71}, or null when none was found. */
         public String field;
-        /** Icon placements, and how many have a shortcut row's origin within 5 tiles. */
+        /** Icon placements, and how many have one of those rows' origins within 5 tiles. */
         public int icons;
         public int iconsNearRows;
     }
@@ -74,6 +78,12 @@ public final class ConnectorSnapshot {
         public int level = -1;
         /** Placements of the shortcut's obstacle objects within 10 tiles (RuneLite's ids, else nearby connectors). */
         public List<Connector> obstacles = new ArrayList<>();
+    }
+
+    /** A dungeon entrance icon placement, with the connectors within 5 tiles of it. */
+    public static final class EntranceIcon {
+        public int x, y, plane;
+        public List<Connector> connectors = new ArrayList<>();
     }
 
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -99,11 +109,13 @@ public final class ConnectorSnapshot {
         header.put("plugin", plugin);
         header.put("extraction", extraction);
         header.put("shortcutMarker", shortcutMarker);
+        header.put("dungeonMarker", dungeonMarker);
         String head = PRETTY.toJson(header);
         StringBuilder out = new StringBuilder(head.substring(0, head.length() - 2));
         list(out, "connectors", connectors);
         list(out, "mapLinks", mapLinks);
         list(out, "shortcutIcons", shortcutIcons);
+        list(out, "dungeonIcons", dungeonIcons);
         return out.append("\n}\n").toString();
     }
 

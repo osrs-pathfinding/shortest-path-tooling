@@ -1,6 +1,6 @@
 # Transport candidates
 
-Places where the game cache shows a connection the plugin has no transport for, in three
+Places where the game cache shows a connection the plugin has no transport for, in four
 lists:
 
 - **Unreached areas:** a ladder, staircase, trapdoor, cave entrance or world map link that
@@ -8,8 +8,9 @@ lists:
 - **Agility shortcuts:** the game's shortcut map icon with no transport nearby.
 - **Unmodelled map links:** a world map link (a dungeon's entrance icon and the dungeon)
   that no transport near the icon models.
+- **Dungeon entrances:** the game's dungeon entrance map icon with no transport nearby.
 
-All three lists come from a program, not from hand-curation. The criteria are fixed in code,
+All four lists come from a program, not from hand-curation. The criteria are fixed in code,
 and the same cache, plugin data and scope file always produce the same list. They are
 re-judged against whatever plugin data is loaded, so the lists follow the data as rows are
 added.
@@ -30,6 +31,8 @@ as `./gradlew transportCandidates`:
 | `ConnectorPairing` | Finds each connector's far end, and measures every pairing rule against the plugin's rows |
 | `WorldMapLinks` | Reads the world map's dungeon links |
 | `ShortcutIcons` | Finds the agility shortcut icon and matches each icon to RuneLite's shortcut list |
+| `DungeonIcons` | Finds the dungeon entrance icon, with the connectors beside each icon |
+| `MapIcons` | Finds which map icon marks a kind of place, from the rows it is placed beside |
 
 Judgement (`routing/src/main/java/shortestpath/candidates/`) needs no cache. The workbench
 calls it live:
@@ -40,6 +43,7 @@ calls it live:
 | `UnreachedAreas` | Candidate set 1: unreached areas and the connectors and links into them |
 | `AgilityShortcuts` | Candidate set 2: shortcut icons with no transport nearby |
 | `MapLinks` | Candidate set 3: world map links between reached areas that no transport models |
+| `DungeonEntrances` | Candidate set 4: dungeon entrance icons with no transport nearby |
 | `Coverage` | Whether a transport row already covers a connector |
 | `Scope` | Map boxes left out (`candidate_scope.tsv`), each with a reason |
 | `Walking` | The plugin's walking areas and their reachability from Lumbridge |
@@ -149,7 +153,8 @@ connectors have no known far end.
 | areas whose connectors all lead somewhere unknown | 560 |
 | **listed areas** | **127** |
 
-Each list has its own budget: at most 150 areas, 50 shortcuts and 50 map links. If a list
+Each list has its own budget: at most 150 areas, and 50 each of shortcuts, map links and
+dungeon entrances. If a list
 grows past its budget, tighten its rule rather than paging through it.
 
 ## World map links
@@ -216,6 +221,38 @@ On cache 2757:
 | covered by a transport | 170 |
 | in unreached areas | 24 |
 | **listed** | **25** |
+
+## Dungeon entrances
+
+The dungeon entrance icon is found the same way as the shortcut icon. It's the map icon,
+other than the shortcut's, most often placed within 3 tiles of the origin of a
+`transports.tsv` row that goes down or in (`Climb-down`, `Walk-down`, `Enter`, `Go-down`).
+That's `mapAreaId=13`: of its 194 placements, 100 are within 5 tiles of such a row. Each
+icon keeps the connectors within 5 tiles, as the objects it most likely marks.
+
+The live list keeps one icon per entrance, merging icons on other planes or within 3 tiles.
+It drops:
+- icons with a transport origin within 5 tiles, or a covered connector beside them;
+- icons within 10 tiles of a world map link's icon, since the map link sets judge those;
+- icons whose connectors are already an unreached area's way in;
+- icons with no walkable tile within 5 on reached ground.
+
+Most entrances are modelled or are also map links. On cache 2757:
+
+| Step | Count |
+|---|---|
+| icons | 194 |
+| a transport within 5 tiles | 121 |
+| beside a world map link | 64 |
+| in unreached areas | 8 |
+| **listed** | **1** |
+
+The one listed is a real gap: a `Climb-down` ladder (58029) at 3046 2980 with no row near
+it. Its map link leads into an unreached area under 50 tiles, so no other list has it. The
+set mostly guards new content: an entrance with an icon but no map of its own.
+
+RuneLite's `DungeonLocation` names would make better titles, but that class is
+package-private, so items are titled by tile.
 
 ## Ways to widen the criteria later
 
