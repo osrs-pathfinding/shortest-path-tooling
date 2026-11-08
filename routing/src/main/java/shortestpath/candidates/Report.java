@@ -40,9 +40,8 @@ public final class Report {
     /** One connector of a listed item, with the role the judgement gave it. */
     public static final class Candidate {
         /**
-         * {@code way-out}, {@code way-in}, {@code open-end}, {@code shortcut} (an obstacle), or for a map
-         * link item {@code unmodelled} or {@code modelled} (each direction of the link), or {@code entrance}
-         * (a connector beside a dungeon entrance icon).
+         * {@code way-out}, {@code way-in}, {@code open-end}, {@code shortcut} (an obstacle), or
+         * {@code entrance} (a connector beside a dungeon entrance icon).
          */
         public final String role;
         public final Connector connector;
@@ -58,15 +57,16 @@ public final class Report {
 
     /**
      * A review item: an unreached area and its connectors ({@link UnreachedAreas}), one shortcut
-     * ({@link AgilityShortcuts}), one world map link ({@link MapLinks}), or one dungeon entrance
-     * ({@link DungeonEntrances}).
+     * ({@link AgilityShortcuts}), or one dungeon entrance ({@link DungeonEntrances}).
      */
     public static final class Item {
         /** Stable across cache builds: a hash of the placements the item is about. */
         public String id;
-        /** {@code area}, {@code shortcut}, {@code link} or {@code dungeon}. */
+        /** {@code area}, {@code shortcut} or {@code dungeon}. */
         public String kind;
         public String title;
+        /** Unreached area only: the world map's name for a place in it (e.g. {@code Ancient Forge}), or null. */
+        public String label;
         /** Unreached area only: walkable tiles, bounds {minX, minY, maxX, maxY, plane}, and what it contains. */
         public Integer areaTiles;
         public int[] bounds;

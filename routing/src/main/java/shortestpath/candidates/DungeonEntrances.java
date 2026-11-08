@@ -15,7 +15,8 @@ import java.util.Set;
  *
  * <p>Icons on any plane within {@link #MERGE} tiles of one already kept are the same entrance. Set
  * aside and counted instead, because another set already judges them: icons within
- * {@link #LINK_NEAR} tiles of a world map link's icon ({@link UnreachedAreas}, {@link MapLinks}), icons
+ * {@link #LINK_NEAR} tiles of a world map link's icon (the map already joins that dungeon; a link into
+ * an unreached area is judged by {@link UnreachedAreas}), icons
  * whose connectors are an unreached area's way in ({@link UnreachedAreas}), and icons beside
  * unreached ground only.
  */
@@ -24,7 +25,7 @@ final class DungeonEntrances {
     static final int COVER = 5;
     /** Entrance icons this close (on any plane) are one entrance. */
     static final int MERGE = 3;
-    /** A world map link icon this close to an entrance icon is the same entrance, judged as a link. */
+    /** A world map link icon this close to an entrance icon is the same entrance, which the map already joins. */
     static final int LINK_NEAR = 10;
 
     private DungeonEntrances() { }

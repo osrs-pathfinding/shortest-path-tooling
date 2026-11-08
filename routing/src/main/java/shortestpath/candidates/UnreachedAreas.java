@@ -25,14 +25,19 @@ import shortestpath.transport.Transport;
  * gap) or both unreached; areas under {@link #MIN_AREA_TILES} tiles; and areas whose only connectors
  * have no known far end.
  *
- * <p>Areas are sorted by the banks, altars and other locations they contain, then by everything
- * they contain (transport origins too), then by size.
+ * <p>An area the world map names (a {@link ConnectorSnapshot.Label} within {@link #LABEL_REACH} tiles of
+ * a tile in it) is titled by that name, the one nearest its focus.
+ *
+ * <p>Areas are sorted by the banks, altars and other locations they contain, then named areas before
+ * unnamed ones, then by everything they contain (transport origins too), then by size.
  */
 final class UnreachedAreas {
     /** Unreached areas smaller than this are counted, not listed. */
     static final int MIN_AREA_TILES = 50;
     /** World map link icons stand off their entrance; their ends are the walkable tiles this close. */
     static final int LINK_REACH = 5;
+    /** World map labels are centred on a place, not on a walkable tile; a label names the area this close. */
+    static final int LABEL_REACH = 5;
     static final String ORIGINS = "transport origins";
 
     private final Walking walking;
@@ -89,7 +94,7 @@ final class UnreachedAreas {
         funnel.put("unreached areas with a connector", areas.byArea.size());
         funnel.put("areas whose connectors all lead somewhere unknown", areas.dropOpenEndOnly());
 
-        List<Report.Item> items = areas.items(destinations, transports);
+        List<Report.Item> items = areas.items(destinations, transports, snapshot.labels);
         funnel.put("listed areas", items.size());
         return items;
     }
@@ -132,7 +137,8 @@ final class UnreachedAreas {
         return dropped;
     }
 
-    private List<Report.Item> items(Map<String, Set<Integer>> destinations, Map<Integer, Set<Transport>> transports) {
+    private List<Report.Item> items(Map<String, Set<Integer>> destinations, Map<Integer, Set<Transport>> transports,
+                                    List<ConnectorSnapshot.Label> labels) {
         Map<Integer, int[]> bounds = bounds();
         Map<Integer, Map<String, Integer>> contents = contents(destinations, transports);
         List<Report.Item> items = new ArrayList<>();
@@ -149,14 +155,33 @@ final class UnreachedAreas {
             item.connectors = candidates;
             Report.Candidate first = candidates.get(0);
             item.focus = first.role.equals("way-in") ? first.partnerStand : first.stand;
-            item.title = "Unreached area near " + item.focus.x + " " + item.focus.y + " " + item.focus.plane;
+            item.label = label(entry.getKey(), item.focus, labels);
+            String near = "nreached area near " + item.focus.x + " " + item.focus.y + " " + item.focus.plane;
+            item.title = item.label == null ? "U" + near : item.label + " (u" + near + ")";
             item.id = id(candidates);
             items.add(item);
         }
         items.sort(Comparator.comparing((Report.Item i) -> -locations(i.contains))
+            .thenComparing(i -> i.label == null)
             .thenComparing(i -> -i.contains.values().stream().mapToInt(Integer::intValue).sum())
             .thenComparing(i -> -i.areaTiles));
         return items;
+    }
+
+    /** The world map's name for a place in {@code area}, the label nearest {@code focus}, or null. */
+    private String label(int area, Report.Point focus, List<ConnectorSnapshot.Label> labels) {
+        ConnectorSnapshot.Label best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (ConnectorSnapshot.Label label : labels) {
+            int stand = walking.stand(label.x, label.y, label.plane, 1, 1, LABEL_REACH);
+            if (stand == Walking.NONE || walking.area(stand) != area) continue;
+            int distance = Math.max(Math.abs(label.x - focus.x), Math.abs(label.y - focus.y));
+            if (distance < bestDistance || distance == bestDistance && label.name.compareTo(best.name) < 0) {
+                best = label;
+                bestDistance = distance;
+            }
+        }
+        return best == null ? null : best.name;
     }
 
     /** A world map link as a connector: no object (id -1), its icon's tile, and the other icon as its partner. */

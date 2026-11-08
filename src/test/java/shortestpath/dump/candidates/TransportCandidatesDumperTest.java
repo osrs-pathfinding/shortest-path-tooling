@@ -40,7 +40,8 @@ import shortestpath.transport.Transport;
  * <li>uncovered connectors with their far ends ({@link CacheConnectors}, {@link ConnectorPairing});</li>
  * <li>world map links ({@link WorldMapLinks});</li>
  * <li>agility shortcut icons ({@link ShortcutIcons});</li>
- * <li>dungeon entrance icons ({@link DungeonIcons}).</li>
+ * <li>dungeon entrance icons ({@link DungeonIcons});</li>
+ * <li>the world map's place names ({@link WorldMapLabels}).</li>
  * </ul>
  *
  * Run via:
@@ -69,11 +70,13 @@ public class TransportCandidatesDumperTest {
         Coverage coverage = new Coverage(transports);
         CacheConnectors cache = new CacheConnectors();
         List<ConnectorSnapshot.MapLink> links;
+        List<ConnectorSnapshot.Label> labels;
         Map<Integer, Integer> categories;
         try (Store store = CacheUtils.openStore(cacheDir)) {
             ObjectManager objects = new ObjectManager(store);
             objects.load();
             links = WorldMapLinks.read(store);
+            labels = WorldMapLabels.read(store);
             categories = MapIcons.categories(store);
             cache.scan(objects, CacheUtils.loadRegions(store, CacheUtils.loadXteaKeys(xteaPath)), coverage, ShortcutIcons.obstacleIds());
         }
@@ -89,6 +92,7 @@ public class TransportCandidatesDumperTest {
         snapshot.shortcutIcons = shortcuts.icons;
         snapshot.dungeonMarker = dungeons.marker;
         snapshot.dungeonIcons = dungeons.icons;
+        snapshot.labels = labels;
         cache.placements.stream().filter(p -> !p.covered).map(p -> p.connector)
             .sorted(Comparator.comparingInt((Connector c) -> c.plane).thenComparingInt(c -> c.x).thenComparingInt(c -> c.y)
                 .thenComparingInt(c -> c.objectId))
@@ -133,6 +137,7 @@ public class TransportCandidatesDumperTest {
                 + " within " + DungeonIcons.ROW_REACH + " tiles of a going-down or going-in row's origin");
             out.println("\n## World map links");
             out.println("  links: " + links.size() + " (both directions)");
+            out.println("  place labels: " + snapshot.labels.size());
             out.println("\n## Extraction");
             snapshot.extraction.forEach((k, v) -> out.println("  " + k + ": " + v));
             out.println("\n## Pairing rules on covered connectors (partner where the row lands / elsewhere)");

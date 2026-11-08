@@ -41,6 +41,8 @@ public final class ConnectorSnapshot {
     public List<ShortcutIcon> shortcutIcons = new ArrayList<>();
     /** Every placement of the dungeon entrance map icon. */
     public List<EntranceIcon> dungeonIcons = new ArrayList<>();
+    /** The world map's place names, where it prints them. */
+    public List<Label> labels = new ArrayList<>();
 
     /** A tile. */
     public static final class Tile {
@@ -54,6 +56,12 @@ public final class ConnectorSnapshot {
     /** One world map link: clicking the icon at {@code from} opens the map at {@code to}. Icon positions, not exact tiles. */
     public static final class MapLink {
         public Tile from, to;
+    }
+
+    /** A place name the world map prints, e.g. {@code Ancient Forge}, at the tile it is centred on. */
+    public static final class Label {
+        public String name;
+        public int x, y, plane;
     }
 
     /**
@@ -116,6 +124,7 @@ public final class ConnectorSnapshot {
         list(out, "mapLinks", mapLinks);
         list(out, "shortcutIcons", shortcutIcons);
         list(out, "dungeonIcons", dungeonIcons);
+        list(out, "labels", labels);
         return out.append("\n}\n").toString();
     }
 
