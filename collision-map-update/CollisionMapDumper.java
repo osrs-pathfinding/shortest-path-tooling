@@ -765,7 +765,10 @@ public class CollisionMapDumper
 
 		CELL_DOOR_9562(9562),
 
-		COOKING_GUILD_DOOR_10045(10045),
+		// The guild's bank room door (10045 at 3144 3452) is left as an ordinary door: the room's
+		// bank rows carry its requirements (99 Cooking or the Varrock hard diary), and no transport
+		// models the door. Its only other placement keeps the exclusion.
+		COOKING_GUILD_DOOR_10045(10045, 3848, 4924, 0),
 		COOKING_GUILD_DOOR_24958(24958),
 
 		CRAFTING_GUILD_DOOR_14910(14910),
