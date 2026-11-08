@@ -158,8 +158,11 @@ class UnusableInput(Exception):
 
 def run(argv, cwd=None, env=None, input=None):
     """Run a command given as an argument list; stdout and stderr are bytes."""
-    return subprocess.run(argv, check=False, capture_output=True, cwd=cwd, env=env,
-                          input=input)
+    try:
+        return subprocess.run(argv, check=False, capture_output=True, cwd=cwd, env=env,
+                              input=input)
+    except OSError as e:
+        raise UnusableInput(f"cannot run {argv[0]}: {e}") from e
 
 
 def _text(data):
@@ -1154,6 +1157,10 @@ def run_gates(ctx):
             ok, detail = GATES[name](ctx)
         except (UnusableInput, sc.UnusableInput, wi.UnusableInput, bi.UnusableInput) as e:
             ok, detail = False, {"error": str(e)}
+        except (Exception, SystemExit) as e:
+            # one gate's crash (a malformed TOTAL line, an argparse exit inside
+            # a delegated tool) must not hide the results of the other gates
+            ok, detail = False, {"error": f"{type(e).__name__}: {e}"}
         results[name] = {"pass": bool(ok), "detail": detail}
         print(f"{name}: {'pass' if ok else 'FAIL'}")
     return results

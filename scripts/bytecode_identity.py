@@ -51,7 +51,12 @@ class UnusableInput(Exception):
 
 def run(argv):
     """Run a command given as an argument list; stdout and stderr are bytes."""
-    return subprocess.run(argv, check=False, capture_output=True)
+    try:
+        return subprocess.run(argv, check=False, capture_output=True)
+    except OSError as e:
+        # a missing git, javac or diff: unusable input (exit 2), not "class
+        # files differ" (exit 1, what an uncaught exception would look like)
+        raise UnusableInput(f"cannot run {argv[0]}: {e}") from e
 
 
 def _text(data):
@@ -79,6 +84,9 @@ def export_tree(repo, treeish, dest):
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
     data = git(repo, "archive", "--format=tar", treeish, "--", SRC_ROOT)
+    if not hasattr(tarfile, "data_filter"):
+        raise UnusableInput("this Python's tarfile has no extraction filters; "
+                            "use a release that does (3.12, or a security update of 3.8+)")
     try:
         with tarfile.open(fileobj=io.BytesIO(data)) as tar:
             tar.extractall(dest, filter="data")

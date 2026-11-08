@@ -963,6 +963,37 @@ def test_the_gradle_seam_gets_an_absolute_worktree_path(tmp_path, monkeypatch):
     assert "--no-daemon" in argv
 
 
+def test_a_missing_executable_is_unusable_input_not_a_traceback(monkeypatch):
+    def no_such_binary(argv, **kw):
+        raise FileNotFoundError(2, "No such file or directory", argv[0])
+    monkeypatch.setattr(cr.subprocess, "run", no_such_binary)
+    with pytest.raises(cr.UnusableInput, match="cannot run git"):
+        cr.git(".", "status")
+
+
+def test_a_gate_that_crashes_is_recorded_and_the_other_gates_and_gate_json_survive(
+        tmp_path, seams, monkeypatch, capsys):
+    # an unexpected exception used to abort the run before gate.json
+    s = gate_scene(tmp_path)
+
+    def crash(ctx):
+        raise IndexError("malformed TOTAL line")
+
+    def argparse_exit(ctx):
+        raise SystemExit(2)
+
+    monkeypatch.setitem(cr.GATES, "G6", crash)
+    monkeypatch.setitem(cr.GATES, "G3", argparse_exit)
+    assert cr.main(gate_argv(s)) == 1
+    doc = json.loads((s.out / "gate.json").read_text())
+    assert list(doc["gates"]) == ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8"]
+    assert doc["gates"]["G6"] == {"pass": False,
+                                  "detail": {"error": "IndexError: malformed TOTAL line"}}
+    assert doc["gates"]["G3"]["pass"] is False and "SystemExit" in doc["gates"]["G3"]["detail"]["error"]
+    assert doc["gates"]["G4"]["pass"] is True and doc["pass"] is False
+    assert "failed G3, G6" in capsys.readouterr().out
+
+
 def test_gate_g1_runs_the_four_tasks_without_the_daemon(tmp_path, seams):
     s = gate_scene(tmp_path)
     cr.main(gate_argv(s))

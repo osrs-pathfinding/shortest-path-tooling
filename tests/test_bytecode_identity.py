@@ -214,6 +214,24 @@ def test_a_failing_git_exits_2(monkeypatch, tmp_path, classpath, capsys):
     assert "not a valid object name" in capsys.readouterr().err
 
 
+def test_a_missing_tool_exits_2_not_1(monkeypatch, tmp_path, classpath, capsys):
+    # an uncaught FileNotFoundError ends the process with 1, "class files differ"
+    def no_such_binary(argv, **kw):
+        raise FileNotFoundError(2, "No such file or directory", argv[0])
+    monkeypatch.setattr(bi.subprocess, "run", no_such_binary)
+    rc = bi.main(["--repo", "r", "--base", "BASE", "--head", "HEAD",
+                  "--classpath-file", str(classpath), "--work", str(tmp_path / "w")])
+    assert rc == 2
+    assert "cannot run javac" in capsys.readouterr().err
+
+
+def test_a_python_without_tar_filters_exits_2(monkeypatch, tmp_path, classpath, capsys):
+    monkeypatch.delattr(tarfile, "data_filter", raising=False)
+    fakes = Fakes({"BASE": SAME, "HEAD": SAME})
+    assert invoke(monkeypatch, tmp_path, classpath, fakes) == 2
+    assert "no extraction filters" in capsys.readouterr().err
+
+
 # ---------- self-check ----------
 
 def test_self_check_passes_when_two_compiles_of_the_base_agree(
