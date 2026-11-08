@@ -1,0 +1,41 @@
+// Gradle init script: resolve the plugin's main compile classpath against a
+// fixed RuneLite release instead of `latest.release`, and print it.
+//
+// Only the modules whose version follows the RuneLite release number are
+// pinned (client, runelite-api, and jshell/cache should a build ever put them
+// on the classpath).  Every other dependency resolves at the version its own
+// POM names, the other net.runelite artifacts included: client-1.13.6.pom puts
+// discord 1.4, rlawt 1.8 and flatlaf 3.2.5-rl4 at compile scope and none of
+// them has a 1.13.6 release, so forcing the whole group would not resolve.
+//
+// The plugin's own build files are never changed.
+//
+// Usage (from the tooling repo root):
+//   ./gradlew -q -p shortest-path \
+//       -I scripts/data/runelite-1.13.6-classpath.init.gradle \
+//       printPinnedCompileClasspath
+// prints one line `CP=<jar>:<jar>:...`.
+
+def pinnedRuneLite = '1.13.6'
+def releaseModules = ['client', 'runelite-api', 'jshell', 'cache']
+
+allprojects {
+    configurations.all {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'net.runelite'
+                    && releaseModules.contains(details.requested.name)) {
+                details.useVersion(pinnedRuneLite)
+            }
+        }
+    }
+
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin('java')) {
+            project.tasks.register('printPinnedCompileClasspath') {
+                doLast {
+                    println 'CP=' + project.sourceSets.main.compileClasspath.asPath
+                }
+            }
+        }
+    }
+}
