@@ -995,6 +995,28 @@ def test_a_gate_that_crashes_is_recorded_and_the_other_gates_and_gate_json_survi
     assert "failed G3, G6" in capsys.readouterr().out
 
 
+def test_gate_takes_the_fix_author_fix_file_and_release_tags_as_arguments(
+        tmp_path, seams, monkeypatch):
+    # another chain no longer needs a code edit
+    s = gate_scene(tmp_path, fix_author=("Zed", "zed@example.com"))
+    ok, detail = cr.gate_g2(ctx_of(s))
+    assert not ok and any("not rsbfox" in p for p in detail["problems"])
+    ok, detail = cr.gate_g2(ctx_of(s, fix_author="Zed <zed@example.com>"))
+    assert ok, detail
+    ok, detail = cr.gate_g2(ctx_of(s, fix_author="Zed <zed@example.com>",
+                                   fix_file="src/main/java/acme/Elsewhere.java"))
+    assert ok and "fix_commits" not in detail
+
+    asked = []
+    remote = cr.ls_remote
+    monkeypatch.setattr(cr, "ls_remote", lambda repo, name, *pat: asked.append(pat) or
+                        remote(repo, name, *pat))
+    assert cr.main(gate_argv(s, "--fix-author", "Zed <zed@example.com>",
+                             "--release-tags", "v9.0.1,v9.0.2")) == 0
+    assert ("refs/tags/v9.0.1", "refs/tags/v9.0.2") in asked
+    assert cr.main(gate_argv(s)) == 1  # the default author is still rsbfox
+
+
 def test_gate_g1_runs_the_four_tasks_without_the_daemon(tmp_path, seams):
     s = gate_scene(tmp_path)
     cr.main(gate_argv(s))
