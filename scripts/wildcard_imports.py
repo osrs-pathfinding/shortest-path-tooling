@@ -206,6 +206,7 @@ class Source:
     declared: set
     top_types: set
     code: str
+    shadowed: set = field(default_factory=set)
 
 
 def parse_imports(lines, code_lines, name="<text>"):
@@ -244,6 +245,40 @@ def declarations(code):
     return declared, top
 
 
+def nested_shadowed(code):
+    """Names of nested types whose every use in `code` lies inside the body of
+    a class that declares a nested type of that name.  A member class shadows
+    an on-demand import only there, so a name used anywhere else in the file
+    (another top-level class, say) still resolves through the import."""
+    close_of, stack = {}, []
+    for idx, ch in enumerate(code):
+        if ch == "{":
+            stack.append(idx)
+        elif ch == "}" and stack:
+            close_of[stack.pop()] = idx
+    scopes = defaultdict(list)
+    stack, last = [], 0
+    for m in _DECL_RE.finditer(code):
+        for idx in range(last, m.start()):
+            if code[idx] == "{":
+                stack.append(idx)
+            elif code[idx] == "}" and stack:
+                stack.pop()
+        last = m.start()
+        if stack:
+            scopes[m.group(1)].append((stack[-1], close_of.get(stack[-1], len(code))))
+    if not scopes:
+        return set()
+    body = _HEADER_STMT.sub(lambda m: _blank(m.group()), code)
+    body = re.sub(r"\.[ \t\r\n]+", lambda m: "." * len(m.group()), body)
+    shadowed = set(scopes)
+    for m in _IDENT_USE.finditer(body):
+        name = m.group(1)
+        if name in shadowed and not any(a <= m.start() < b for a, b in scopes[name]):
+            shadowed.discard(name)
+    return shadowed
+
+
 def references(code, javadocs):
     """R2: simple names a file mentions (see the module docstring)."""
     body = _HEADER_STMT.sub(lambda m: _blank(m.group()), code)
@@ -268,7 +303,7 @@ def analyse(path, text):
             break
     declared, top = declarations(code)
     return Source(path, lines, pkg, parse_imports(lines, code_lines, path),
-                  references(code, docs), declared, top, code)
+                  references(code, docs), declared, top, code, nested_shadowed(code))
 
 
 def own_packages(sources):
@@ -615,9 +650,12 @@ def rewrite_text(text, path, env, threshold=2, static_threshold=2):
     expand = {}
     for pkg in sorted(wild_lines):
         members = env.members(pkg)
+        # A top-level declaration shadows an on-demand import file-wide; a nested
+        # one only inside its enclosing class, so `shadowed` holds the nested
+        # names whose every use lies in such a scope (see nested_shadowed).
         expand[pkg] = {n for n in members & refs
-                       if n not in declared and n not in single_all
-                       and n not in own and n not in jl}
+                       if n not in src.top_types and n not in src.shadowed
+                       and n not in single_all and n not in own and n not in jl}
         if not expand[pkg]:
             unresolved.append(pkg + ".*")
     owner = {}

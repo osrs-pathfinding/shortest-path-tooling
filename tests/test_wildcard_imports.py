@@ -317,6 +317,47 @@ def test_expansion_keeps_a_name_that_would_clash():
         "import java.awt.*;", "import java.util.*;", "import java.util.List;"]
 
 
+NESTED_SHADOW = (
+    "package shortestpath;\n\nimport java.util.*;\n\n"
+    "class A { class List {} java.util.List<String> l; }\n"
+    "class Z { Map<String, String> m; List<String> q; }\n")
+
+
+def rewrite_text_alone(text, pkg="shortestpath", name="A", **kw):
+    path = path_of(pkg, name)
+    return wi.rewrite_text(text, path, wi.make_env(universe(), {path: text}), **kw)
+
+
+def test_expansion_keeps_a_name_that_only_a_nested_type_shadows():
+    # a nested List shadows the import inside A alone; Z still uses
+    # java.util.List, so the expansion must keep it and the wildcard stays.
+    res = rewrite_text_alone(NESTED_SHADOW)
+    assert res.new == NESTED_SHADOW and res.unresolved == []
+
+
+def test_expansion_keeps_a_nested_shadowed_name_when_the_wildcard_is_replaced():
+    text = NESTED_SHADOW.replace("List<String> q; }", "List<String> q; Set<String> s; }")
+    res = rewrite_text_alone(text, threshold=4)
+    assert import_block(res.new) == [
+        "import java.util.List;", "import java.util.Map;", "import java.util.Set;"]
+
+
+def test_expansion_drops_a_name_that_a_nested_type_shadows_everywhere_it_is_used():
+    # every mention of List lies inside A, whose nested List shadows the import
+    text = ("package shortestpath;\n\nimport java.util.*;\n\n"
+            "class A { class List {} List q; }\nclass Z { Map<String, String> m; "
+            "Set<String> s; }\n")
+    res = rewrite_text_alone(text, threshold=3)
+    assert import_block(res.new) == ["import java.util.Map;", "import java.util.Set;"]
+
+
+def test_expansion_drops_a_name_that_a_top_level_type_shadows():
+    text = ("package shortestpath;\n\nimport java.util.*;\n\n"
+            "class List {}\nclass Z { Map<String, String> m; Set<String> s; List q; }\n")
+    res = rewrite_text_alone(text, threshold=3)
+    assert import_block(res.new) == ["import java.util.Map;", "import java.util.Set;"]
+
+
 # ---------- statics ----------
 
 POH = ("package shortestpath.poh;\npublic class PohService {\n"
