@@ -1,0 +1,38 @@
+# wildcard-type-universe v1
+# runelite: 1.13.6
+# runelite-pinned: net.runelite:client:1.13.6
+# runelite-pinned: net.runelite:runelite-api:1.13.6
+# jdk-api: release 11 from ct.sym of javac test, sha256 00
+# generated-by: scripts/wildcard_imports.py universe
+java.lang	Iterable
+java.lang	Number
+java.lang	Object
+java.lang	Override
+java.lang	String
+java.util	AbstractMap
+java.util	ArrayList
+java.util	Collection
+java.util	List
+java.util	Locale
+java.util	Map
+java.util	Optional
+java.util	Set
+java.awt	Color
+java.awt	Component
+java.awt	Dimension
+java.awt	List
+java.awt	Point
+net.runelite.api	Client
+net.runelite.api	ItemID
+net.runelite.api	Player
+net.runelite.api	Point
+net.runelite.api	Tile
+net.runelite.api.gameval	ItemID
+net.runelite.api.gameval	NpcID
+net.runelite.api.gameval	ObjectID
+acme.util	Alpha
+acme.util	Beta
+acme.util	Gamma
+acme.util	Number
+java.io	File
+java.io	IOException

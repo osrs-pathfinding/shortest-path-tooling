@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<checkstyle version="9.3">
+<file name="@WT@/src/main/java/p/A.java">
+<error line="3" column="8" severity="error" message="Unused import - java.util.List." source="com.puppycrawl.tools.checkstyle.checks.imports.UnusedImportsCheck"/>
+<error line="6" severity="error" message="No trailing whitespace" source="com.puppycrawl.tools.checkstyle.checks.regexp.RegexpSinglelineJavaCheck"/>
+<error line="8" column="23" severity="error" message="'{' at column 16 should be on a new line." source="com.puppycrawl.tools.checkstyle.checks.blocks.LeftCurlyCheck"/>
+</file>
+<file name="@WT@/src/main/java/p/Clean.java">
+</file>
+<file name="@WT@/src/test/java/p/BTest.java">
+<error line="3" column="8" severity="error" message="Unused import - java.util.Set." source="com.puppycrawl.tools.checkstyle.checks.imports.UnusedImportsCheck"/>
+<error line="9" column="48" severity="error" message="'{' at column 34 should be on a new line." source="com.puppycrawl.tools.checkstyle.checks.blocks.LeftCurlyCheck"/>
+<error line="10" column="22" severity="error" message="'=' is not followed by whitespace." source="com.puppycrawl.tools.checkstyle.checks.whitespace.WhitespaceAroundCheck"/>
+</file>
+</checkstyle>
