@@ -956,6 +956,18 @@ def cmd_check(args):
     return 0
 
 
+def _int_at_least(minimum):
+    def parse(value):
+        try:
+            number = int(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"{value!r} is not an integer") from None
+        if number < minimum:
+            raise argparse.ArgumentTypeError(f"must be at least {minimum}, got {number}")
+        return number
+    return parse
+
+
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -970,8 +982,8 @@ def build_parser():
 
     def common(sp):
         sp.add_argument("--universe", default=str(DEFAULT_UNIVERSE))
-        sp.add_argument("--threshold", type=int, default=2)
-        sp.add_argument("--static-threshold", type=int, default=2)
+        sp.add_argument("--threshold", type=_int_at_least(1), default=2)
+        sp.add_argument("--static-threshold", type=_int_at_least(0), default=2)
         sp.add_argument("--report")
 
     r = sub.add_parser("rewrite", help="rewrite a working tree in place")

@@ -700,6 +700,20 @@ def test_collect_packages_reads_a_non_ascii_path(tmp_path):
     assert wi.collect_packages(str(repo), "HEAD", []) == {"java.util", "java.lang"}
 
 
+@pytest.mark.parametrize("flag,value", [("--threshold", "0"), ("--threshold", "-1"),
+                                        ("--threshold", "x"), ("--static-threshold", "-1")])
+def test_a_threshold_below_its_minimum_is_refused_before_any_work(flag, value, capsys):
+    # --threshold 0 used to reach min() of an empty list (ValueError, exit 1)
+    with pytest.raises(SystemExit) as exc:
+        wi.main(["check", "--repo", "r", "--ref", "REF", flag, value])
+    assert exc.value.code == 2
+    assert flag in capsys.readouterr().err
+
+
+def test_static_threshold_zero_is_still_accepted(monkeypatch):
+    assert run_check(monkeypatch, tree_files(), "--static-threshold", "0") in (0, 1)
+
+
 def test_check_exits_2_on_a_ref_without_sources(monkeypatch, capsys):
     monkeypatch.setattr(wi, "git", lambda repo, *a: "")
     assert wi.main(["check", "--repo", "r", "--ref", "REF", "--universe", str(MINI)]) == 2
