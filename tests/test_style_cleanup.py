@@ -563,6 +563,13 @@ def test_check_diff_looks_at_java_paths_only(rep):
     assert cd(repo, base, head) == 0
 
 
+def test_check_diff_documents_that_it_examines_java_paths_only():
+    # neither the help nor the docstring may promise more than the check does
+    help_text = " ".join(sc.build_parser().format_help().split())
+    assert "the .java files of a diff" in help_text
+    assert "Only .java paths are examined" in " ".join(sc.__doc__.split())
+
+
 def test_check_diff_with_an_unknown_tree_ish_exits_2(rep):
     repo, base = rep
     assert cd(repo, base, "no-such-ref") == 2

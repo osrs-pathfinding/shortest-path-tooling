@@ -27,8 +27,10 @@ Two subcommands:
              [--summary FILE]
       BASE and HEAD are tree-ishes of R.  With --base-patch the patch is
       applied to BASE first (a temporary index, no working tree is touched).
-      Every .java path that differs is an offence when it was added or
-      deleted, or when its normalised text differs.  The normalised text has
+      Only .java paths are examined: a change to any other file is neither
+      an offence nor counted (callers that need that run a path-level diff of
+      their own).  Every .java path that differs is an offence when it was
+      added or deleted, or when its normalised text differs.  The normalised text has
       the import statement lines removed and the whitespace outside string and
       char literals removed (a space is kept only where deleting it would fuse
       two tokens, and the newline ending a // comment is kept, so code cannot
@@ -539,7 +541,8 @@ def build_parser():
     f.add_argument("--worktree", required=True)
     f.add_argument("--summary")
 
-    c = sub.add_parser("check-diff", help="prove a diff only touches imports and whitespace")
+    c = sub.add_parser("check-diff", help="prove the .java files of a diff only change in imports and "
+                       "whitespace (other paths are not examined)")
     c.add_argument("--repo", required=True)
     c.add_argument("base")
     c.add_argument("head")

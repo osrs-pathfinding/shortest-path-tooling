@@ -11,6 +11,7 @@ only-new case is exact.  The script is loaded via importlib because
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -328,6 +329,44 @@ def test_a_body_conflict_stops_the_pick_logs_it_and_exits_3(repo, tmp_path, caps
     assert data["status"] == "stopped" and data["stopped"] == {"old": o1, "files": [MAIN_BAR]}
     # the worktree is left in the middle of the pick
     assert g(repo, "rev-parse", "-q", "--verify", "CHERRY_PICK_HEAD") == o1
+
+
+def test_a_resolution_the_rewriter_rejects_stops_the_pick_and_keeps_the_log(repo, tmp_path, capsys):
+    # O1's import conflict resolves by itself; O2's import conflict does
+    # too but the rewriter refuses its text block.  The pick must stop at O2
+    # (exit 3, "stopped" log, O1's conflict kept), not die with a "running" log.
+    g(repo, "branch", "base")
+    g(repo, "checkout", "-q", "-b", "old")
+    o1 = commit(repo, {MAIN_FOO: FOO.replace("import acme.util.Beta;\n",
+                                             "import acme.util.Beta;\nimport acme.util.Gamma;\n")
+                       .replace("\tBeta b;\n", "\tBeta b;\n\tGamma g;\n")}, "Foo gains Gamma")
+    o2 = commit(repo, {MAIN_FOO: FOO.replace("import acme.util.Beta;\n",
+                                             "import acme.util.Beta;\nimport acme.util.Gamma;\n"
+                                             "import acme.util.Number;\n")
+                       .replace("\tBeta b;\n", "\tBeta b;\n\tGamma g;\n\tNumber n;\n"
+                                "\tString s = \"\"\"\n\t\ttext\"\"\";\n")}, "Foo gains a text block")
+    g(repo, "checkout", "-q", "-b", "new", "base")
+    commit(repo, {MAIN_FOO: FOO_WILD}, "refactor: use wildcard imports")
+    log = tmp_path / "log.json"
+    assert pick(repo, "base..old", log) == 3
+    captured = capsys.readouterr()
+    assert f"hand resolution needed: {o2} {MAIN_FOO}" in captured.out
+    assert "text blocks are not supported" in captured.err
+    data = json.loads(log.read_text())
+    assert data["status"] == "stopped"
+    assert data["stopped"]["old"] == o2 and data["stopped"]["files"] == [MAIN_FOO]
+    assert "text blocks are not supported" in data["stopped"]["reason"]
+    assert data["conflicts"][o1]["class"] == "import-section"
+    assert g(repo, "rev-parse", "-q", "--verify", "CHERRY_PICK_HEAD") == o2
+    # the stop can be resumed through the tool once a person has resolved the file
+    (repo / MAIN_FOO).write_text(FOO_WILD)
+    g(repo, "add", MAIN_FOO)
+    rc = cr.main(["pick", "--worktree", str(repo), "--log", str(log), "--continue",
+                  "--verdict", "resolved by hand", "--universe", str(MINI)])
+    assert rc == 0
+    done = json.loads(log.read_text())
+    assert done["status"] == "complete"
+    assert [p["conflict"]["class"] for p in done["picks"]] == ["import-section", "hand"]
 
 
 def test_continue_with_a_verdict_records_it_and_resumes(repo, tmp_path):
@@ -925,6 +964,59 @@ def test_the_gradle_seam_gets_an_absolute_worktree_path(tmp_path, monkeypatch):
     assert "--no-daemon" in argv
 
 
+def test_a_missing_executable_is_unusable_input_not_a_traceback(monkeypatch):
+    def no_such_binary(argv, **kw):
+        raise FileNotFoundError(2, "No such file or directory", argv[0])
+    monkeypatch.setattr(cr.subprocess, "run", no_such_binary)
+    with pytest.raises(cr.UnusableInput, match="cannot run git"):
+        cr.git(".", "status")
+
+
+def test_a_gate_that_crashes_is_recorded_and_the_other_gates_and_gate_json_survive(
+        tmp_path, seams, monkeypatch, capsys):
+    # an unexpected exception used to abort the run before gate.json
+    s = gate_scene(tmp_path)
+
+    def crash(ctx):
+        raise IndexError("malformed TOTAL line")
+
+    def argparse_exit(ctx):
+        raise SystemExit(2)
+
+    monkeypatch.setitem(cr.GATES, "G6", crash)
+    monkeypatch.setitem(cr.GATES, "G3", argparse_exit)
+    assert cr.main(gate_argv(s)) == 1
+    doc = json.loads((s.out / "gate.json").read_text())
+    assert list(doc["gates"]) == ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8"]
+    assert doc["gates"]["G6"] == {"pass": False,
+                                  "detail": {"error": "IndexError: malformed TOTAL line"}}
+    assert doc["gates"]["G3"]["pass"] is False and "SystemExit" in doc["gates"]["G3"]["detail"]["error"]
+    assert doc["gates"]["G4"]["pass"] is True and doc["pass"] is False
+    assert "failed G3, G6" in capsys.readouterr().out
+
+
+def test_gate_takes_the_fix_author_fix_file_and_release_tags_as_arguments(
+        tmp_path, seams, monkeypatch):
+    # another chain no longer needs a code edit
+    s = gate_scene(tmp_path, fix_author=("Zed", "zed@example.com"))
+    ok, detail = cr.gate_g2(ctx_of(s))
+    assert not ok and any("not rsbfox" in p for p in detail["problems"])
+    ok, detail = cr.gate_g2(ctx_of(s, fix_author="Zed <zed@example.com>"))
+    assert ok, detail
+    ok, detail = cr.gate_g2(ctx_of(s, fix_author="Zed <zed@example.com>",
+                                   fix_file="src/main/java/acme/Elsewhere.java"))
+    assert ok and "fix_commits" not in detail
+
+    asked = []
+    remote = cr.ls_remote
+    monkeypatch.setattr(cr, "ls_remote", lambda repo, name, *pat: asked.append(pat) or
+                        remote(repo, name, *pat))
+    assert cr.main(gate_argv(s, "--fix-author", "Zed <zed@example.com>",
+                             "--release-tags", "v9.0.1,v9.0.2")) == 0
+    assert ("refs/tags/v9.0.1", "refs/tags/v9.0.2") in asked
+    assert cr.main(gate_argv(s)) == 1  # the default author is still rsbfox
+
+
 def test_gate_g1_runs_the_four_tasks_without_the_daemon(tmp_path, seams):
     s = gate_scene(tmp_path)
     cr.main(gate_argv(s))
@@ -975,8 +1067,28 @@ def test_g1_records_the_unpinned_client_version_it_resolved(tmp_path, seams):
     s = gate_scene(tmp_path)
     seams["deps"] = "+--- net.runelite:client:1.13.7\n"
     assert cr.gate_g1(ctx_of(s))[1]["runelite_client"] == "1.13.7"
+    ok, detail = cr.gate_g1(ctx_of(s))
+    assert ok  # recorded, not asserted: the plugin's build resolves latest.release
     seams["deps"] = "nothing useful\n"
-    assert cr.gate_g1(ctx_of(s))[1]["runelite_client"] == "unresolved"
+    ok, detail = cr.gate_g1(ctx_of(s))
+    assert detail["runelite_client"] == "unresolved"
+
+
+def test_g1_fails_when_the_client_version_cannot_be_read(tmp_path, seams):
+    # an unattributable run must not pass
+    s = gate_scene(tmp_path)
+    seams["deps"] = "nothing useful\n"
+    ok, detail = cr.gate_g1(ctx_of(s))
+    assert not ok and "could not be read" in detail["problem"]
+    assert detail["gradle_exit"] == 0 and detail["tests"] > 0
+
+
+def test_the_init_script_pin_matches_the_rewriters_pin():
+    # the pin lives in two places; they must not drift apart
+    text = (ROOT / "scripts" / "data" / "runelite-1.13.6-classpath.init.gradle").read_text()
+    (pin,) = re.findall(r"def pinnedRuneLite = '([^']+)'", text)
+    assert pin == cr.wi.PINNED_RUNELITE
+    assert pin in "runelite-1.13.6-classpath.init.gradle"
 
 
 # ---- G2
@@ -1083,6 +1195,24 @@ def test_g4_fails_when_the_wildcard_commit_differs_from_the_rewriters_output(tmp
     ok, detail = cr.gate_g4(ctx_of(s))
     assert not ok
     assert any("not the rewriter's output" in p for p in detail["problems"])
+
+
+def test_g4_fails_when_the_wildcard_commit_also_touches_a_test_source_or_a_resource(tmp_path, seams):
+    # only src/main/java was compared; a stray src/test edit passed G4
+    s = gate_scene(tmp_path, wildcard_files={
+        "src/main/java/acme/Foo.java": GATE_FOO_WILD,
+        TEST_FOO: "package acme;\n\nimport acme.util.*;\n\nclass FooTest {}\n",
+        "src/main/resources/data.tsv": "x\n"})
+    ok, detail = cr.gate_g4(ctx_of(s))
+    assert not ok
+    assert detail["files_outside_src_main"] == ["src/main/resources/data.tsv", TEST_FOO]
+    assert any("outside src/main/java" in p and TEST_FOO in p for p in detail["problems"])
+
+
+def test_g4_records_no_stray_file_for_a_wildcard_commit_inside_src_main_java(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    ok, detail = cr.gate_g4(ctx_of(s))
+    assert ok and detail["files_outside_src_main"] == []
 
 
 def test_g4_fails_when_new_is_not_canonical(tmp_path, seams):

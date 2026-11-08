@@ -59,8 +59,9 @@ Subcommands
       Check every gate of one rebuilt release tag in a single run and write
       DIR/gate.json.  WT is a clean worktree at NEW.
         G1 suite       compileTestJava, test and both checkstyle tasks pass;
-                       the resolved RuneLite client version and the number of
-                       tests run (above zero) are recorded.
+                       the resolved RuneLite client version (the gate fails if
+                       it cannot be read) and the number of tests run (above
+                       zero) are recorded.
         G2 hygiene     no change to the Gradle files or outside .java files
                        between OLD and NEW; every commit of PREV-NEW..NEW is a
                        logged pick, an inserted commit or the tip as the
@@ -69,13 +70,17 @@ Subcommands
                        internal planning label; an inserted commit that is
                        neither the cleanup nor the wildcard commit and touches
                        ClientPlayerStateSource.java is the compile fix: its
-                       patch id equals the fix patch's and its author is rsbfox.
+                       patch id equals the fix patch's and its author is rsbfox
+                       (--fix-author, --fix-file and --release-tags override
+                       the defaults of one rebuild).
         G3 cleanup     the inserted `style:` commit passes
-                       `style_cleanup.py check-diff --imports-subset`.
+                       `style_cleanup.py check-diff --imports-subset`, which
+                       examines .java paths only (G2 holds the other files).
         G4 wildcard    NEW is canonical for the wildcard rewriter; the inserted
-                       `refactor: use wildcard imports` commit is exactly the
-                       rewriter's output on its parent and compiles to the same
-                       class files as its parent.
+                       `refactor: use wildcard imports` commit touches nothing
+                       outside src/main/java, is exactly the rewriter's output
+                       on its parent and compiles to the same class files as
+                       its parent.
         G5 equivalence OLD plus the fix patch and NEW compile to the same class
                        files and differ in no .java file (tests included)
                        beyond import lines and whitespace.  One narrow
@@ -156,8 +161,11 @@ class UnusableInput(Exception):
 
 def run(argv, cwd=None, env=None, input=None):
     """Run a command given as an argument list; stdout and stderr are bytes."""
-    return subprocess.run(argv, check=False, capture_output=True, cwd=cwd, env=env,
-                          input=input)
+    try:
+        return subprocess.run(argv, check=False, capture_output=True, cwd=cwd, env=env,
+                              input=input)
+    except OSError as e:
+        raise UnusableInput(f"cannot run {argv[0]}: {e}") from e
 
 
 def _text(data):
@@ -382,8 +390,8 @@ def try_resolve(wt, paths, stages, universe):
         theirs = git(wt, "show", f":3:{path}")
         resolved[path] = resolve_import_conflict(text, theirs)
     tree = wi.DiskTree(wt)
-    tree_texts = {p: tree.read(p) for p in tree.paths() if p not in merged}
     try:
+        tree_texts = {p: tree.read(p) for p in tree.paths() if p not in merged}
         final = canonical_texts(tree_texts, resolved, universe)
     except wi.UnusableInput as e:
         raise UnusableInput(str(e)) from e
@@ -438,10 +446,23 @@ def drive(wt, state, log, universe, argv):
         if not paths:
             raise UnusableInput(f"the pick of {old} stopped without a conflict:\n{err.strip()}")
         stages = unmerged_stages(wt)
-        resolution = try_resolve(wt, paths, stages, universe)
+        try:
+            resolution = try_resolve(wt, paths, stages, universe)
+        except UnusableInput as e:
+            # try_resolve fails before it writes or stages anything, so the
+            # worktree is still at the conflict: stop for a hand resolution
+            # and keep the log (and the conflicts recorded so far) instead of
+            # leaving a "running" log that --continue cannot resume.
+            resolution = None
+            reason = f"automatic resolution failed: {e}"
+        else:
+            reason = None
         if resolution is None:
             state["status"] = "stopped"
             state["stopped"] = {"old": old, "files": paths}
+            if reason:
+                state["stopped"]["reason"] = reason
+                print(f"{old}: {reason}", file=sys.stderr)
             save_log(log, state)
             print(f"hand resolution needed: {old} {' '.join(paths)}")
             return 3
@@ -748,6 +769,7 @@ def cmd_patched_tree(args):
 # ---------- the per-tag gate ----------
 
 GATE_NAMES = ("G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8")
+# Defaults of one rebuild; `gate` takes --fix-author, --fix-file and --release-tags.
 FIX_AUTHOR = "rsbfox <aaron.crts@gmail.com>"
 FIX_FILE = "src/main/java/shortestpath/requirement/ClientPlayerStateSource.java"
 EDGE_TEST_FILE = "src/test/java/shortestpath/PluginDependencyRuleTest.java"
@@ -757,7 +779,11 @@ CLEANUP_PREFIX = "style:"
 WILDCARD_PREFIX = "refactor: use wildcard imports"
 ATTRIBUTION = re.compile(r"(?im)^(?:co-authored-by|generated[ -]with|signed-off-by)\b|"
                          r"cherry picked from|generated with \[?claude")
-# bracketed letters keep this file free of the very labels it looks for
+# G2 refuses an inserted commit message that names planning internals: a decision
+# id (D-nn), a phase number ("Phase n", "36.n"), the tool's name, the planning
+# directory or a verification id (V-01).  The patterns are broad on purpose, so
+# an unrelated message that happens to match fails G2 and is reworded.
+# Bracketed letters keep this file free of the very labels it looks for.
 PLANNING_LABEL = re.compile(r"\b[D]-[0-9]{2}\b|[P]hase [0-9]|\b3[6]\.[0-9]|\b[G]SD\b|"
                             r"\.[p]lanning|\b[V]-0[1]\b")
 UNIVERSE = wi.DEFAULT_UNIVERSE
@@ -803,8 +829,11 @@ class Ctx:
     """The inputs of one gate run, with a few lookups shared by the gates."""
 
     def __init__(self, repo, worktree, tag, old, new, prev_old, prev_new, inserted,
-                 fix_patch, classpath_file, tags_before, out, logs, leaf_edge_removals=()):
+                 fix_patch, classpath_file, tags_before, out, logs, leaf_edge_removals=(),
+                 fix_author=FIX_AUTHOR, fix_file=FIX_FILE, release_tags=RELEASE_TAGS):
         self.repo, self.worktree, self.tag = repo, worktree, tag
+        self.fix_author, self.fix_file = fix_author, fix_file
+        self.release_tags = tuple(release_tags)
         self.leaf_edge_removals = list(leaf_edge_removals)
         self.old, self.new, self.prev_old, self.prev_new = old, new, prev_old, prev_new
         self.inserted, self.fix_patch = list(inserted), fix_patch
@@ -872,7 +901,13 @@ def gate_g1(ctx):
         except (ET.ParseError, ValueError, OSError):
             detail.setdefault("unreadable_results", []).append(xml.name)
     detail["tests"] = tests
-    return rc == 0 and tests > 0 and "unreadable_results" not in detail, detail
+    # The suite runs against whatever client the plugin's own build resolves
+    # (latest.release), so a version other than the pinned one is recorded, not
+    # failed; a probe that resolves nothing leaves the run unattributable.
+    if detail["runelite_client"] == "unresolved":
+        detail["problem"] = "the RuneLite client version could not be read from the dependency probe"
+    return (rc == 0 and tests > 0 and "unreadable_results" not in detail
+            and "problem" not in detail), detail
 
 
 def gate_g2(ctx):
@@ -910,12 +945,12 @@ def gate_g2(ctx):
     for sha in kinds["other"]:
         touched = git(ctx.repo, "diff-tree", "--no-commit-id", "--name-only", "-r",
                       sha).split()
-        if FIX_FILE not in touched:
+        if ctx.fix_file not in touched:
             continue
         info = ctx.info(sha)
-        if info["author"] != FIX_AUTHOR:
+        if info["author"] != ctx.fix_author:
             problems.append(f"{sha}: the compile fix is authored by {info['author']}, "
-                            f"not {FIX_AUTHOR}")
+                            f"not {ctx.fix_author}")
         if patch_id(ctx.repo, sha) != fix_id:
             problems.append(f"{sha}: the compile fix differs from the fix patch")
         detail.setdefault("fix_commits", []).append(sha)
@@ -948,6 +983,16 @@ def gate_g4(ctx):
         return False, detail
     commit = commits[0]
     detail["commit"] = commit
+    # The rewriter only touches src/main/java, and only that tree is compared
+    # below; a wildcard commit that also edits src/test, a resource or a build
+    # file would slip past G4 (and G5 tolerates import changes in any .java).
+    touched = [p for p in git(ctx.repo, "diff", "--name-only", "-z", f"{commit}^",
+                              commit).split("\0") if p]
+    stray = [p for p in touched if not p.startswith(SRC_MAIN)]
+    detail["files_outside_src_main"] = stray
+    if stray:
+        problems.append("the wildcard commit touches files outside src/main/java: "
+                        + ", ".join(stray[:5]))
     work = ctx.out / "g4"
     shutil.rmtree(work, ignore_errors=True)
     try:
@@ -1100,7 +1145,7 @@ def normalised_refs(text):
 
 def gate_g8(ctx):
     problems, detail = [], {}
-    rc, out, err = ls_remote(ctx.repo, "upstream", *[f"refs/tags/{t}" for t in RELEASE_TAGS])
+    rc, out, err = ls_remote(ctx.repo, "upstream", *[f"refs/tags/{t}" for t in ctx.release_tags])
     if rc != 0:
         return False, {"error": f"git ls-remote upstream failed: {err.strip()}"}
     before = Path(ctx.tags_before).read_text(encoding="utf-8")
@@ -1129,6 +1174,10 @@ def run_gates(ctx):
             ok, detail = GATES[name](ctx)
         except (UnusableInput, sc.UnusableInput, wi.UnusableInput, bi.UnusableInput) as e:
             ok, detail = False, {"error": str(e)}
+        except (Exception, SystemExit) as e:
+            # one gate's crash (a malformed TOTAL line, an argparse exit inside
+            # a delegated tool) must not hide the results of the other gates
+            ok, detail = False, {"error": f"{type(e).__name__}: {e}"}
         results[name] = {"pass": bool(ok), "detail": detail}
         print(f"{name}: {'pass' if ok else 'FAIL'}")
     return results
@@ -1149,7 +1198,9 @@ def cmd_gate(args):
     inserted = [resolve(s) for s in (args.inserted or "").split(",") if s]
     ctx = Ctx(args.repo, wt, args.tag, resolve(args.old), new, resolve(args.prev_old),
               resolve(args.prev_new), inserted, args.fix_patch, args.classpath_file,
-              args.tags_before, args.out, args.log or [], args.allow_leaf_edge_removal or [])
+              args.tags_before, args.out, args.log or [], args.allow_leaf_edge_removal or [],
+              args.fix_author, args.fix_file,
+              [t for t in args.release_tags.split(",") if t])
     ctx.out.mkdir(parents=True, exist_ok=True)
     gates = run_gates(ctx)
     doc = {"tag": args.tag, "old": ctx.old, "new": ctx.new, "prev_old": ctx.prev_old,
@@ -1201,6 +1252,13 @@ def build_parser():
                  "--fix-patch", "--classpath-file", "--tags-before", "--out"):
         gt.add_argument(flag, required=True)
     gt.add_argument("--inserted", default="")
+    gt.add_argument("--fix-author", default=FIX_AUTHOR, metavar="'NAME <EMAIL>'",
+                    help="author G2 requires on the compile-fix commit (default: %(default)s)")
+    gt.add_argument("--fix-file", default=FIX_FILE,
+                    help="the file the compile-fix commit touches (default: %(default)s)")
+    gt.add_argument("--release-tags", default=",".join(RELEASE_TAGS),
+                    help="comma-separated upstream tags G8 expects unmoved "
+                         "(default: %(default)s)")
     gt.add_argument("--log", action="append")
     gt.add_argument("--allow-leaf-edge-removal", action="append", metavar="EDGE",
                     help="G5 allowance: the dependency-rule test may lose exactly the "

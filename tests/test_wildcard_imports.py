@@ -66,7 +66,8 @@ def fake_git(files):
     """A `git` seam serving {path: text} for ls-tree and show."""
     def fake(repo, *args):
         if args[0] == "ls-tree":
-            return "\n".join(sorted(files)) + "\n"
+            assert "-z" in args  # a quoted non-ASCII path must not reach the parser
+            return "\0".join(sorted(files)) + "\0"
         if args[0] == "show":
             return files[args[1].split(":", 1)[1]]
         raise AssertionError(f"unexpected git call {args}")
@@ -315,6 +316,47 @@ def test_expansion_keeps_a_name_that_would_clash():
         uses=["Color", "Dimension", "List", "Map", "Set"])
     assert import_block(res.new) == [
         "import java.awt.*;", "import java.util.*;", "import java.util.List;"]
+
+
+NESTED_SHADOW = (
+    "package shortestpath;\n\nimport java.util.*;\n\n"
+    "class A { class List {} java.util.List<String> l; }\n"
+    "class Z { Map<String, String> m; List<String> q; }\n")
+
+
+def rewrite_text_alone(text, pkg="shortestpath", name="A", **kw):
+    path = path_of(pkg, name)
+    return wi.rewrite_text(text, path, wi.make_env(universe(), {path: text}), **kw)
+
+
+def test_expansion_keeps_a_name_that_only_a_nested_type_shadows():
+    # a nested List shadows the import inside A alone; Z still uses
+    # java.util.List, so the expansion must keep it and the wildcard stays.
+    res = rewrite_text_alone(NESTED_SHADOW)
+    assert res.new == NESTED_SHADOW and res.unresolved == []
+
+
+def test_expansion_keeps_a_nested_shadowed_name_when_the_wildcard_is_replaced():
+    text = NESTED_SHADOW.replace("List<String> q; }", "List<String> q; Set<String> s; }")
+    res = rewrite_text_alone(text, threshold=4)
+    assert import_block(res.new) == [
+        "import java.util.List;", "import java.util.Map;", "import java.util.Set;"]
+
+
+def test_expansion_drops_a_name_that_a_nested_type_shadows_everywhere_it_is_used():
+    # every mention of List lies inside A, whose nested List shadows the import
+    text = ("package shortestpath;\n\nimport java.util.*;\n\n"
+            "class A { class List {} List q; }\nclass Z { Map<String, String> m; "
+            "Set<String> s; }\n")
+    res = rewrite_text_alone(text, threshold=3)
+    assert import_block(res.new) == ["import java.util.Map;", "import java.util.Set;"]
+
+
+def test_expansion_drops_a_name_that_a_top_level_type_shadows():
+    text = ("package shortestpath;\n\nimport java.util.*;\n\n"
+            "class List {}\nclass Z { Map<String, String> m; Set<String> s; List q; }\n")
+    res = rewrite_text_alone(text, threshold=3)
+    assert import_block(res.new) == ["import java.util.Map;", "import java.util.Set;"]
 
 
 # ---------- statics ----------
@@ -583,6 +625,95 @@ def test_check_static_wildcard_that_resolves_nothing(monkeypatch, capsys):
     assert "static shortestpath.poh.PohService.*" in capsys.readouterr().out
 
 
+OUTER = ("package shortestpath.nest;\npublic class Outer {\n"
+         "    public static int bar;\n"
+         "    public static class Inner { public static int foo; }\n}\n")
+
+
+def nested_static_files(use):
+    return {path_of("shortestpath.nest", "Outer"): OUTER,
+            path_of("shortestpath", "A"): (
+                "package shortestpath;\n\nimport static shortestpath.nest.Outer.Inner.*;\n\n"
+                f"public class A {{ int v = {use}; }}\n")}
+
+
+def test_check_static_wildcard_of_a_nested_class_resolves_its_own_members(monkeypatch, capsys):
+    # foo is a member of Inner; reading Outer's members called it unresolved
+    assert run_check(monkeypatch, nested_static_files("foo")) == 0
+    assert "canonical" in capsys.readouterr().out
+
+
+def test_check_static_wildcard_of_a_nested_class_ignores_the_outer_members(monkeypatch, capsys):
+    # bar belongs to Outer, which Inner.* does not provide
+    assert run_check(monkeypatch, nested_static_files("bar")) == 1
+    assert "static shortestpath.nest.Outer.Inner.*" in capsys.readouterr().out
+
+
+def test_check_static_wildcard_of_a_nested_class_that_cannot_be_located_exits_2(
+        monkeypatch, capsys):
+    files = nested_static_files("foo")
+    files[path_of("shortestpath", "A")] = files[path_of("shortestpath", "A")].replace(
+        "Outer.Inner.*", "Outer.Missing.*")
+    assert run_check(monkeypatch, files) == 2
+    assert "not a class of the tree" in capsys.readouterr().err
+
+
+def test_nested_body_finds_a_direct_member_type_only():
+    code, _ = wi.mask_source("class O { class I { int x; class J { int y; } } }\nclass Q { }\n")
+    inner = wi.nested_body(code, "I")
+    assert "int x" in inner and inner.startswith("{") and inner.endswith("}")
+    assert wi.nested_body(code, "J") is None  # J sits in I, not directly in a top-level type
+    assert "int y" in wi.nested_body(inner, "J")
+
+
+def non_ascii_repo(tmp_path):
+    repo = tmp_path / "repo"
+    for name, imports in (("A", ["import java.util.List;", "import java.util.Map;"]),
+                          ("\u00c9", ["import java.util.Set;", "import java.util.Map;"])):
+        path = repo / SRC / "shortestpath" / f"{name}.java"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(java("shortestpath", imports, ["List", "Map", "Set"], name=name),
+                        encoding="utf-8")
+    for cmd in (["init", "-q"], ["add", "."],
+                ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+        subprocess.run(["git", "-C", str(repo), *cmd], check=True, capture_output=True)
+    return repo
+
+
+def test_git_tree_lists_a_non_ascii_path_instead_of_dropping_it(tmp_path):
+    # without -z git quotes the path and the .java suffix test failed on it
+    repo = non_ascii_repo(tmp_path)
+    assert wi.GitTree(repo, "HEAD").paths() == [
+        f"{SRC}/shortestpath/A.java", f"{SRC}/shortestpath/\u00c9.java"]
+    assert wi.GitTree(repo, "HEAD").read(f"{SRC}/shortestpath/\u00c9.java").startswith("package")
+
+
+def test_check_examines_a_non_ascii_file(tmp_path, capsys):
+    repo = non_ascii_repo(tmp_path)
+    assert wi.main(["check", "--repo", str(repo), "--ref", "HEAD", "--universe", str(MINI)]) == 1
+    out = capsys.readouterr().out
+    assert "\u00c9.java: not canonical" in out and "2 of 2 files offend" in out
+
+
+def test_collect_packages_reads_a_non_ascii_path(tmp_path):
+    repo = non_ascii_repo(tmp_path)
+    assert wi.collect_packages(str(repo), "HEAD", []) == {"java.util", "java.lang"}
+
+
+@pytest.mark.parametrize("flag,value", [("--threshold", "0"), ("--threshold", "-1"),
+                                        ("--threshold", "x"), ("--static-threshold", "-1")])
+def test_a_threshold_below_its_minimum_is_refused_before_any_work(flag, value, capsys):
+    # --threshold 0 used to reach min() of an empty list (ValueError, exit 1)
+    with pytest.raises(SystemExit) as exc:
+        wi.main(["check", "--repo", "r", "--ref", "REF", flag, value])
+    assert exc.value.code == 2
+    assert flag in capsys.readouterr().err
+
+
+def test_static_threshold_zero_is_still_accepted(monkeypatch):
+    assert run_check(monkeypatch, tree_files(), "--static-threshold", "0") in (0, 1)
+
+
 def test_check_exits_2_on_a_ref_without_sources(monkeypatch, capsys):
     monkeypatch.setattr(wi, "git", lambda repo, *a: "")
     assert wi.main(["check", "--repo", "r", "--ref", "REF", "--universe", str(MINI)]) == 2
@@ -643,7 +774,7 @@ def universe_env(tmp_path, monkeypatch):
 
     def fake(repo, *args):
         if args[0] == "ls-tree":
-            return f"{SRC}/shortestpath/A.java\n"
+            return f"{SRC}/shortestpath/A.java\0"
         if args[0] == "show":
             return base_text
         if args[0] == "log":
@@ -681,6 +812,27 @@ def test_universe_subcommand(universe_env):
     assert not any(r.startswith("net.runelite.client.ui\tpackage-info") for r in rows)
     assert "net.runelite.discord\tX" in rows
     assert not any(r.startswith("shortestpath") for r in rows)
+
+
+def test_universe_names_the_javac_of_the_jdk_home_not_the_one_on_path(universe_env, monkeypatch):
+    tmp_path, _, _, args = universe_env
+    calls = []
+    monkeypatch.setattr(wi, "run", lambda argv: calls.append(argv) or cp(argv, stderr="javac 11.0.2\n"))
+    assert wi.main(args) == 0
+    assert calls == [[str(tmp_path / "jdk" / "bin" / "javac"), "-version"]]
+    assert "from ct.sym of javac 11.0.2, sha256 " in (tmp_path / "u.tsv").read_text()
+
+
+def test_universe_exits_2_when_the_jdk_home_has_no_runnable_javac(universe_env, monkeypatch, capsys):
+    tmp_path, _, _, args = universe_env
+
+    def missing(argv):
+        raise FileNotFoundError(2, "No such file or directory", argv[0])
+
+    monkeypatch.setattr(wi, "run", missing)
+    assert wi.main(args) == 2
+    assert "bin/javac" in capsys.readouterr().err
+    assert not (tmp_path / "u.tsv").exists()
 
 
 def test_universe_unknown_package_exits_2(universe_env, tmp_path, monkeypatch, capsys):

@@ -206,6 +206,7 @@ class Source:
     declared: set
     top_types: set
     code: str
+    shadowed: set = field(default_factory=set)
 
 
 def parse_imports(lines, code_lines, name="<text>"):
@@ -244,6 +245,40 @@ def declarations(code):
     return declared, top
 
 
+def nested_shadowed(code):
+    """Names of nested types whose every use in `code` lies inside the body of
+    a class that declares a nested type of that name.  A member class shadows
+    an on-demand import only there, so a name used anywhere else in the file
+    (another top-level class, say) still resolves through the import."""
+    close_of, stack = {}, []
+    for idx, ch in enumerate(code):
+        if ch == "{":
+            stack.append(idx)
+        elif ch == "}" and stack:
+            close_of[stack.pop()] = idx
+    scopes = defaultdict(list)
+    stack, last = [], 0
+    for m in _DECL_RE.finditer(code):
+        for idx in range(last, m.start()):
+            if code[idx] == "{":
+                stack.append(idx)
+            elif code[idx] == "}" and stack:
+                stack.pop()
+        last = m.start()
+        if stack:
+            scopes[m.group(1)].append((stack[-1], close_of.get(stack[-1], len(code))))
+    if not scopes:
+        return set()
+    body = _HEADER_STMT.sub(lambda m: _blank(m.group()), code)
+    body = re.sub(r"\.[ \t\r\n]+", lambda m: "." * len(m.group()), body)
+    shadowed = set(scopes)
+    for m in _IDENT_USE.finditer(body):
+        name = m.group(1)
+        if name in shadowed and not any(a <= m.start() < b for a, b in scopes[name]):
+            shadowed.discard(name)
+    return shadowed
+
+
 def references(code, javadocs):
     """R2: simple names a file mentions (see the module docstring)."""
     body = _HEADER_STMT.sub(lambda m: _blank(m.group()), code)
@@ -268,7 +303,7 @@ def analyse(path, text):
             break
     declared, top = declarations(code)
     return Source(path, lines, pkg, parse_imports(lines, code_lines, path),
-                  references(code, docs), declared, top, code)
+                  references(code, docs), declared, top, code, nested_shadowed(code))
 
 
 def own_packages(sources):
@@ -309,6 +344,31 @@ def member_names(code):
         prev, body = body, re.sub(r"\([^()]*\)", "()", body)
     found = re.findall(r"(?<![\w$.])(" + IDENT + r")\s*(?=[(={;,])", body)
     return set(found) - JAVA_KEYWORDS
+
+
+def nested_body(code, name):
+    """The text from the opening brace to the matching closing brace of the
+    type `name` declared directly inside the body that `code` holds (`code`
+    is a whole file, or a body starting at its own opening brace), or None."""
+    depth, last = 0, 0
+    for m in _DECL_RE.finditer(code):
+        depth += code.count("{", last, m.start()) - code.count("}", last, m.start())
+        last = m.start()
+        if depth != 1 or m.group(1) != name:
+            continue
+        start = code.find("{", m.end())
+        if start < 0:
+            return None
+        level = 0
+        for idx in range(start, len(code)):
+            if code[idx] == "{":
+                level += 1
+            elif code[idx] == "}":
+                level -= 1
+                if level == 0:
+                    return code[start:idx + 1]
+        return None
+    return None
 
 
 # ---------- universe ----------
@@ -370,12 +430,19 @@ _ADDED_IMPORT = re.compile(
     r"^\+\s*import\s+(?!static\b)(" + IDENT + r"(?:\." + IDENT + r")*)(\.\*)?\s*;")
 
 
+def java_paths_at(repo, ref):
+    """The .java paths under src/main/java at `ref`.  Read with -z: without
+    it git quotes a path holding non-ASCII bytes and the file would be dropped
+    from the listing without an error."""
+    out = git(repo, "ls-tree", "-r", "-z", "--name-only", ref, "--", SRC_ROOT)
+    return [n for n in out.split("\0") if n.endswith(".java")]
+
+
 def collect_packages(repo, base_ref, head_refs):
     """U1: packages imported at base_ref, plus those of every import line the
     commits between base_ref and the head refs add."""
     pkgs = set()
-    names = git(repo, "ls-tree", "-r", "--name-only", base_ref, "--", SRC_ROOT).splitlines()
-    files = [n for n in names if n.endswith(".java")]
+    files = java_paths_at(repo, base_ref)
     if not files:
         raise UnusableInput(f"no {SRC_ROOT}/*.java files at {base_ref} in {repo}")
     for n in files:
@@ -472,7 +539,11 @@ def cmd_universe(args):
     if missing:
         raise UnusableInput("no type names found for imported package(s): " + ", ".join(missing))
 
-    javac = run(["javac", "-version"])
+    javac_path = jdk_home / "bin" / "javac"  # the JDK whose ct.sym was read, not PATH's
+    try:
+        javac = run([str(javac_path), "-version"])
+    except OSError as e:
+        raise UnusableInput(f"cannot run {javac_path}: {e}") from e
     javac_version = ((javac.stdout or "") + (javac.stderr or "")).strip() or "javac"
     refs = [args.base_ref] + head_refs
     shas = [(r, git(args.repo, "rev-parse", "--verify", f"{r}^{{commit}}").strip()) for r in refs]
@@ -526,8 +597,7 @@ class GitTree:
         self.repo, self.ref = repo, ref
 
     def paths(self):
-        out = git(self.repo, "ls-tree", "-r", "--name-only", self.ref, "--", SRC_ROOT)
-        paths = sorted(n for n in out.splitlines() if n.endswith(".java"))
+        paths = sorted(java_paths_at(self.repo, self.ref))
         if not paths:
             raise UnusableInput(f"no {SRC_ROOT}/*.java files at {self.ref} in {self.repo}")
         return paths
@@ -552,13 +622,32 @@ class Env:
 
     def class_source(self, cls):
         """Source of a class of the tree (outer class if `cls` is nested)."""
+        found = self._class_file(cls)
+        return found[0] if found else None
+
+    def _class_file(self, cls):
         parts = cls.split(".")
         while parts:
             path = f"{SRC_ROOT}/{'/'.join(parts)}.java"
             if path in self.sources:
-                return self.sources[path]
+                return self.sources[path], cls.split(".")[len(parts):]
             parts.pop()
         return None
+
+    def class_body(self, cls):
+        """(body, found): the code holding the members of `cls`, which is
+        the class of a tree file or a type nested in one; `found` is False when
+        the class is not in the tree or a nested type cannot be located."""
+        located = self._class_file(cls)
+        if located is None:
+            return None, False
+        csrc, nested = located
+        body = csrc.code
+        for name in nested:
+            body = nested_body(body, name)
+            if body is None:
+                return None, False
+        return body, True
 
 
 def make_env(universe, texts):
@@ -615,9 +704,12 @@ def rewrite_text(text, path, env, threshold=2, static_threshold=2):
     expand = {}
     for pkg in sorted(wild_lines):
         members = env.members(pkg)
+        # A top-level declaration shadows an on-demand import file-wide; a nested
+        # one only inside its enclosing class, so `shadowed` holds the nested
+        # names whose every use lies in such a scope (see nested_shadowed).
         expand[pkg] = {n for n in members & refs
-                       if n not in declared and n not in single_all
-                       and n not in own and n not in jl}
+                       if n not in src.top_types and n not in src.shadowed
+                       and n not in single_all and n not in own and n not in jl}
         if not expand[pkg]:
             unresolved.append(pkg + ".*")
     owner = {}
@@ -730,12 +822,12 @@ def _static_pass(src, env, refs, declared, single_all, own, static_threshold,
     """R9 plus the static half of the resolve check."""
     wildcards = [i for i in src.imports if i.static and i.wildcard]
     for imp in wildcards:
-        csrc = env.class_source(imp.package)
-        if csrc is None:
+        body, found = env.class_body(imp.package)
+        if not found:
             unverifiable.append(f"{src.path}:{imp.line + 1}: static wildcard of "
                                 f"{imp.package}, which is not a class of the tree")
             continue
-        members = member_names(csrc.code)
+        members = member_names(body)
         if not (members & refs) - declared - single_all:
             unresolved.append(f"static {imp.package}.*")
     if static_threshold <= 0:
@@ -864,6 +956,18 @@ def cmd_check(args):
     return 0
 
 
+def _int_at_least(minimum):
+    def parse(value):
+        try:
+            number = int(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"{value!r} is not an integer") from None
+        if number < minimum:
+            raise argparse.ArgumentTypeError(f"must be at least {minimum}, got {number}")
+        return number
+    return parse
+
+
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -878,8 +982,8 @@ def build_parser():
 
     def common(sp):
         sp.add_argument("--universe", default=str(DEFAULT_UNIVERSE))
-        sp.add_argument("--threshold", type=int, default=2)
-        sp.add_argument("--static-threshold", type=int, default=2)
+        sp.add_argument("--threshold", type=_int_at_least(1), default=2)
+        sp.add_argument("--static-threshold", type=_int_at_least(0), default=2)
         sp.add_argument("--report")
 
     r = sub.add_parser("rewrite", help="rewrite a working tree in place")
