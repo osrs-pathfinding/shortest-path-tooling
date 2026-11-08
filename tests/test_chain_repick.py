@@ -330,6 +330,44 @@ def test_a_body_conflict_stops_the_pick_logs_it_and_exits_3(repo, tmp_path, caps
     assert g(repo, "rev-parse", "-q", "--verify", "CHERRY_PICK_HEAD") == o1
 
 
+def test_a_resolution_the_rewriter_rejects_stops_the_pick_and_keeps_the_log(repo, tmp_path, capsys):
+    # O1's import conflict resolves by itself; O2's import conflict does
+    # too but the rewriter refuses its text block.  The pick must stop at O2
+    # (exit 3, "stopped" log, O1's conflict kept), not die with a "running" log.
+    g(repo, "branch", "base")
+    g(repo, "checkout", "-q", "-b", "old")
+    o1 = commit(repo, {MAIN_FOO: FOO.replace("import acme.util.Beta;\n",
+                                             "import acme.util.Beta;\nimport acme.util.Gamma;\n")
+                       .replace("\tBeta b;\n", "\tBeta b;\n\tGamma g;\n")}, "Foo gains Gamma")
+    o2 = commit(repo, {MAIN_FOO: FOO.replace("import acme.util.Beta;\n",
+                                             "import acme.util.Beta;\nimport acme.util.Gamma;\n"
+                                             "import acme.util.Number;\n")
+                       .replace("\tBeta b;\n", "\tBeta b;\n\tGamma g;\n\tNumber n;\n"
+                                "\tString s = \"\"\"\n\t\ttext\"\"\";\n")}, "Foo gains a text block")
+    g(repo, "checkout", "-q", "-b", "new", "base")
+    commit(repo, {MAIN_FOO: FOO_WILD}, "refactor: use wildcard imports")
+    log = tmp_path / "log.json"
+    assert pick(repo, "base..old", log) == 3
+    captured = capsys.readouterr()
+    assert f"hand resolution needed: {o2} {MAIN_FOO}" in captured.out
+    assert "text blocks are not supported" in captured.err
+    data = json.loads(log.read_text())
+    assert data["status"] == "stopped"
+    assert data["stopped"]["old"] == o2 and data["stopped"]["files"] == [MAIN_FOO]
+    assert "text blocks are not supported" in data["stopped"]["reason"]
+    assert data["conflicts"][o1]["class"] == "import-section"
+    assert g(repo, "rev-parse", "-q", "--verify", "CHERRY_PICK_HEAD") == o2
+    # the stop can be resumed through the tool once a person has resolved the file
+    (repo / MAIN_FOO).write_text(FOO_WILD)
+    g(repo, "add", MAIN_FOO)
+    rc = cr.main(["pick", "--worktree", str(repo), "--log", str(log), "--continue",
+                  "--verdict", "resolved by hand", "--universe", str(MINI)])
+    assert rc == 0
+    done = json.loads(log.read_text())
+    assert done["status"] == "complete"
+    assert [p["conflict"]["class"] for p in done["picks"]] == ["import-section", "hand"]
+
+
 def test_continue_with_a_verdict_records_it_and_resumes(repo, tmp_path):
     g(repo, "branch", "base")
     g(repo, "checkout", "-q", "-b", "old")

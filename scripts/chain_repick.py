@@ -382,8 +382,8 @@ def try_resolve(wt, paths, stages, universe):
         theirs = git(wt, "show", f":3:{path}")
         resolved[path] = resolve_import_conflict(text, theirs)
     tree = wi.DiskTree(wt)
-    tree_texts = {p: tree.read(p) for p in tree.paths() if p not in merged}
     try:
+        tree_texts = {p: tree.read(p) for p in tree.paths() if p not in merged}
         final = canonical_texts(tree_texts, resolved, universe)
     except wi.UnusableInput as e:
         raise UnusableInput(str(e)) from e
@@ -438,10 +438,23 @@ def drive(wt, state, log, universe, argv):
         if not paths:
             raise UnusableInput(f"the pick of {old} stopped without a conflict:\n{err.strip()}")
         stages = unmerged_stages(wt)
-        resolution = try_resolve(wt, paths, stages, universe)
+        try:
+            resolution = try_resolve(wt, paths, stages, universe)
+        except UnusableInput as e:
+            # try_resolve fails before it writes or stages anything, so the
+            # worktree is still at the conflict: stop for a hand resolution
+            # and keep the log (and the conflicts recorded so far) instead of
+            # leaving a "running" log that --continue cannot resume.
+            resolution = None
+            reason = f"automatic resolution failed: {e}"
+        else:
+            reason = None
         if resolution is None:
             state["status"] = "stopped"
             state["stopped"] = {"old": old, "files": paths}
+            if reason:
+                state["stopped"]["reason"] = reason
+                print(f"{old}: {reason}", file=sys.stderr)
             save_log(log, state)
             print(f"hand resolution needed: {old} {' '.join(paths)}")
             return 3
