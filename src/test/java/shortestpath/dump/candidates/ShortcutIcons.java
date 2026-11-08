@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.game.AgilityShortcut;
@@ -28,8 +29,8 @@ final class ShortcutIcons {
     static final int ROW_REACH = 5;
 
     final ConnectorSnapshot.IconMarker marker = new ConnectorSnapshot.IconMarker();
-    /** The shortcut icon's {@code mapAreaId}, or -1. */
-    final int markerArea;
+    /** The shortcut icon's {@code mapAreaId}s, or none. */
+    final Set<Integer> markerAreas;
     final List<ConnectorSnapshot.ShortcutIcon> icons = new ArrayList<>();
     /** Icons matched to a RuneLite entry, and the entries matched. */
     int matched;
@@ -42,14 +43,14 @@ final class ShortcutIcons {
         return ids;
     }
 
-    ShortcutIcons(CacheConnectors cache) throws IOException {
+    ShortcutIcons(CacheConnectors cache, Map<Integer, Integer> categories) throws IOException {
         List<int[]> origins = MapIcons.origins("/transports/agility_shortcuts.tsv", option -> true);
-        markerArea = MapIcons.vote(cache.icons, origins, VOTE_REACH, Set.of());
+        markerAreas = MapIcons.sameKind(MapIcons.vote(cache.icons, origins, VOTE_REACH, Set.of()), categories);
         for (int[] placed : cache.icons) {
-            if (placed[0] == markerArea) icons.add(icon(placed, cache));
+            if (markerAreas.contains(placed[0])) icons.add(icon(placed, cache));
         }
         icons.sort(Comparator.comparingInt((ConnectorSnapshot.ShortcutIcon i) -> i.plane).thenComparingInt(i -> i.x).thenComparingInt(i -> i.y));
-        marker.field = markerArea < 0 ? null : "mapAreaId=" + markerArea;
+        marker.field = MapIcons.field(markerAreas);
         marker.icons = icons.size();
         marker.iconsNearRows = (int) icons.stream().filter(i -> MapIcons.nearest(origins, i.x, i.y, i.plane) <= ROW_REACH).count();
     }

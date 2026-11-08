@@ -62,7 +62,7 @@ public final class ConnectorSnapshot {
      * it is from the data: the one most often placed beside the plugin's rows of that kind.
      */
     public static final class IconMarker {
-        /** e.g. {@code mapAreaId=71}, or null when none was found. */
+        /** e.g. {@code mapAreaId=71}, or {@code mapAreaId=12,13} for an icon drawn with two sprites; null when none was found. */
         public String field;
         /** Icon placements, and how many have one of those rows' origins within 5 tiles. */
         public int icons;

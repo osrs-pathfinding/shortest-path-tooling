@@ -227,8 +227,15 @@ On cache 2757:
 The dungeon entrance icon is found the same way as the shortcut icon. It's the map icon,
 other than the shortcut's, most often placed within 3 tiles of the origin of a
 `transports.tsv` row that goes down or in (`Climb-down`, `Walk-down`, `Enter`, `Go-down`).
-That's `mapAreaId=13`: of its 194 placements, 100 are within 5 tiles of such a row. Each
-icon keeps the connectors within 5 tiles, as the objects it most likely marks.
+That's `mapAreaId=13`.
+
+The game draws dungeon entrances with two icons: `mapAreaId=12` (sprite 1460) and
+`mapAreaId=13` (sprite 1534). Both have map area category 1062. So the vote's winner is
+widened to every map area in its category. The shortcut icon (71) has no other area in its
+category, so its set is unchanged.
+
+Of the 321 placements, 136 are within 5 tiles of such a row. Each icon keeps the connectors
+within 5 tiles, as the objects it most likely marks.
 
 The live list keeps one icon per entrance, merging icons on other planes or within 3 tiles.
 It drops:
@@ -241,15 +248,19 @@ Most entrances are modelled or are also map links. On cache 2757:
 
 | Step | Count |
 |---|---|
-| icons | 194 |
-| a transport within 5 tiles | 121 |
-| beside a world map link | 64 |
-| in unreached areas | 8 |
-| **listed** | **1** |
+| icons | 321 |
+| a transport within 5 tiles | 187 |
+| beside a world map link | 65 |
+| already an unreached area's way in | 2 |
+| no walkable tile within 5 | 1 |
+| in unreached areas | 29 |
+| **listed** | **37** |
 
-The one listed is a real gap: a `Climb-down` ladder (58029) at 3046 2980 with no row near
-it. Its map link leads into an unreached area under 50 tiles, so no other list has it. The
-set mostly guards new content: an entrance with an icon but no map of its own.
+Before `mapAreaId=12` was included, only one was listed: a `Climb-down` ladder (58029) at
+3046 2980. Its map link leads into an unreached area under 50 tiles, so no other list has it.
+Most of the 36 the second icon adds have no map link. One example is the `Climb-down`
+staircase (41922) at 1464 3568, whose far end (1444 9960) is 19 tiles off in x, so no
+pairing rule finds it either.
 
 RuneLite's `DungeonLocation` names would make better titles, but that class is
 package-private, so items are titled by tile.

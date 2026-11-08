@@ -8,12 +8,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import net.runelite.cache.AreaManager;
+import net.runelite.cache.definitions.AreaDefinition;
+import net.runelite.cache.fs.Store;
 
 /**
  * Finds which world map icon marks a kind of place. The game draws its map icons with invisible
  * map-function objects placed beside what they mark, so the icon is found from the data: the map icon
- * placed most often within a few tiles of the plugin's rows of that kind.
+ * placed most often within a few tiles of the plugin's rows of that kind. A kind of place can have
+ * more than one icon (dungeon entrances use two sprites), so the winner is widened to every icon of
+ * its map area category.
  */
 final class MapIcons {
     private MapIcons() { }
@@ -42,6 +49,30 @@ final class MapIcons {
         return votes.entrySet().stream()
             .max(Map.Entry.<Integer, Integer>comparingByValue().thenComparing(Map.Entry.comparingByKey(Comparator.reverseOrder())))
             .map(Map.Entry::getKey).orElse(-1);
+    }
+
+    /** Each map area's ({@code mapAreaId}'s) category. */
+    static Map<Integer, Integer> categories(Store store) throws IOException {
+        AreaManager areas = new AreaManager(store);
+        areas.load();
+        Map<Integer, Integer> categories = new HashMap<>();
+        for (AreaDefinition area : areas.getAreas()) categories.put(area.getId(), area.getCategory());
+        return categories;
+    }
+
+    /** {@code area} and every other map area in its category, or none when {@code area} is -1. */
+    static Set<Integer> sameKind(int area, Map<Integer, Integer> categories) {
+        Set<Integer> kind = new TreeSet<>();
+        if (area < 0) return kind;
+        kind.add(area);
+        Integer category = categories.get(area);
+        if (category != null && category >= 0) categories.forEach((id, c) -> { if (category.equals(c)) kind.add(id); });
+        return kind;
+    }
+
+    /** A marker's snapshot field, e.g. {@code mapAreaId=12,13}, or null when no icon was found. */
+    static String field(Set<Integer> areas) {
+        return areas.isEmpty() ? null : "mapAreaId=" + areas.stream().map(String::valueOf).collect(Collectors.joining(","));
     }
 
     /** Chebyshev distance to the nearest origin on the plane, or {@link Integer#MAX_VALUE}. */

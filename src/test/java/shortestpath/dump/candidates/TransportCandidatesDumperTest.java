@@ -69,14 +69,16 @@ public class TransportCandidatesDumperTest {
         Coverage coverage = new Coverage(transports);
         CacheConnectors cache = new CacheConnectors();
         List<ConnectorSnapshot.MapLink> links;
+        Map<Integer, Integer> categories;
         try (Store store = CacheUtils.openStore(cacheDir)) {
             ObjectManager objects = new ObjectManager(store);
             objects.load();
             links = WorldMapLinks.read(store);
+            categories = MapIcons.categories(store);
             cache.scan(objects, CacheUtils.loadRegions(store, CacheUtils.loadXteaKeys(xteaPath)), coverage, ShortcutIcons.obstacleIds());
         }
-        ShortcutIcons shortcuts = new ShortcutIcons(cache);
-        DungeonIcons dungeons = new DungeonIcons(cache, shortcuts.markerArea);
+        ShortcutIcons shortcuts = new ShortcutIcons(cache, categories);
+        DungeonIcons dungeons = new DungeonIcons(cache, shortcuts.markerAreas, categories);
         Map<String, int[]> precision = new ConnectorPairing(cache.placements).pairAll(cache.placements, transports);
 
         ConnectorSnapshot snapshot = new ConnectorSnapshot();
