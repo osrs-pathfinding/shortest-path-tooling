@@ -386,6 +386,54 @@ def test_static_group_of_a_class_outside_the_tree_stays_explicit():
     assert res.report["static_left_explicit"][0]["reason"] == "class-not-in-tree"
 
 
+def test_duplicate_import_lines_collapse_together():
+    res = rewrite("shortestpath", [
+        "import java.awt.Color;", "import java.awt.Color;", "import java.awt.Dimension;"],
+        uses=["Color", "Dimension"])
+    assert import_block(res.new) == ["import java.awt.*;"]
+
+
+def test_duplicate_wildcards_fold_into_one():
+    res = rewrite("shortestpath", ["import java.util.*;", "import java.util.*;"],
+                  uses=["Map", "Set"])
+    assert import_block(res.new) == ["import java.util.*;"]
+
+
+def test_static_group_next_to_an_existing_static_wildcard_stays_explicit():
+    text = static_file(["import static shortestpath.other.Other.*;",
+                        "import static shortestpath.poh.PohService.POH_LANDING_X;",
+                        "import static shortestpath.poh.PohService.POH_LANDING_Y;"])
+    path = path_of("shortestpath.pathfinder", "T")
+    texts = {path: text, path_of("shortestpath.poh", "PohService"): POH,
+             path_of("shortestpath.other", "Other"): OTHER}
+    res = wi.rewrite_text(text, path, wi.make_env(universe(), texts))
+    assert not res.changed
+    assert res.report["static_left_explicit"] == [
+        {"class": "shortestpath.poh.PohService", "members": 2,
+         "reason": "existing-static-wildcard"}]
+
+
+def test_package_that_falls_below_the_threshold_reports_the_clashes_it_still_has():
+    res = rewrite("shortestpath", ["import java.util.List;", "import java.util.Map;",
+                                   "import java.awt.Color;", "import java.awt.Dimension;"],
+                  uses=["List", "Map", "Color", "Dimension"])
+    assert import_block(res.new) == ["import java.util.List;", "import java.util.Map;",
+                                     "import java.awt.*;"]
+    assert res.report["collapsed"] == [{"package": "java.awt", "members": 2}]
+    assert [k["name"] for k in res.report["kept_explicit"]] == ["List"]
+
+
+def test_import_from_the_default_package_is_unusable():
+    with pytest.raises(wi.UnusableInput, match="default package"):
+        rewrite("shortestpath", ["import Thing;"], uses=["Thing"])
+
+
+def test_the_files_option_rejects_a_path_outside_the_tree(tmp_path):
+    write_tree(tmp_path, tree_files())
+    assert wi.main(["rewrite", "--repo", str(tmp_path), "--universe", str(MINI),
+                    "--files", "src/main/java/nope/X.java"]) == 2
+
+
 # ---------- unusable input ----------
 
 def test_unknown_package():
