@@ -346,6 +346,31 @@ def member_names(code):
     return set(found) - JAVA_KEYWORDS
 
 
+def nested_body(code, name):
+    """The text from the opening brace to the matching closing brace of the
+    type `name` declared directly inside the body that `code` holds (`code`
+    is a whole file, or a body starting at its own opening brace), or None."""
+    depth, last = 0, 0
+    for m in _DECL_RE.finditer(code):
+        depth += code.count("{", last, m.start()) - code.count("}", last, m.start())
+        last = m.start()
+        if depth != 1 or m.group(1) != name:
+            continue
+        start = code.find("{", m.end())
+        if start < 0:
+            return None
+        level = 0
+        for idx in range(start, len(code)):
+            if code[idx] == "{":
+                level += 1
+            elif code[idx] == "}":
+                level -= 1
+                if level == 0:
+                    return code[start:idx + 1]
+        return None
+    return None
+
+
 # ---------- universe ----------
 
 def load_universe(path):
@@ -591,13 +616,32 @@ class Env:
 
     def class_source(self, cls):
         """Source of a class of the tree (outer class if `cls` is nested)."""
+        found = self._class_file(cls)
+        return found[0] if found else None
+
+    def _class_file(self, cls):
         parts = cls.split(".")
         while parts:
             path = f"{SRC_ROOT}/{'/'.join(parts)}.java"
             if path in self.sources:
-                return self.sources[path]
+                return self.sources[path], cls.split(".")[len(parts):]
             parts.pop()
         return None
+
+    def class_body(self, cls):
+        """(body, found): the code holding the members of `cls`, which is
+        the class of a tree file or a type nested in one; `found` is False when
+        the class is not in the tree or a nested type cannot be located."""
+        located = self._class_file(cls)
+        if located is None:
+            return None, False
+        csrc, nested = located
+        body = csrc.code
+        for name in nested:
+            body = nested_body(body, name)
+            if body is None:
+                return None, False
+        return body, True
 
 
 def make_env(universe, texts):
@@ -772,12 +816,12 @@ def _static_pass(src, env, refs, declared, single_all, own, static_threshold,
     """R9 plus the static half of the resolve check."""
     wildcards = [i for i in src.imports if i.static and i.wildcard]
     for imp in wildcards:
-        csrc = env.class_source(imp.package)
-        if csrc is None:
+        body, found = env.class_body(imp.package)
+        if not found:
             unverifiable.append(f"{src.path}:{imp.line + 1}: static wildcard of "
                                 f"{imp.package}, which is not a class of the tree")
             continue
-        members = member_names(csrc.code)
+        members = member_names(body)
         if not (members & refs) - declared - single_all:
             unresolved.append(f"static {imp.package}.*")
     if static_threshold <= 0:

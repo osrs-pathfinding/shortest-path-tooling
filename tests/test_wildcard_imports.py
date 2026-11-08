@@ -624,6 +624,47 @@ def test_check_static_wildcard_that_resolves_nothing(monkeypatch, capsys):
     assert "static shortestpath.poh.PohService.*" in capsys.readouterr().out
 
 
+OUTER = ("package shortestpath.nest;\npublic class Outer {\n"
+         "    public static int bar;\n"
+         "    public static class Inner { public static int foo; }\n}\n")
+
+
+def nested_static_files(use):
+    return {path_of("shortestpath.nest", "Outer"): OUTER,
+            path_of("shortestpath", "A"): (
+                "package shortestpath;\n\nimport static shortestpath.nest.Outer.Inner.*;\n\n"
+                f"public class A {{ int v = {use}; }}\n")}
+
+
+def test_check_static_wildcard_of_a_nested_class_resolves_its_own_members(monkeypatch, capsys):
+    # foo is a member of Inner; reading Outer's members called it unresolved
+    assert run_check(monkeypatch, nested_static_files("foo")) == 0
+    assert "canonical" in capsys.readouterr().out
+
+
+def test_check_static_wildcard_of_a_nested_class_ignores_the_outer_members(monkeypatch, capsys):
+    # bar belongs to Outer, which Inner.* does not provide
+    assert run_check(monkeypatch, nested_static_files("bar")) == 1
+    assert "static shortestpath.nest.Outer.Inner.*" in capsys.readouterr().out
+
+
+def test_check_static_wildcard_of_a_nested_class_that_cannot_be_located_exits_2(
+        monkeypatch, capsys):
+    files = nested_static_files("foo")
+    files[path_of("shortestpath", "A")] = files[path_of("shortestpath", "A")].replace(
+        "Outer.Inner.*", "Outer.Missing.*")
+    assert run_check(monkeypatch, files) == 2
+    assert "not a class of the tree" in capsys.readouterr().err
+
+
+def test_nested_body_finds_a_direct_member_type_only():
+    code, _ = wi.mask_source("class O { class I { int x; class J { int y; } } }\nclass Q { }\n")
+    inner = wi.nested_body(code, "I")
+    assert "int x" in inner and inner.startswith("{") and inner.endswith("}")
+    assert wi.nested_body(code, "J") is None  # J sits in I, not directly in a top-level type
+    assert "int y" in wi.nested_body(inner, "J")
+
+
 def test_check_exits_2_on_a_ref_without_sources(monkeypatch, capsys):
     monkeypatch.setattr(wi, "git", lambda repo, *a: "")
     assert wi.main(["check", "--repo", "r", "--ref", "REF", "--universe", str(MINI)]) == 2
