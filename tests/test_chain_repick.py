@@ -70,6 +70,9 @@ def repo(tmp_path):
     r = tmp_path / "repo"
     r.mkdir()
     g(r, "init", "-q", "-b", "main")
+    # The tool's own git calls do not see ENV; a runner without a global identity needs one here.
+    g(r, "config", "user.name", "t")
+    g(r, "config", "user.email", "t@example.com")
     commit(r, {MAIN_FOO: FOO, MAIN_BAR: BAR, ".gitignore": "build/\n"}, "base")
     return r
 
