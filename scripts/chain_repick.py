@@ -59,8 +59,9 @@ Subcommands
       Check every gate of one rebuilt release tag in a single run and write
       DIR/gate.json.  WT is a clean worktree at NEW.
         G1 suite       compileTestJava, test and both checkstyle tasks pass;
-                       the resolved RuneLite client version and the number of
-                       tests run (above zero) are recorded.
+                       the resolved RuneLite client version (the gate fails if
+                       it cannot be read) and the number of tests run (above
+                       zero) are recorded.
         G2 hygiene     no change to the Gradle files or outside .java files
                        between OLD and NEW; every commit of PREV-NEW..NEW is a
                        logged pick, an inserted commit or the tip as the
@@ -890,7 +891,13 @@ def gate_g1(ctx):
         except (ET.ParseError, ValueError, OSError):
             detail.setdefault("unreadable_results", []).append(xml.name)
     detail["tests"] = tests
-    return rc == 0 and tests > 0 and "unreadable_results" not in detail, detail
+    # The suite runs against whatever client the plugin's own build resolves
+    # (latest.release), so a version other than the pinned one is recorded, not
+    # failed; a probe that resolves nothing leaves the run unattributable.
+    if detail["runelite_client"] == "unresolved":
+        detail["problem"] = "the RuneLite client version could not be read from the dependency probe"
+    return (rc == 0 and tests > 0 and "unreadable_results" not in detail
+            and "problem" not in detail), detail
 
 
 def gate_g2(ctx):

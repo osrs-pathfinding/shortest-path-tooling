@@ -11,6 +11,7 @@ only-new case is exact.  The script is loaded via importlib because
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -1044,8 +1045,28 @@ def test_g1_records_the_unpinned_client_version_it_resolved(tmp_path, seams):
     s = gate_scene(tmp_path)
     seams["deps"] = "+--- net.runelite:client:1.13.7\n"
     assert cr.gate_g1(ctx_of(s))[1]["runelite_client"] == "1.13.7"
+    ok, detail = cr.gate_g1(ctx_of(s))
+    assert ok  # recorded, not asserted: the plugin's build resolves latest.release
     seams["deps"] = "nothing useful\n"
-    assert cr.gate_g1(ctx_of(s))[1]["runelite_client"] == "unresolved"
+    ok, detail = cr.gate_g1(ctx_of(s))
+    assert detail["runelite_client"] == "unresolved"
+
+
+def test_g1_fails_when_the_client_version_cannot_be_read(tmp_path, seams):
+    # an unattributable run must not pass
+    s = gate_scene(tmp_path)
+    seams["deps"] = "nothing useful\n"
+    ok, detail = cr.gate_g1(ctx_of(s))
+    assert not ok and "could not be read" in detail["problem"]
+    assert detail["gradle_exit"] == 0 and detail["tests"] > 0
+
+
+def test_the_init_script_pin_matches_the_rewriters_pin():
+    # the pin lives in two places; they must not drift apart
+    text = (ROOT / "scripts" / "data" / "runelite-1.13.6-classpath.init.gradle").read_text()
+    (pin,) = re.findall(r"def pinnedRuneLite = '([^']+)'", text)
+    assert pin == cr.wi.PINNED_RUNELITE
+    assert pin in "runelite-1.13.6-classpath.init.gradle"
 
 
 # ---- G2
