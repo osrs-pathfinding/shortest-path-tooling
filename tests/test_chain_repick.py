@@ -1123,6 +1123,24 @@ def test_g4_fails_when_the_wildcard_commit_differs_from_the_rewriters_output(tmp
     assert any("not the rewriter's output" in p for p in detail["problems"])
 
 
+def test_g4_fails_when_the_wildcard_commit_also_touches_a_test_source_or_a_resource(tmp_path, seams):
+    # only src/main/java was compared; a stray src/test edit passed G4
+    s = gate_scene(tmp_path, wildcard_files={
+        "src/main/java/acme/Foo.java": GATE_FOO_WILD,
+        TEST_FOO: "package acme;\n\nimport acme.util.*;\n\nclass FooTest {}\n",
+        "src/main/resources/data.tsv": "x\n"})
+    ok, detail = cr.gate_g4(ctx_of(s))
+    assert not ok
+    assert detail["files_outside_src_main"] == ["src/main/resources/data.tsv", TEST_FOO]
+    assert any("outside src/main/java" in p and TEST_FOO in p for p in detail["problems"])
+
+
+def test_g4_records_no_stray_file_for_a_wildcard_commit_inside_src_main_java(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    ok, detail = cr.gate_g4(ctx_of(s))
+    assert ok and detail["files_outside_src_main"] == []
+
+
 def test_g4_fails_when_new_is_not_canonical(tmp_path, seams):
     s = gate_scene(tmp_path, wildcard_files={"src/main/java/acme/Foo.java": GATE_FOO_CLEAN + "// note\n"})
     ok, detail = cr.gate_g4(ctx_of(s))

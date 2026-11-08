@@ -961,6 +961,16 @@ def gate_g4(ctx):
         return False, detail
     commit = commits[0]
     detail["commit"] = commit
+    # The rewriter only touches src/main/java, and only that tree is compared
+    # below; a wildcard commit that also edits src/test, a resource or a build
+    # file would slip past G4 (and G5 tolerates import changes in any .java).
+    touched = [p for p in git(ctx.repo, "diff", "--name-only", "-z", f"{commit}^",
+                              commit).split("\0") if p]
+    stray = [p for p in touched if not p.startswith(SRC_MAIN)]
+    detail["files_outside_src_main"] = stray
+    if stray:
+        problems.append("the wildcard commit touches files outside src/main/java: "
+                        + ", ".join(stray[:5]))
     work = ctx.out / "g4"
     shutil.rmtree(work, ignore_errors=True)
     try:
