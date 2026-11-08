@@ -8,7 +8,7 @@ import change causes, and proves afterwards that nothing was lost or added.
 
 Subcommands
 
-  pick --worktree WT --range A..B --log FILE
+  pick --worktree WT --range A..B --log FILE [--universe FILE]
   pick --worktree WT --log FILE --continue --verdict TEXT
       Cherry-pick the commits of A..B (oldest first, no merges) onto the
       worktree's HEAD: one new commit per old commit, author, author date and
@@ -48,6 +48,46 @@ Subcommands
       Every other only-old row, and any surplus of only-new rows over the
       inserted commits, is a failure.
 
+  gate --repo R --worktree WT --tag T --old SHA --new SHA --prev-old SHA
+       --prev-new SHA --inserted SHA[,SHA] --fix-patch FILE
+       --classpath-file FILE --tags-before FILE --out DIR [--log FILE ...]
+      Check every gate of one rebuilt release tag in a single run and write
+      DIR/gate.json.  WT is a clean worktree at NEW.
+        G1 suite       compileTestJava, test and both checkstyle tasks pass;
+                       the resolved RuneLite client version and the number of
+                       tests run (above zero) are recorded.
+        G2 hygiene     no change to the Gradle files or outside .java files
+                       between OLD and NEW; every commit of PREV-NEW..NEW is a
+                       logged pick, an inserted commit or the tip as the
+                       re-picked marker (empty, OLD's subject and author);
+                       inserted messages carry no attribution trailer and no
+                       internal planning label; an inserted commit that is
+                       neither the cleanup nor the wildcard commit and touches
+                       ClientPlayerStateSource.java is the compile fix: its
+                       patch id equals the fix patch's and its author is rsbfox.
+        G3 cleanup     the inserted `style:` commit passes
+                       `style_cleanup.py check-diff --imports-subset`.
+        G4 wildcard    NEW is canonical for the wildcard rewriter; the inserted
+                       `refactor: use wildcard imports` commit is exactly the
+                       rewriter's output on its parent and compiles to the same
+                       class files as its parent.
+        G5 equivalence OLD plus the fix patch and NEW compile to the same class
+                       files and differ in no .java file (tests included)
+                       beyond import lines and whitespace.
+        G6 tokens      cl100k token totals of OLD, PREV-NEW (when it differs from
+                       PREV-OLD), the last pick, every inserted commit and NEW,
+                       each keyed by the SHA it was measured on; NEW must be
+                       below OLD.
+        G7 map         with logs: the one to one map of PREV-OLD..OLD against
+                       PREV-NEW..NEW has no error; without logs the old range is
+                       the marker alone and PREV-NEW..NEW is exactly the
+                       inserted commits plus the re-picked marker.
+        G8 remote      the four upstream release tags are as listed in the
+                       tags-before file and no rebuild/ branch exists on
+                       upstream or origin.
+      Exit 0 all gates pass, 1 a gate failed, 2 unusable input (WT dirty or
+      not at NEW, a missing file).
+
   patched-tree --repo R --treeish T --patch FILE
       Print the tree SHA of T with the patch applied (exit 2 when it does not
       apply); no working tree is touched.
@@ -58,12 +98,16 @@ needs a hand resolution.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -83,6 +127,9 @@ def _load(name):
 
 sc = _load("style_cleanup")
 wi = _load("wildcard_imports")
+bi = _load("bytecode_identity")
+
+ROOT = SCRIPTS.parent
 
 SRC_MAIN = "src/main/java/"
 PICK_FLAGS = ("-X", "ignore-space-at-eol", "--allow-empty", "--keep-redundant-commits")
@@ -622,6 +669,379 @@ def cmd_patched_tree(args):
     return 0
 
 
+# ---------- the per-tag gate ----------
+
+GATE_NAMES = ("G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8")
+FIX_AUTHOR = "rsbfox <aaron.crts@gmail.com>"
+FIX_FILE = "src/main/java/shortestpath/requirement/ClientPlayerStateSource.java"
+BUILD_PATHS = ("build.gradle", "settings.gradle", "gradle", "gradlew", "gradlew.bat", "config")
+RELEASE_TAGS = ("v1.22.2", "v1.22.3", "v1.22.4", "v1.22.5")
+CLEANUP_PREFIX = "style:"
+WILDCARD_PREFIX = "refactor: use wildcard imports"
+ATTRIBUTION = re.compile(r"(?im)^(?:co-authored-by|generated[ -]with|signed-off-by)\b|"
+                         r"cherry picked from|generated with \[?claude")
+# bracketed letters keep this file free of the very labels it looks for
+PLANNING_LABEL = re.compile(r"\b[D]-[0-9]{2}\b|[P]hase [0-9]|\b3[6]\.[0-9]|\b[G]SD\b|"
+                            r"\.[p]lanning|\b[V]-0[1]\b")
+UNIVERSE = wi.DEFAULT_UNIVERSE
+
+
+def gradle_run(worktree, *tasks):
+    """Run Gradle on `worktree`; a red build is data.  Returns (output, rc)."""
+    p = run([str(ROOT / "gradlew"), "-p", str(Path(worktree).resolve()), *tasks, "--no-daemon"],
+            cwd=str(ROOT))
+    return _text(p.stdout) + _text(p.stderr), p.returncode
+
+
+def measure_tokens(repo, refs):
+    """(output, rc) of scripts/measure_tokens.py over the refs."""
+    p = run([sys.executable, str(SCRIPTS / "measure_tokens.py"), "--ref", ",".join(refs),
+             "--repo", str(repo)])
+    return _text(p.stdout), p.returncode
+
+
+def quiet(func, *args):
+    """(return value, captured output) of an in-process script call."""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        rc = func(*args)
+    return rc, buf.getvalue()
+
+
+def bytecode_identity(repo, base, head, classpath_file, work):
+    """(returncode, output) of the bytecode identity proof of two tree-ishes."""
+    return quiet(bi.main, ["--repo", str(repo), "--base", base, "--head", head,
+                           "--classpath-file", str(classpath_file), "--work", str(work)])
+
+
+def wildcard_main(*args):
+    return quiet(wi.main, [*args, "--universe", str(UNIVERSE)])
+
+
+def ls_remote(repo, remote, *patterns):
+    return git_rc(repo, "ls-remote", remote, *patterns)
+
+
+class Ctx:
+    """The inputs of one gate run, with a few lookups shared by the gates."""
+
+    def __init__(self, repo, worktree, tag, old, new, prev_old, prev_new, inserted,
+                 fix_patch, classpath_file, tags_before, out, logs):
+        self.repo, self.worktree, self.tag = repo, worktree, tag
+        self.old, self.new, self.prev_old, self.prev_new = old, new, prev_old, prev_new
+        self.inserted, self.fix_patch = list(inserted), fix_patch
+        self.classpath_file, self.tags_before, self.out = classpath_file, tags_before, Path(out)
+        self.logs = list(logs)
+        self._picks = None
+
+    def picks(self):
+        if self._picks is None:
+            self._picks = []
+            for path in self.logs:
+                state = load_log(path)
+                if state.get("status") != "complete":
+                    raise UnusableInput(f"{path}: the pick log is not complete")
+                self._picks += state["picks"]
+        return self._picks
+
+    def info(self, sha):
+        return commit_info(self.repo, [sha])[0]
+
+    def inserted_by_kind(self):
+        """{"cleanup": [...], "wildcard": [...], "other": [...]} of the inserted SHAs."""
+        kinds = {"cleanup": [], "wildcard": [], "other": []}
+        for sha in self.inserted:
+            subject = self.info(sha)["subject"]
+            if subject.startswith(CLEANUP_PREFIX):
+                kinds["cleanup"].append(sha)
+            elif subject.startswith(WILDCARD_PREFIX):
+                kinds["wildcard"].append(sha)
+            else:
+                kinds["other"].append(sha)
+        return kinds
+
+
+def is_re_picked_marker(ctx, sha):
+    """The tip as the re-picked marker: empty, with OLD's subject and author."""
+    mine, old = ctx.info(sha), ctx.info(ctx.old)
+    empty = (git(ctx.repo, "rev-parse", f"{sha}^{{tree}}").strip()
+             == git(ctx.repo, "rev-parse", f"{sha}~1^{{tree}}").strip())
+    return empty and mine["subject"] == old["subject"] and mine["author"] == old["author"]
+
+
+def fix_patch_id(ctx):
+    ident = git(ctx.repo, "patch-id", "--stable", input=Path(ctx.fix_patch).read_text())
+    return ident.split()[0] if ident.strip() else ""
+
+
+def gate_g1(ctx):
+    detail = {}
+    shutil.rmtree(Path(ctx.worktree) / "build" / "test-results" / "test", ignore_errors=True)
+    out, rc = gradle_run(ctx.worktree, "compileTestJava", "test", "checkstyleMain",
+                         "checkstyleTest")
+    detail["gradle_exit"] = rc
+    if rc != 0:
+        detail["tail"] = out.strip().splitlines()[-20:]
+    deps, deps_rc = gradle_run(ctx.worktree, "dependencies", "--configuration",
+                               "compileClasspath", "-q")
+    m = re.search(r"net\.runelite:client:(\S+)(?: -> (\S+))?", deps) if deps_rc == 0 else None
+    detail["runelite_client"] = (m.group(2) or m.group(1)) if m else "unresolved"
+    tests = 0
+    results = Path(ctx.worktree) / "build" / "test-results" / "test"
+    for xml in sorted(results.glob("*.xml")):
+        try:
+            tests += int(ET.parse(xml).getroot().get("tests", "0"))
+        except (ET.ParseError, ValueError, OSError):
+            detail.setdefault("unreadable_results", []).append(xml.name)
+    detail["tests"] = tests
+    return rc == 0 and tests > 0 and "unreadable_results" not in detail, detail
+
+
+def gate_g2(ctx):
+    problems, detail = [], {}
+    changed = git(ctx.repo, "diff", "--name-only", ctx.old, ctx.new, "--",
+                  *BUILD_PATHS).split()
+    if changed:
+        problems.append("build files differ between OLD and NEW: " + ", ".join(changed))
+    outside = git(ctx.repo, "diff", "--name-only", ctx.old, ctx.new, "--", ".",
+                  ":(exclude)*.java").split()
+    if outside:
+        problems.append("non-java files differ between OLD and NEW: " + ", ".join(outside))
+    in_range = rev_list(ctx.repo, f"{ctx.prev_new}..{ctx.new}")
+    logged = {p["new"] for p in ctx.picks()}
+    foreign = []
+    for sha in in_range:
+        if sha in logged or sha in ctx.inserted:
+            continue
+        if sha == ctx.new and is_re_picked_marker(ctx, sha):
+            continue
+        foreign.append(sha)
+    if foreign:
+        problems.append("commits that are neither picked nor inserted: " + ", ".join(foreign))
+    for sha in ctx.inserted:
+        if sha not in in_range:
+            problems.append(f"inserted commit {sha} is not in {ctx.prev_new}..{ctx.new}")
+    fix_id = fix_patch_id(ctx)
+    kinds = ctx.inserted_by_kind()
+    for sha in ctx.inserted:
+        info = ctx.info(sha)
+        if ATTRIBUTION.search(info["message"]):
+            problems.append(f"{sha}: the message carries an attribution trailer")
+        if PLANNING_LABEL.search(info["message"]):
+            problems.append(f"{sha}: the message carries an internal planning label")
+    for sha in kinds["other"]:
+        touched = git(ctx.repo, "diff-tree", "--no-commit-id", "--name-only", "-r",
+                      sha).split()
+        if FIX_FILE not in touched:
+            continue
+        info = ctx.info(sha)
+        if info["author"] != FIX_AUTHOR:
+            problems.append(f"{sha}: the compile fix is authored by {info['author']}, "
+                            f"not {FIX_AUTHOR}")
+        if patch_id(ctx.repo, sha) != fix_id:
+            problems.append(f"{sha}: the compile fix differs from the fix patch")
+        detail.setdefault("fix_commits", []).append(sha)
+    detail["problems"] = problems
+    detail["range_commits"] = len(in_range)
+    return not problems, detail
+
+
+def gate_g3(ctx):
+    cleanup = ctx.inserted_by_kind()["cleanup"]
+    if len(cleanup) != 1:
+        return False, {"error": f"{len(cleanup)} inserted `style:` commits, expected one"}
+    sha = cleanup[0]
+    offences, summary = check_diff(ctx.repo, f"{sha}^", sha, imports_subset=True)
+    return not offences, {"commit": sha, "offences": offences, "lines": summary["lines"],
+                          "files": summary["files"]}
+
+
+def gate_g4(ctx):
+    detail, problems = {}, []
+    rc, out = wildcard_main("check", "--repo", str(ctx.repo), "--ref", ctx.new)
+    detail["check_exit"] = rc
+    if rc != 0:
+        problems.append("the rewriter's check fails at NEW: " + " | ".join(
+            out.strip().splitlines()[-3:]))
+    commits = ctx.inserted_by_kind()["wildcard"]
+    if len(commits) != 1:
+        problems.append(f"{len(commits)} inserted wildcard commits, expected one")
+        detail["problems"] = problems
+        return False, detail
+    commit = commits[0]
+    detail["commit"] = commit
+    work = ctx.out / "g4"
+    shutil.rmtree(work, ignore_errors=True)
+    try:
+        bi.export_tree(ctx.repo, f"{commit}^", work / "parent")
+        bi.export_tree(ctx.repo, commit, work / "commit")
+    except bi.UnusableInput as e:
+        raise UnusableInput(str(e)) from e
+    rc, out = wildcard_main("rewrite", "--repo", str(work / "parent"))
+    if rc != 0:
+        problems.append("the rewriter fails on the parent: " + out.strip()[-200:])
+    else:
+        rc, lines = bi.compare_dirs(work / "parent" / "src" / "main" / "java",
+                                    work / "commit" / "src" / "main" / "java")
+        detail["rewrite_diff_exit"] = rc
+        if rc != 0:
+            problems.append("the wildcard commit is not the rewriter's output on its parent: "
+                            + "; ".join(lines[:5]))
+    rc, out = bytecode_identity(ctx.repo, f"{commit}^", commit, ctx.classpath_file,
+                                work / "bytecode")
+    detail["bytecode_exit"] = rc
+    if rc != 0:
+        problems.append("class files differ from the parent's: " + out.strip()[-300:])
+    detail["problems"] = problems
+    return not problems, detail
+
+
+def gate_g5(ctx):
+    detail, problems = {}, []
+    tree = patched_tree(ctx.repo, ctx.old, ctx.fix_patch)
+    detail["old_plus_fix_tree"] = tree
+    rc, out = bytecode_identity(ctx.repo, tree, ctx.new, ctx.classpath_file,
+                                ctx.out / "g5-bytecode")
+    detail["bytecode_exit"] = rc
+    if rc != 0:
+        problems.append("class files differ: " + out.strip()[-300:])
+    offences, summary = check_diff(ctx.repo, ctx.old, ctx.new, base_patch=ctx.fix_patch)
+    detail["java_files_differing"] = summary["files"]
+    detail["lines"] = summary["lines"]
+    if offences:
+        problems.append("files differ beyond imports and whitespace: " + "; ".join(offences[:10]))
+    detail["problems"] = problems
+    return not problems, detail
+
+
+def token_totals(output, refs):
+    """{ref: total} from measure_tokens output over `refs`."""
+    totals, current = {}, None
+    for line in output.split("\n"):
+        if line.startswith("# ref "):
+            current = line[len("# ref "):].strip()
+        elif line.startswith("TOTAL\t"):
+            number = int(line.split("\t")[1].split()[0])
+            totals[current if current is not None else refs[0]] = number
+    return totals
+
+
+def gate_g6(ctx):
+    steps = [("old", ctx.old)]
+    if ctx.prev_new != ctx.prev_old:
+        steps.append(("prev_new", ctx.prev_new))
+    picks = ctx.picks()
+    if picks:
+        steps.append(("last_pick", picks[-1]["new"]))
+    steps += [(f"inserted: {ctx.info(s)['subject'][:60]}", s) for s in ctx.inserted]
+    steps.append(("new", ctx.new))
+    resolved = []
+    for label, ref in steps:
+        sha = git(ctx.repo, "rev-parse", "--verify", f"{ref}^{{commit}}").strip()
+        if sha not in [r[1] for r in resolved]:
+            resolved.append((label, sha))
+    out, rc = measure_tokens(ctx.repo, [sha for _, sha in resolved])
+    if rc != 0:
+        return False, {"error": f"measure_tokens.py exited {rc}", "tail": out.strip()[-300:]}
+    totals = token_totals(out, [sha for _, sha in resolved])
+    if set(totals) != {sha for _, sha in resolved}:
+        return False, {"error": "measure_tokens.py did not report every ref", "totals": totals}
+    old = git(ctx.repo, "rev-parse", ctx.old).strip()
+    new = git(ctx.repo, "rev-parse", ctx.new).strip()
+    detail = {"totals": totals, "old_ref": old, "new_ref": new,
+              "steps": [{"label": label, "ref": sha, "total": totals[sha]}
+                        for label, sha in resolved]}
+    return totals[new] < totals[old], detail
+
+
+def gate_g7(ctx):
+    old_range, new_range = f"{ctx.prev_old}..{ctx.old}", f"{ctx.prev_new}..{ctx.new}"
+    if ctx.logs:
+        doc = build_map(ctx.repo, ctx.logs, old_range, new_range, ctx.inserted, ctx.fix_patch)
+        (ctx.out).mkdir(parents=True, exist_ok=True)
+        (ctx.out / "map.json").write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+        return not doc["errors"], {"counts": doc["counts"], "range_diff": doc["range_diff"],
+                                   "range_diff_accepted": doc["range_diff_accepted"],
+                                   "errors": doc["errors"]}
+    problems = []
+    if rev_list(ctx.repo, old_range) != [ctx.old]:
+        problems.append(f"{old_range} holds more than the marker but no pick log was given")
+    in_range = rev_list(ctx.repo, new_range)
+    if sorted(in_range) != sorted([*ctx.inserted, ctx.new]):
+        problems.append(f"{new_range} is not exactly the inserted commits plus the "
+                        "re-picked marker")
+    elif not is_re_picked_marker(ctx, ctx.new):
+        problems.append("the tip is not an empty re-pick of OLD's marker")
+    return not problems, {"inserted": len(ctx.inserted), "problems": problems}
+
+
+def normalised_refs(text):
+    return sorted(" ".join(line.split()) for line in text.splitlines() if line.strip())
+
+
+def gate_g8(ctx):
+    problems, detail = [], {}
+    rc, out, err = ls_remote(ctx.repo, "upstream", *[f"refs/tags/{t}" for t in RELEASE_TAGS])
+    if rc != 0:
+        return False, {"error": f"git ls-remote upstream failed: {err.strip()}"}
+    before = Path(ctx.tags_before).read_text(encoding="utf-8")
+    if normalised_refs(out) != normalised_refs(before):
+        problems.append("the upstream release tags moved: now "
+                        + " | ".join(normalised_refs(out)))
+    for remote in ("upstream", "origin"):
+        rc, out, err = ls_remote(ctx.repo, remote, "--heads", "refs/heads/rebuild/*")
+        if rc != 0:
+            problems.append(f"git ls-remote {remote} failed: {err.strip()}")
+        elif out.strip():
+            problems.append(f"{remote} has rebuild/ branches: " + " | ".join(
+                normalised_refs(out)))
+    detail["problems"] = problems
+    return not problems, detail
+
+
+GATES = {"G1": gate_g1, "G2": gate_g2, "G3": gate_g3, "G4": gate_g4, "G5": gate_g5,
+         "G6": gate_g6, "G7": gate_g7, "G8": gate_g8}
+
+
+def run_gates(ctx):
+    results = {}
+    for name in GATE_NAMES:
+        try:
+            ok, detail = GATES[name](ctx)
+        except (UnusableInput, sc.UnusableInput, wi.UnusableInput, bi.UnusableInput) as e:
+            ok, detail = False, {"error": str(e)}
+        results[name] = {"pass": bool(ok), "detail": detail}
+        print(f"{name}: {'pass' if ok else 'FAIL'}")
+    return results
+
+
+def cmd_gate(args):
+    for label, path in (("fix patch", args.fix_patch), ("classpath file", args.classpath_file),
+                        ("tags-before file", args.tags_before)):
+        if not Path(path).is_file():
+            raise UnusableInput(f"the {label} {path} does not exist")
+    wt = Path(args.worktree).resolve()
+    if git(wt, "status", "--porcelain").strip():
+        raise UnusableInput(f"{wt} is not clean")
+    new = git(args.repo, "rev-parse", "--verify", f"{args.new}^{{commit}}").strip()
+    if git(wt, "rev-parse", "HEAD").strip() != new:
+        raise UnusableInput(f"{wt} is not at {args.new}")
+    resolve = lambda ref: git(args.repo, "rev-parse", "--verify", f"{ref}^{{commit}}").strip()
+    inserted = [resolve(s) for s in (args.inserted or "").split(",") if s]
+    ctx = Ctx(args.repo, wt, args.tag, resolve(args.old), new, resolve(args.prev_old),
+              resolve(args.prev_new), inserted, args.fix_patch, args.classpath_file,
+              args.tags_before, args.out, args.log or [])
+    ctx.out.mkdir(parents=True, exist_ok=True)
+    gates = run_gates(ctx)
+    doc = {"tag": args.tag, "old": ctx.old, "new": ctx.new, "prev_old": ctx.prev_old,
+           "prev_new": ctx.prev_new, "inserted": inserted, "gates": gates,
+           "pass": all(g["pass"] for g in gates.values())}
+    (ctx.out / "gate.json").write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+    failed = [n for n, g in gates.items() if not g["pass"]]
+    print(f"{args.tag}: " + ("all gates pass" if not failed else "failed " + ", ".join(failed)))
+    return 1 if failed else 0
+
+
 # ---------- entry point ----------
 
 def build_parser():
@@ -655,6 +1075,15 @@ def build_parser():
     m.add_argument("--fix-patch")
     m.add_argument("--out", required=True)
 
+    gt = sub.add_parser("gate", help="check every gate of one rebuilt release tag",
+                        description="Run the suite, hygiene, cleanup, wildcard, equivalence, "
+                        "token, map and remote gates and write DIR/gate.json.")
+    for flag in ("--repo", "--worktree", "--tag", "--old", "--new", "--prev-old", "--prev-new",
+                 "--fix-patch", "--classpath-file", "--tags-before", "--out"):
+        gt.add_argument(flag, required=True)
+    gt.add_argument("--inserted", default="")
+    gt.add_argument("--log", action="append")
+
     t = sub.add_parser("patched-tree", help="print the tree of a tree-ish with a patch applied")
     t.add_argument("--repo", required=True)
     t.add_argument("--treeish", required=True)
@@ -665,9 +1094,9 @@ def build_parser():
 def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
-        return {"pick": cmd_pick, "map": cmd_map,
+        return {"pick": cmd_pick, "map": cmd_map, "gate": cmd_gate,
                 "patched-tree": cmd_patched_tree}[args.cmd](args)
-    except (UnusableInput, wi.UnusableInput, sc.UnusableInput) as e:
+    except (UnusableInput, wi.UnusableInput, sc.UnusableInput, bi.UnusableInput) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
 

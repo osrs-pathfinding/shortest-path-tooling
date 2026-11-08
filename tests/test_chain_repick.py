@@ -685,3 +685,428 @@ def test_patched_tree_prints_the_tree_and_exits_2_when_the_patch_does_not_apply(
     bad.write_text("--- a/x\n+++ b/x\n@@ -1 +1 @@\n-no\n+yes\n")
     assert cr.main(["patched-tree", "--repo", str(repo), "--treeish", head,
                     "--patch", str(bad)]) == 2
+
+
+# ---------- the per-tag gate ----------
+
+CPS_BASE = ("package shortestpath.requirement;\n\npublic final class ClientPlayerStateSource\n"
+            "{\n\tint COL_QUESTPOINTS = 1;\n}\n")
+CPS_FIXED = CPS_BASE.replace("COL_QUESTPOINTS", "COL_QUESTPOINTS_OVERRIDE")
+CPS = cr.FIX_FILE
+GATE_FOO_BASE = ("package acme;\n\nimport acme.util.Alpha;\nimport acme.util.Beta;\n"
+                 "import acme.util.Gamma;\n\nclass Foo\n{\n\tAlpha a; \n\tBeta b;\n}\n")
+GATE_FOO_CLEAN = GATE_FOO_BASE.replace("import acme.util.Gamma;\n", "").replace("a; \n", "a;\n")
+GATE_FOO_WILD = GATE_FOO_CLEAN.replace("import acme.util.Alpha;\nimport acme.util.Beta;\n",
+                                       "import acme.util.*;\n")
+RSBFOX = ("rsbfox", "aaron.crts@gmail.com")
+CLEANUP_SUBJECT = "style: remove unused imports and trailing whitespace"
+WILDCARD_SUBJECT = "refactor: use wildcard imports where a file imports two or more types"
+MARKER_SUBJECT = "Attributed source reductions for v1.22.2"
+MAINTAINER = ("Mae", "mae@example.com")
+
+
+class Scene:
+    pass
+
+
+def gate_scene(tmp_path, fix_author=RSBFOX, fix_message="fix shortest path (#929)",
+               cleanup_files=None, wildcard_files=None, cleanup_message=CLEANUP_SUBJECT,
+               foreign=False, marker_author=MAINTAINER, old_pick=False):
+    """A tiny rebuilt .2: P -> OLD(marker) on the old line; P -> FIX -> CLEANUP -> WILDCARD
+    -> MARKER on the new line."""
+    s = Scene()
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    r = s.repo = tmp_path / "gate-repo"
+    r.mkdir()
+    g(r, "init", "-q", "-b", "main")
+    s.prev = commit(r, {CPS: CPS_BASE, "src/main/java/acme/Foo.java": GATE_FOO_BASE,
+                        "build.gradle": "plugins {}\n", ".gitignore": "build/\n"}, "previous")
+    g(r, "checkout", "-q", "-b", "old")
+    if old_pick:
+        s.old_pick = commit(r, {"src/main/java/acme/Other.java": "package acme;\nclass Other {}\n"},
+                            "an old pick")
+    s.old = commit(r, {}, MARKER_SUBJECT, MAINTAINER, allow_empty=True)
+    g(r, "checkout", "-q", "-b", "new", s.prev)
+    s.fix = commit(r, {CPS: CPS_FIXED}, fix_message, fix_author)
+    s.fix_patch = tmp_path / "fix.patch"
+    s.fix_patch.write_text(subprocess.run(["git", "-C", str(r), "show", "--format=", s.fix],
+                                          capture_output=True, text=True, check=True).stdout)
+    s.cleanup = commit(r, cleanup_files or {"src/main/java/acme/Foo.java": GATE_FOO_CLEAN},
+                       cleanup_message)
+    s.wildcard = commit(r, wildcard_files or {"src/main/java/acme/Foo.java": GATE_FOO_WILD},
+                        WILDCARD_SUBJECT)
+    if foreign:
+        s.foreign = commit(r, {"src/main/java/acme/Other.java": "package acme;\nclass Other {}\n"},
+                           "an unrelated commit")
+    s.new = commit(r, {}, MARKER_SUBJECT, marker_author, allow_empty=True)
+    s.inserted = [s.fix, s.cleanup, s.wildcard]
+    s.classpath = tmp_path / "cp.txt"
+    s.classpath.write_text("/m2/lombok-1.18.30.jar\n")
+    s.tags_before = tmp_path / "tags-before.txt"
+    s.tags_before.write_text("aaa\trefs/tags/v1.22.2\nbbb\trefs/tags/v1.22.3\n")
+    s.out = tmp_path / "gate-out"
+    s.worktree = tmp_path / "gate-wt"
+    g(r, "worktree", "add", "-q", "--detach", str(s.worktree), s.new)
+    return s
+
+
+@pytest.fixture
+def seams(monkeypatch):
+    """Fake the slow and the remote seams; each can be tuned through the box."""
+    box = {"gradle_rc": 0, "tests": 12, "deps": "+--- net.runelite:client:latest.release -> 1.13.6\n",
+           "bytecode_rc": 0, "totals": None, "remote": "aaa\trefs/tags/v1.22.2\nbbb\trefs/tags/v1.22.3\n",
+           "rebuild_branches": "", "remote_rc": 0, "calls": []}
+
+    def gradle(worktree, *tasks):
+        box["calls"].append(tasks)
+        if tasks[0] == "dependencies":
+            return box["deps"], 0
+        d = Path(worktree) / "build/test-results/test"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "TEST-a.xml").write_text(f'<testsuite name="a" tests="{box["tests"]}"/>')
+        return "BUILD", box["gradle_rc"]
+
+    def tokens(repo, refs):
+        # the first ref is OLD (largest), the last NEW (smallest)
+        totals = box["totals"] or {ref: 1000 - 10 * i for i, ref in enumerate(refs)}
+        out = "".join(f"# ref {ref}\n\nTOTAL\t{totals[ref]} tokens\t3 files\n" for ref in refs)
+        return out, 0
+
+    def bytecode(repo, base, head, classpath, work):
+        return box["bytecode_rc"], "identical" if box["bytecode_rc"] == 0 else "class files differ"
+
+    def remote(repo, name, *patterns):
+        if box["remote_rc"]:
+            return box["remote_rc"], "", "network down"
+        if "--heads" in patterns:
+            return 0, box["rebuild_branches"], ""
+        return 0, box["remote"], ""
+
+    monkeypatch.setattr(cr, "gradle_run", gradle)
+    monkeypatch.setattr(cr, "measure_tokens", tokens)
+    monkeypatch.setattr(cr, "bytecode_identity", bytecode)
+    monkeypatch.setattr(cr, "ls_remote", remote)
+    monkeypatch.setattr(cr, "UNIVERSE", MINI)
+    return box
+
+
+def ctx_of(s, **over):
+    args = dict(repo=s.repo, worktree=s.worktree, tag="v1.22.2", old=s.old, new=s.new,
+                prev_old=s.prev, prev_new=s.prev, inserted=s.inserted, fix_patch=s.fix_patch,
+                classpath_file=s.classpath, tags_before=s.tags_before, out=s.out, logs=[])
+    args.update(over)
+    return cr.Ctx(**args)
+
+
+def gate_argv(s, *extra):
+    return ["gate", "--repo", str(s.repo), "--worktree", str(s.worktree), "--tag", "v1.22.2",
+            "--old", s.old, "--new", s.new, "--prev-old", s.prev, "--prev-new", s.prev,
+            "--inserted", ",".join(s.inserted), "--fix-patch", str(s.fix_patch),
+            "--classpath-file", str(s.classpath), "--tags-before", str(s.tags_before),
+            "--out", str(s.out), *extra]
+
+
+def test_gate_passes_all_eight_gates_and_writes_gate_json(tmp_path, seams, capsys):
+    s = gate_scene(tmp_path)
+    assert cr.main(gate_argv(s)) == 0
+    doc = json.loads((s.out / "gate.json").read_text())
+    assert list(doc["gates"]) == ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8"]
+    assert all(v["pass"] for v in doc["gates"].values()), doc["gates"]
+    assert doc["tag"] == "v1.22.2" and doc["old"] == s.old and doc["new"] == s.new
+    assert doc["inserted"] == s.inserted and doc["pass"] is True
+    g1 = doc["gates"]["G1"]["detail"]
+    assert g1["tests"] == 12 and g1["runelite_client"] == "1.13.6"
+    assert "all gates pass" in capsys.readouterr().out
+
+
+def test_the_gradle_seam_gets_an_absolute_worktree_path(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(cr, "run", lambda argv, **kw: calls.append(argv) or
+                        subprocess.CompletedProcess(argv, 0, b"", b""))
+    monkeypatch.chdir(tmp_path)
+    cr.gradle_run(Path("some-wt"), "test")
+    argv = calls[0]
+    assert Path(argv[argv.index("-p") + 1]) == (tmp_path / "some-wt").resolve()
+    assert "--no-daemon" in argv
+
+
+def test_gate_g1_runs_the_four_tasks_without_the_daemon(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    cr.main(gate_argv(s))
+    assert ("compileTestJava", "test", "checkstyleMain", "checkstyleTest") in seams["calls"]
+
+
+def test_a_failing_gate_makes_the_command_exit_1_but_the_others_still_run(tmp_path, seams):
+    seams["remote"] = "ccc\trefs/tags/v1.22.2\nbbb\trefs/tags/v1.22.3\n"
+    s = gate_scene(tmp_path)
+    assert cr.main(gate_argv(s)) == 1
+    doc = json.loads((s.out / "gate.json").read_text())
+    assert [k for k, v in doc["gates"].items() if not v["pass"]] == ["G8"]
+    assert doc["pass"] is False
+
+
+def test_a_dirty_worktree_or_one_not_at_new_exits_2(tmp_path, seams, capsys):
+    s = gate_scene(tmp_path)
+    (s.worktree / "src/main/java/acme/Foo.java").write_text("dirty\n")
+    assert cr.main(gate_argv(s)) == 2
+    assert "is not clean" in capsys.readouterr().err
+    g(s.worktree, "checkout", "-q", "--", ".")
+    g(s.worktree, "checkout", "-q", "--detach", s.fix)
+    assert cr.main(gate_argv(s)) == 2
+    assert "is not at" in capsys.readouterr().err
+    assert not (s.out / "gate.json").exists()
+
+
+def test_a_missing_input_file_exits_2(tmp_path, seams, capsys):
+    s = gate_scene(tmp_path)
+    s.fix_patch.unlink()
+    assert cr.main(gate_argv(s)) == 2
+    assert "fix patch" in capsys.readouterr().err
+
+
+# ---- G1
+
+def test_g1_fails_on_a_red_build_and_on_zero_tests(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    seams["gradle_rc"] = 1
+    ok, detail = cr.gate_g1(ctx_of(s))
+    assert not ok and detail["gradle_exit"] == 1
+    seams["gradle_rc"], seams["tests"] = 0, 0
+    ok, detail = cr.gate_g1(ctx_of(s))
+    assert not ok and detail["tests"] == 0
+
+
+def test_g1_records_the_unpinned_client_version_it_resolved(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    seams["deps"] = "+--- net.runelite:client:1.13.7\n"
+    assert cr.gate_g1(ctx_of(s))[1]["runelite_client"] == "1.13.7"
+    seams["deps"] = "nothing useful\n"
+    assert cr.gate_g1(ctx_of(s))[1]["runelite_client"] == "unresolved"
+
+
+# ---- G2
+
+def test_g2_passes_on_the_expected_shape(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    ok, detail = cr.gate_g2(ctx_of(s))
+    assert ok, detail
+    assert detail["fix_commits"] == [s.fix]
+
+
+def test_g2_flags_an_attribution_trailer_in_an_inserted_commit(tmp_path, seams):
+    s = gate_scene(tmp_path, cleanup_message=CLEANUP_SUBJECT + "\n\nCo-Authored-By: Someone <s@x>")
+    ok, detail = cr.gate_g2(ctx_of(s))
+    assert not ok and any("attribution trailer" in p for p in detail["problems"])
+
+
+def test_g2_flags_an_internal_planning_label(tmp_path, seams):
+    s = gate_scene(tmp_path, cleanup_message=CLEANUP_SUBJECT + "\n\nDone for D" + "-12.")
+    ok, detail = cr.gate_g2(ctx_of(s))
+    assert not ok and any("planning label" in p for p in detail["problems"])
+
+
+def test_g2_flags_a_compile_fix_with_another_author(tmp_path, seams):
+    s = gate_scene(tmp_path, fix_author=("Ann", "ann@example.com"))
+    ok, detail = cr.gate_g2(ctx_of(s))
+    assert not ok and any("authored by Ann" in p for p in detail["problems"])
+
+
+def test_g2_flags_a_compile_fix_that_differs_from_the_fix_patch(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    s.fix_patch.write_text(s.fix_patch.read_text().replace("COL_QUESTPOINTS_OVERRIDE", "OTHER"))
+    ok, detail = cr.gate_g2(ctx_of(s))
+    assert not ok and any("differs from the fix patch" in p for p in detail["problems"])
+
+
+def test_g2_flags_a_commit_that_is_neither_picked_nor_inserted(tmp_path, seams):
+    s = gate_scene(tmp_path, foreign=True)
+    ok, detail = cr.gate_g2(ctx_of(s))
+    assert not ok and any(s.foreign in p for p in detail["problems"])
+
+
+def test_g2_flags_a_tip_that_is_not_an_empty_remark_of_the_old_marker(tmp_path, seams):
+    s = gate_scene(tmp_path, marker_author=("Zed", "zed@example.com"))
+    ok, detail = cr.gate_g2(ctx_of(s))
+    assert not ok and any(s.new in p for p in detail["problems"])
+
+
+def test_g2_flags_a_change_to_a_gradle_file_and_to_a_non_java_file(tmp_path, seams):
+    s = gate_scene(tmp_path, cleanup_files={"src/main/java/acme/Foo.java": GATE_FOO_CLEAN,
+                                            "build.gradle": "plugins { id 'x' }\n",
+                                            "data.tsv": "a\n"})
+    ok, detail = cr.gate_g2(ctx_of(s))
+    assert not ok
+    assert any("build files differ" in p for p in detail["problems"])
+    assert any("non-java files differ" in p for p in detail["problems"])
+
+
+def test_g2_accepts_logged_picks_between_the_previous_tip_and_the_new_one(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    log = tmp_path / "picks.json"
+    write_log(log, [(s.old, s.new, None)])
+    ok, detail = cr.gate_g2(ctx_of(s, logs=[str(log)], inserted=s.inserted))
+    assert ok, detail
+
+
+# ---- G3, G4, G5
+
+def test_g3_passes_a_cleanup_that_only_removes_imports_and_whitespace(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    ok, detail = cr.gate_g3(ctx_of(s))
+    assert ok and detail["files"] == 1
+
+
+def test_g3_fails_a_cleanup_that_adds_an_import_or_changes_code(tmp_path, seams):
+    s = gate_scene(tmp_path, cleanup_files={
+        "src/main/java/acme/Foo.java": GATE_FOO_CLEAN.replace(
+            "import acme.util.Beta;\n", "import acme.util.Beta;\nimport java.io.File;\n")})
+    ok, detail = cr.gate_g3(ctx_of(s))
+    assert not ok and any("adds an import" in o for o in detail["offences"])
+    s2 = gate_scene(tmp_path / "second", cleanup_files={
+        "src/main/java/acme/Foo.java": GATE_FOO_CLEAN.replace("Beta b;", "Beta c;")})
+    ok, detail = cr.gate_g3(ctx_of(s2))
+    assert not ok
+
+
+def test_g3_needs_exactly_one_style_commit(tmp_path, seams):
+    s = gate_scene(tmp_path, cleanup_message="chore: tidy")
+    ok, detail = cr.gate_g3(ctx_of(s))
+    assert not ok and "expected one" in detail["error"]
+
+
+def test_g4_passes_when_the_wildcard_commit_is_the_rewriters_output(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    ok, detail = cr.gate_g4(ctx_of(s))
+    assert ok, detail
+    assert detail["check_exit"] == 0 and detail["bytecode_exit"] == 0
+
+
+def test_g4_fails_when_the_wildcard_commit_differs_from_the_rewriters_output(tmp_path, seams):
+    s = gate_scene(tmp_path, wildcard_files={
+        "src/main/java/acme/Foo.java": GATE_FOO_WILD.replace("import acme.util.*;\n",
+                                                             "import acme.util.*;\n\n")})
+    ok, detail = cr.gate_g4(ctx_of(s))
+    assert not ok
+    assert any("not the rewriter's output" in p for p in detail["problems"])
+
+
+def test_g4_fails_when_new_is_not_canonical(tmp_path, seams):
+    s = gate_scene(tmp_path, wildcard_files={"src/main/java/acme/Foo.java": GATE_FOO_CLEAN + "// note\n"})
+    ok, detail = cr.gate_g4(ctx_of(s))
+    assert not ok and detail["check_exit"] == 1
+
+
+def test_g4_fails_when_the_bytecode_differs(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    seams["bytecode_rc"] = 1
+    ok, detail = cr.gate_g4(ctx_of(s))
+    assert not ok and detail["bytecode_exit"] == 1
+
+
+def test_g5_passes_for_old_plus_the_fix_against_new(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    ok, detail = cr.gate_g5(ctx_of(s))
+    assert ok, detail
+    assert detail["java_files_differing"] >= 1
+
+
+def test_g5_fails_on_different_bytecode_and_on_a_code_change_in_any_java_file(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    seams["bytecode_rc"] = 1
+    assert not cr.gate_g5(ctx_of(s))[0]
+    seams["bytecode_rc"] = 0
+    s2 = gate_scene(tmp_path / "second", cleanup_files={
+        "src/main/java/acme/Foo.java": GATE_FOO_CLEAN,
+        "src/test/java/acme/FooTest.java": "package acme;\nclass FooTest {}\n"})
+    ok, detail = cr.gate_g5(ctx_of(s2))
+    assert not ok and any("FooTest.java" in p for p in detail["problems"])
+
+
+# ---- G6
+
+def test_g6_keys_every_total_by_the_sha_it_was_measured_on(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    ok, detail = cr.gate_g6(ctx_of(s))
+    assert ok
+    assert detail["old_ref"] == s.old and detail["new_ref"] == s.new
+    assert set(detail["totals"]) == {s.old, s.fix, s.cleanup, s.wildcard, s.new}
+    assert [x["label"].split(":")[0] for x in detail["steps"]] == [
+        "old", "inserted", "inserted", "inserted", "new"]
+
+
+def test_g6_fails_when_new_is_not_below_old(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    seams["totals"] = {s.old: 10, s.fix: 11, s.cleanup: 12, s.wildcard: 13, s.new: 13}
+    assert not cr.gate_g6(ctx_of(s))[0]
+
+
+def test_g6_measures_the_previous_tip_only_when_it_differs_from_the_old_one(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    labels = [x["label"] for x in cr.gate_g6(ctx_of(s))[1]["steps"]]
+    assert "prev_new" not in labels
+    ok, detail = cr.gate_g6(ctx_of(s, prev_new=s.fix))
+    steps = detail["steps"]
+    assert [x["label"] for x in steps][:2] == ["old", "prev_new"]
+    assert steps[1]["ref"] == s.fix and len([x for x in steps if x["ref"] == s.fix]) == 1
+
+
+def test_g6_measures_the_last_pick_when_there_are_logs(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    log = tmp_path / "picks.json"
+    write_log(log, [(s.old, s.cleanup, None)])
+    steps = cr.gate_g6(ctx_of(s, logs=[str(log)]))[1]["steps"]
+    assert "last_pick" in [x["label"] for x in steps]
+
+
+# ---- G7
+
+def test_g7_without_picks_wants_exactly_the_inserted_commits_plus_the_marker(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    assert cr.gate_g7(ctx_of(s))[0]
+    s2 = gate_scene(tmp_path / "second", foreign=True)
+    ok, detail = cr.gate_g7(ctx_of(s2))
+    assert not ok and any("exactly the inserted" in p for p in detail["problems"])
+
+
+def test_g7_without_logs_fails_when_the_old_segment_holds_picks(tmp_path, seams):
+    s = gate_scene(tmp_path, old_pick=True)
+    ok, detail = cr.gate_g7(ctx_of(s))
+    assert not ok and any("no pick log" in p for p in detail["problems"])
+
+
+def test_g7_with_logs_runs_the_map_and_copies_the_accepted_pairings(
+        tmp_path, seams, fake_range_diff):
+    s = gate_scene(tmp_path)
+    log = tmp_path / "picks.json"
+    write_log(log, [(s.old, s.new, None)], {s.old: MARKER_SUBJECT})
+    fake_range_diff["text"] = (
+        f"1:  {s.old[:7]} = 4:  {s.new[:7]} {MARKER_SUBJECT}\n"
+        + "".join(f"-:  ------- > {i}:  {c[:7]} inserted\n"
+                  for i, c in enumerate(s.inserted, 1)))
+    ok, detail = cr.gate_g7(ctx_of(s, logs=[str(log)]))
+    assert ok, detail
+    assert detail["range_diff_accepted"] == [] and detail["errors"] == []
+    assert (s.out / "map.json").exists()
+
+
+# ---- G8
+
+def test_g8_passes_when_the_tags_and_branches_are_untouched(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    assert cr.gate_g8(ctx_of(s))[0]
+
+
+def test_g8_fails_when_an_upstream_tag_moved(tmp_path, seams):
+    seams["remote"] = "zzz\trefs/tags/v1.22.2\nbbb\trefs/tags/v1.22.3\n"
+    ok, detail = cr.gate_g8(ctx_of(gate_scene(tmp_path)))
+    assert not ok and "moved" in detail["problems"][0]
+
+
+def test_g8_fails_when_a_rebuild_branch_exists_or_ls_remote_fails(tmp_path, seams):
+    s = gate_scene(tmp_path)
+    seams["rebuild_branches"] = "ddd\trefs/heads/rebuild/wildcards\n"
+    ok, detail = cr.gate_g8(ctx_of(s))
+    assert not ok and any("rebuild/" in p for p in detail["problems"])
+    seams["rebuild_branches"], seams["remote_rc"] = "", 128
+    ok, detail = cr.gate_g8(ctx_of(s))
+    assert not ok and "ls-remote" in detail["error"]
