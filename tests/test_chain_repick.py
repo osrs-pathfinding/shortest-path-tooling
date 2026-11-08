@@ -802,7 +802,7 @@ class Scene:
 
 def gate_scene(tmp_path, fix_author=RSBFOX, fix_message="fix shortest path (#929)",
                cleanup_files=None, wildcard_files=None, cleanup_message=CLEANUP_SUBJECT,
-               foreign=False, marker_author=MAINTAINER, old_pick=False):
+               foreign=False, marker_author=MAINTAINER, old_pick=False, base_files=None):
     """A tiny rebuilt .2: P -> OLD(marker) on the old line; P -> FIX -> CLEANUP -> WILDCARD
     -> MARKER on the new line."""
     s = Scene()
@@ -811,7 +811,8 @@ def gate_scene(tmp_path, fix_author=RSBFOX, fix_message="fix shortest path (#929
     r.mkdir()
     g(r, "init", "-q", "-b", "main")
     s.prev = commit(r, {CPS: CPS_BASE, "src/main/java/acme/Foo.java": GATE_FOO_BASE,
-                        "build.gradle": "plugins {}\n", ".gitignore": "build/\n"}, "previous")
+                        "build.gradle": "plugins {}\n", ".gitignore": "build/\n",
+                        **(base_files or {})}, "previous")
     g(r, "checkout", "-q", "-b", "old")
     if old_pick:
         s.old_pick = commit(r, {"src/main/java/acme/Other.java": "package acme;\nclass Other {}\n"},
@@ -1111,6 +1112,140 @@ def test_g5_fails_on_different_bytecode_and_on_a_code_change_in_any_java_file(tm
         "src/test/java/acme/FooTest.java": "package acme;\nclass FooTest {}\n"})
     ok, detail = cr.gate_g5(ctx_of(s2))
     assert not ok and any("FooTest.java" in p for p in detail["problems"])
+
+
+
+EDGE_TEST = "src/test/java/shortestpath/PluginDependencyRuleTest.java"
+EDGE_TEXT = (
+    "package shortestpath;\n\npublic class PluginDependencyRuleTest\n{\n"
+    "\tstatic\n\t{\n"
+    "\t\tLEAF_EDGES.put(\"settings -> poh\",\n\t\t\t\"Settings reads POH config\");\n"
+    "\t\tLEAF_EDGES.put(\"transport -> poh\",\n\t\t\t\"TransportTypeConfig reads POH-facing config types\");\n"
+    "\t\tLEAF_EDGES.put(\"poh -> transport\",\n\t\t\t\"PohService reads Transport\");\n"
+    "\t}\n}\n")
+EDGE_WITHOUT = EDGE_TEXT.replace(
+    "\t\tLEAF_EDGES.put(\"transport -> poh\",\n\t\t\t\"TransportTypeConfig reads POH-facing config types\");\n", "")
+
+
+def edge_scene(tmp_path, new_text):
+    return gate_scene(tmp_path, base_files={EDGE_TEST: EDGE_TEXT},
+                      cleanup_files={"src/main/java/acme/Foo.java": GATE_FOO_CLEAN,
+                                     EDGE_TEST: new_text})
+
+
+def test_g5_fails_on_a_removed_leaf_edge_entry_without_the_allowance(tmp_path, seams):
+    s = edge_scene(tmp_path, EDGE_WITHOUT)
+    ok, detail = cr.gate_g5(ctx_of(s))
+    assert not ok and any("PluginDependencyRuleTest.java" in p for p in detail["problems"])
+
+
+def test_g5_allows_exactly_the_named_leaf_edge_entry_and_records_it(tmp_path, seams):
+    s = edge_scene(tmp_path, EDGE_WITHOUT)
+    ok, detail = cr.gate_g5(ctx_of(s, leaf_edge_removals=["transport -> poh"]))
+    assert ok, detail
+    assert detail["allowed_leaf_edge_removals"] == [
+        {"file": EDGE_TEST, "edge": "transport -> poh"}]
+
+
+def test_g5_rejects_the_allowance_for_another_edge_or_extra_changes(tmp_path, seams):
+    s = edge_scene(tmp_path, EDGE_WITHOUT)
+    # the entry removed is not the one allowed
+    assert not cr.gate_g5(ctx_of(s, leaf_edge_removals=["settings -> poh"]))[0]
+    # an allowed edge that the file never had
+    assert not cr.gate_g5(ctx_of(s, leaf_edge_removals=["transport -> poh", "x -> y"]))[0]
+    # a second entry removed as well
+    two = EDGE_WITHOUT.replace(
+        "\t\tLEAF_EDGES.put(\"poh -> transport\",\n\t\t\t\"PohService reads Transport\");\n", "")
+    s2 = edge_scene(tmp_path / "two", two)
+    assert not cr.gate_g5(ctx_of(s2, leaf_edge_removals=["transport -> poh"]))[0]
+    # another line changed next to the removal
+    changed = EDGE_WITHOUT.replace("Settings reads POH config", "Settings reads more")
+    s3 = edge_scene(tmp_path / "three", changed)
+    assert not cr.gate_g5(ctx_of(s3, leaf_edge_removals=["transport -> poh"]))[0]
+
+
+def test_the_leaf_edge_allowance_covers_no_other_file(tmp_path, seams):
+    other = "src/test/java/shortestpath/OtherTest.java"
+    s = gate_scene(tmp_path, base_files={other: EDGE_TEXT},
+                   cleanup_files={"src/main/java/acme/Foo.java": GATE_FOO_CLEAN,
+                                  other: EDGE_WITHOUT})
+    assert not cr.gate_g5(ctx_of(s, leaf_edge_removals=["transport -> poh"]))[0]
+
+
+def test_the_gate_command_takes_the_leaf_edge_allowance(tmp_path, seams):
+    # the scene puts the removal into the cleanup commit, so G3 fails whatever
+    # G5 says; this only checks that the flag reaches G5 and is recorded
+    s = edge_scene(tmp_path, EDGE_WITHOUT)
+    cr.main(gate_argv(s))
+    assert not json.loads((s.out / "gate.json").read_text())["gates"]["G5"]["pass"]
+    s2 = edge_scene(tmp_path / "again", EDGE_WITHOUT)
+    cr.main(gate_argv(s2, "--allow-leaf-edge-removal", "transport -> poh"))
+    g5 = json.loads((s2.out / "gate.json").read_text())["gates"]["G5"]
+    assert g5["pass"] and g5["detail"]["allowed_leaf_edge_removals"][0]["edge"] == "transport -> poh"
+
+
+# ---- G7 pairing with replayed deletions
+
+GONE = "src/main/java/acme/Gone.java"
+
+
+def deletion_scene(repo, old_extra=None, replay_deletes=True):
+    """Base holds an empty Gone.java.  O deletes it (plus `old_extra`, an
+    import-only change by default); N replays on the wildcard line."""
+    commit(repo, {GONE: ""}, "add Gone")
+    g(repo, "branch", "base")
+    g(repo, "checkout", "-q", "-b", "old")
+    g(repo, "rm", "-q", GONE)
+    o = commit(repo, GAMMA_IMPORT if old_extra is None else old_extra, "Foo imports")
+    g(repo, "checkout", "-q", "-b", "new", "base")
+    commit(repo, {MAIN_FOO: FOO_WILD}, "refactor: use wildcard imports")
+    if replay_deletes:
+        g(repo, "rm", "-q", GONE)
+    n = commit(repo, {}, "Foo imports", allow_empty=not replay_deletes)
+    return o, n
+
+
+def test_range_diff_pair_with_replayed_deletions_is_accepted(repo, tmp_path, fake_range_diff):
+    o, n = deletion_scene(repo)
+    fake_range_diff["text"] = rows(o, n)
+    rc, doc = map_pair(repo, tmp_path, o, n)
+    assert rc == 0, doc["errors"]
+    (acc,) = doc["range_diff_accepted"]
+    assert acc["old_patch"] == "imports-whitespace-and-replayed-deletions"
+    assert acc["deleted"] == [GONE] and acc["tree"] == "equal-outside-imports"
+
+
+def test_range_diff_pair_is_rejected_when_the_replay_keeps_the_deleted_file(
+        repo, tmp_path, fake_range_diff):
+    o, n = deletion_scene(repo, replay_deletes=False)
+    fake_range_diff["text"] = rows(o, n)
+    rc, doc = map_pair(repo, tmp_path, o, n)
+    assert rc == 1 and doc["range_diff_accepted"] == []
+
+
+def test_range_diff_pair_is_rejected_when_the_old_patch_also_changes_content(
+        repo, tmp_path, fake_range_diff):
+    o, n = deletion_scene(repo, old_extra={MAIN_BAR: BAR.replace("v = 1", "v = 2")})
+    fake_range_diff["text"] = rows(o, n)
+    rc, doc = map_pair(repo, tmp_path, o, n)
+    assert rc == 1 and doc["range_diff_accepted"] == []
+
+
+def test_range_diff_pair_is_rejected_when_the_replay_deletes_another_file_only(
+        repo, tmp_path, fake_range_diff):
+    # the original deletes Gone.java; the replay deletes Bar.java instead
+    commit(repo, {GONE: ""}, "add Gone")
+    g(repo, "branch", "base")
+    g(repo, "checkout", "-q", "-b", "old")
+    g(repo, "rm", "-q", GONE)
+    o = commit(repo, {}, "Foo imports")
+    g(repo, "checkout", "-q", "-b", "new", "base")
+    commit(repo, {MAIN_FOO: FOO_WILD}, "refactor: use wildcard imports")
+    g(repo, "rm", "-q", MAIN_BAR)
+    n = commit(repo, {}, "Foo imports")
+    fake_range_diff["text"] = rows(o, n)
+    rc, doc = map_pair(repo, tmp_path, o, n)
+    assert rc == 1 and doc["range_diff_accepted"] == []
 
 
 # ---- G6

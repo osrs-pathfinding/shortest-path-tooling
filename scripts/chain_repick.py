@@ -45,7 +45,8 @@ Subcommands
       empty or touch other import lines); range-diff then shows the original
       as an only-old row and the replay as an only-new row.  Such two rows are
       accepted only when all three hold: the log joins the two commits; the
-      original's own patch touches nothing but import lines and whitespace;
+      original's own patch touches nothing but import lines and whitespace
+      (or deletes .java files that the replay deletes as well);
       and the replayed commit's tree equals the original's tree plus the fix
       patch (the original's tree as is without one) in every .java file apart
       from import lines and whitespace, and in every other file exactly.
@@ -77,7 +78,14 @@ Subcommands
                        class files as its parent.
         G5 equivalence OLD plus the fix patch and NEW compile to the same class
                        files and differ in no .java file (tests included)
-                       beyond import lines and whitespace.
+                       beyond import lines and whitespace.  One narrow
+                       allowance exists, only when given with
+                       --allow-leaf-edge-removal EDGE: the dependency-rule
+                       test may lack the LEAF_EDGES.put statement of that edge
+                       (the lint counts imports as edges, so removing an
+                       unused import can strand the entry), and nothing else
+                       beyond imports and whitespace; it is recorded in
+                       gate.json.
         G6 tokens      cl100k token totals of OLD, PREV-NEW (when it differs from
                        PREV-OLD), the last pick, every inserted commit and NEW,
                        each keyed by the SHA it was measured on; NEW must be
@@ -614,16 +622,24 @@ def classify_pair(repo, old, new, conflict=None, fix_patch=None):
     return "unexplained"
 
 
+def deleted_java(repo, commit):
+    """The .java paths a commit deletes."""
+    base, head = (git(repo, "rev-parse", f"{commit}{suffix}^{{tree}}").strip()
+                  for suffix in ("^", ""))
+    return {path for status, path in sc.changed_java(repo, base, head) if status == "D"}
+
+
 def accept_range_diff_pair(repo, old, new, joined, fix_patch=None):
     """Accept an only-old row for `old` and an only-new row for `new` of the
     range-diff as one legitimately import-only pick, or return None.
 
     All three must hold: the pick log joins exactly these two commits; the old
-    commit's own patch touches nothing but import lines and whitespace; and the
-    new commit's tree equals the old commit's tree plus the fix patch (the old
-    tree as is when there is none) in every .java file apart from import lines
-    and whitespace, and exactly in every other file.  A fix patch that does not
-    apply to the old commit leaves the pair unaccepted.
+    commit's own patch touches nothing but import lines and whitespace, except
+    that it may delete .java files provided the replay deletes every one of
+    them too; and the new commit's tree equals the old commit's tree plus the
+    fix patch (the old tree as is when there is none) in every .java file apart
+    from import lines and whitespace, and exactly in every other file.  A fix
+    patch that does not apply to the old commit leaves the pair unaccepted.
     """
     if not joined:
         return None
@@ -631,7 +647,12 @@ def accept_range_diff_pair(repo, old, new, joined, fix_patch=None):
     if rc != 0:
         return None
     try:
-        if check_diff(repo, f"{old}^", old)[0]:
+        deleted = deleted_java(repo, old)
+        if deleted - deleted_java(repo, new):
+            return None
+        offences = [o for o in check_diff(repo, f"{old}^", old)[0]
+                    if not (o.endswith(": file deleted") and o[:-len(": file deleted")] in deleted)]
+        if offences:
             return None
         if check_diff(repo, old, new, base_patch=fix_patch)[0]:
             return None
@@ -640,8 +661,12 @@ def accept_range_diff_pair(repo, old, new, joined, fix_patch=None):
     rc, _, _ = git_rc(repo, "diff", "--quiet", old, new, "--", ".", ":(exclude)*.java")
     if rc != 0:
         return None
-    return {"old": old, "new": new, "old_patch": "imports-or-whitespace",
-            "tree": "equal-outside-imports"}
+    accepted = {"old": old, "new": new, "old_patch": "imports-or-whitespace",
+                "tree": "equal-outside-imports"}
+    if deleted:
+        accepted["old_patch"] = "imports-whitespace-and-replayed-deletions"
+        accepted["deleted"] = sorted(deleted)
+    return accepted
 
 
 def build_map(repo, logs, old_range, new_range, inserted, fix_patch):
@@ -725,6 +750,7 @@ def cmd_patched_tree(args):
 GATE_NAMES = ("G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8")
 FIX_AUTHOR = "rsbfox <aaron.crts@gmail.com>"
 FIX_FILE = "src/main/java/shortestpath/requirement/ClientPlayerStateSource.java"
+EDGE_TEST_FILE = "src/test/java/shortestpath/PluginDependencyRuleTest.java"
 BUILD_PATHS = ("build.gradle", "settings.gradle", "gradle", "gradlew", "gradlew.bat", "config")
 RELEASE_TAGS = ("v1.22.2", "v1.22.3", "v1.22.4", "v1.22.5")
 CLEANUP_PREFIX = "style:"
@@ -777,8 +803,9 @@ class Ctx:
     """The inputs of one gate run, with a few lookups shared by the gates."""
 
     def __init__(self, repo, worktree, tag, old, new, prev_old, prev_new, inserted,
-                 fix_patch, classpath_file, tags_before, out, logs):
+                 fix_patch, classpath_file, tags_before, out, logs, leaf_edge_removals=()):
         self.repo, self.worktree, self.tag = repo, worktree, tag
+        self.leaf_edge_removals = list(leaf_edge_removals)
         self.old, self.new, self.prev_old, self.prev_new = old, new, prev_old, prev_new
         self.inserted, self.fix_patch = list(inserted), fix_patch
         self.classpath_file, self.tags_before, self.out = classpath_file, tags_before, Path(out)
@@ -947,6 +974,44 @@ def gate_g4(ctx):
     return not problems, detail
 
 
+def leaf_edge_statement(edge):
+    """Regex of the one `LEAF_EDGES.put("EDGE", "description");` statement."""
+    return re.compile(r'[ \t]*LEAF_EDGES\.put\(\s*"' + re.escape(edge)
+                      + r'"\s*,\s*"(?:[^"\\\n]|\\.)*"\s*\);[ \t]*\n?')
+
+
+def apply_leaf_edge_allowances(ctx, base_tree, offences):
+    """(remaining offences, allowances used) of G5.
+
+    The dependency-rule lint counts import statements as package edges, so the
+    cleanup commit's removal of an unused import can leave a stale LEAF_EDGES
+    entry whose test then fails.  The only non-import difference G5 tolerates
+    is that: EDGE_TEST_FILE equals the base blob with the LEAF_EDGES.put
+    statement of an allowed edge removed (and nothing else changed beyond
+    imports and whitespace).  An allowance for another file, another edge, or a
+    file that differs in anything else leaves the offence in place.
+    """
+    remaining, used = list(offences), []
+    if not ctx.leaf_edge_removals:
+        return remaining, used
+    marker = f"{EDGE_TEST_FILE}: changes more than import lines and whitespace"
+    if marker not in remaining:
+        return remaining, used
+    old_text = git(ctx.repo, "cat-file", "blob", f"{base_tree}:{EDGE_TEST_FILE}")
+    new_text = git(ctx.repo, "cat-file", "blob", f"{ctx.new}:{EDGE_TEST_FILE}")
+    stripped = old_text
+    for edge in ctx.leaf_edge_removals:
+        stripped, count = leaf_edge_statement(edge).subn("", stripped)
+        if count == 1:
+            used.append({"file": EDGE_TEST_FILE, "edge": edge})
+        else:
+            return remaining, []
+    if sc._scan(stripped)[0] != sc._scan(new_text)[0]:
+        return remaining, []
+    remaining.remove(marker)
+    return remaining, used
+
+
 def gate_g5(ctx):
     detail, problems = {}, []
     tree = patched_tree(ctx.repo, ctx.old, ctx.fix_patch)
@@ -959,6 +1024,9 @@ def gate_g5(ctx):
     offences, summary = check_diff(ctx.repo, ctx.old, ctx.new, base_patch=ctx.fix_patch)
     detail["java_files_differing"] = summary["files"]
     detail["lines"] = summary["lines"]
+    offences, allowed = apply_leaf_edge_allowances(ctx, tree, offences)
+    if allowed:
+        detail["allowed_leaf_edge_removals"] = allowed
     if offences:
         problems.append("files differ beyond imports and whitespace: " + "; ".join(offences[:10]))
     detail["problems"] = problems
@@ -1081,7 +1149,7 @@ def cmd_gate(args):
     inserted = [resolve(s) for s in (args.inserted or "").split(",") if s]
     ctx = Ctx(args.repo, wt, args.tag, resolve(args.old), new, resolve(args.prev_old),
               resolve(args.prev_new), inserted, args.fix_patch, args.classpath_file,
-              args.tags_before, args.out, args.log or [])
+              args.tags_before, args.out, args.log or [], args.allow_leaf_edge_removal or [])
     ctx.out.mkdir(parents=True, exist_ok=True)
     gates = run_gates(ctx)
     doc = {"tag": args.tag, "old": ctx.old, "new": ctx.new, "prev_old": ctx.prev_old,
@@ -1134,6 +1202,9 @@ def build_parser():
         gt.add_argument(flag, required=True)
     gt.add_argument("--inserted", default="")
     gt.add_argument("--log", action="append")
+    gt.add_argument("--allow-leaf-edge-removal", action="append", metavar="EDGE",
+                    help="G5 allowance: the dependency-rule test may lose exactly the "
+                         "LEAF_EDGES entry EDGE (for example 'transport -> poh')")
 
     t = sub.add_parser("patched-tree", help="print the tree of a tree-ish with a patch applied")
     t.add_argument("--repo", required=True)
