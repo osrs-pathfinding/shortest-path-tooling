@@ -507,7 +507,11 @@ def cmd_universe(args):
     if missing:
         raise UnusableInput("no type names found for imported package(s): " + ", ".join(missing))
 
-    javac = run(["javac", "-version"])
+    javac_path = jdk_home / "bin" / "javac"  # the JDK whose ct.sym was read, not PATH's
+    try:
+        javac = run([str(javac_path), "-version"])
+    except OSError as e:
+        raise UnusableInput(f"cannot run {javac_path}: {e}") from e
     javac_version = ((javac.stdout or "") + (javac.stderr or "")).strip() or "javac"
     refs = [args.base_ref] + head_refs
     shas = [(r, git(args.repo, "rev-parse", "--verify", f"{r}^{{commit}}").strip()) for r in refs]

@@ -724,6 +724,27 @@ def test_universe_subcommand(universe_env):
     assert not any(r.startswith("shortestpath") for r in rows)
 
 
+def test_universe_names_the_javac_of_the_jdk_home_not_the_one_on_path(universe_env, monkeypatch):
+    tmp_path, _, _, args = universe_env
+    calls = []
+    monkeypatch.setattr(wi, "run", lambda argv: calls.append(argv) or cp(argv, stderr="javac 11.0.2\n"))
+    assert wi.main(args) == 0
+    assert calls == [[str(tmp_path / "jdk" / "bin" / "javac"), "-version"]]
+    assert "from ct.sym of javac 11.0.2, sha256 " in (tmp_path / "u.tsv").read_text()
+
+
+def test_universe_exits_2_when_the_jdk_home_has_no_runnable_javac(universe_env, monkeypatch, capsys):
+    tmp_path, _, _, args = universe_env
+
+    def missing(argv):
+        raise FileNotFoundError(2, "No such file or directory", argv[0])
+
+    monkeypatch.setattr(wi, "run", missing)
+    assert wi.main(args) == 2
+    assert "bin/javac" in capsys.readouterr().err
+    assert not (tmp_path / "u.tsv").exists()
+
+
 def test_universe_unknown_package_exits_2(universe_env, tmp_path, monkeypatch, capsys):
     _, _, _, args = universe_env
     base_text = "package shortestpath;\n\nimport com.nowhere.Thing;\n\nclass A {}\n"
