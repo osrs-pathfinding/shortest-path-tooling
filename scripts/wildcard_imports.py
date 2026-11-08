@@ -430,12 +430,19 @@ _ADDED_IMPORT = re.compile(
     r"^\+\s*import\s+(?!static\b)(" + IDENT + r"(?:\." + IDENT + r")*)(\.\*)?\s*;")
 
 
+def java_paths_at(repo, ref):
+    """The .java paths under src/main/java at `ref`.  Read with -z: without
+    it git quotes a path holding non-ASCII bytes and the file would be dropped
+    from the listing without an error."""
+    out = git(repo, "ls-tree", "-r", "-z", "--name-only", ref, "--", SRC_ROOT)
+    return [n for n in out.split("\0") if n.endswith(".java")]
+
+
 def collect_packages(repo, base_ref, head_refs):
     """U1: packages imported at base_ref, plus those of every import line the
     commits between base_ref and the head refs add."""
     pkgs = set()
-    names = git(repo, "ls-tree", "-r", "--name-only", base_ref, "--", SRC_ROOT).splitlines()
-    files = [n for n in names if n.endswith(".java")]
+    files = java_paths_at(repo, base_ref)
     if not files:
         raise UnusableInput(f"no {SRC_ROOT}/*.java files at {base_ref} in {repo}")
     for n in files:
@@ -590,8 +597,7 @@ class GitTree:
         self.repo, self.ref = repo, ref
 
     def paths(self):
-        out = git(self.repo, "ls-tree", "-r", "--name-only", self.ref, "--", SRC_ROOT)
-        paths = sorted(n for n in out.splitlines() if n.endswith(".java"))
+        paths = sorted(java_paths_at(self.repo, self.ref))
         if not paths:
             raise UnusableInput(f"no {SRC_ROOT}/*.java files at {self.ref} in {self.repo}")
         return paths

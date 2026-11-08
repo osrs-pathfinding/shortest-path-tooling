@@ -66,7 +66,8 @@ def fake_git(files):
     """A `git` seam serving {path: text} for ls-tree and show."""
     def fake(repo, *args):
         if args[0] == "ls-tree":
-            return "\n".join(sorted(files)) + "\n"
+            assert "-z" in args  # a quoted non-ASCII path must not reach the parser
+            return "\0".join(sorted(files)) + "\0"
         if args[0] == "show":
             return files[args[1].split(":", 1)[1]]
         raise AssertionError(f"unexpected git call {args}")
@@ -665,6 +666,40 @@ def test_nested_body_finds_a_direct_member_type_only():
     assert "int y" in wi.nested_body(inner, "J")
 
 
+def non_ascii_repo(tmp_path):
+    repo = tmp_path / "repo"
+    for name, imports in (("A", ["import java.util.List;", "import java.util.Map;"]),
+                          ("\u00c9", ["import java.util.Set;", "import java.util.Map;"])):
+        path = repo / SRC / "shortestpath" / f"{name}.java"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(java("shortestpath", imports, ["List", "Map", "Set"], name=name),
+                        encoding="utf-8")
+    for cmd in (["init", "-q"], ["add", "."],
+                ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x"]):
+        subprocess.run(["git", "-C", str(repo), *cmd], check=True, capture_output=True)
+    return repo
+
+
+def test_git_tree_lists_a_non_ascii_path_instead_of_dropping_it(tmp_path):
+    # without -z git quotes the path and the .java suffix test failed on it
+    repo = non_ascii_repo(tmp_path)
+    assert wi.GitTree(repo, "HEAD").paths() == [
+        f"{SRC}/shortestpath/A.java", f"{SRC}/shortestpath/\u00c9.java"]
+    assert wi.GitTree(repo, "HEAD").read(f"{SRC}/shortestpath/\u00c9.java").startswith("package")
+
+
+def test_check_examines_a_non_ascii_file(tmp_path, capsys):
+    repo = non_ascii_repo(tmp_path)
+    assert wi.main(["check", "--repo", str(repo), "--ref", "HEAD", "--universe", str(MINI)]) == 1
+    out = capsys.readouterr().out
+    assert "\u00c9.java: not canonical" in out and "2 of 2 files offend" in out
+
+
+def test_collect_packages_reads_a_non_ascii_path(tmp_path):
+    repo = non_ascii_repo(tmp_path)
+    assert wi.collect_packages(str(repo), "HEAD", []) == {"java.util", "java.lang"}
+
+
 def test_check_exits_2_on_a_ref_without_sources(monkeypatch, capsys):
     monkeypatch.setattr(wi, "git", lambda repo, *a: "")
     assert wi.main(["check", "--repo", "r", "--ref", "REF", "--universe", str(MINI)]) == 2
@@ -725,7 +760,7 @@ def universe_env(tmp_path, monkeypatch):
 
     def fake(repo, *args):
         if args[0] == "ls-tree":
-            return f"{SRC}/shortestpath/A.java\n"
+            return f"{SRC}/shortestpath/A.java\0"
         if args[0] == "show":
             return base_text
         if args[0] == "log":
