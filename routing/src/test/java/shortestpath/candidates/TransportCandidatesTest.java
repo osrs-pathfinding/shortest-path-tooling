@@ -191,32 +191,43 @@ public class TransportCandidatesTest {
     }
 
     @Test
-    public void listsAMapLinkBetweenReachedAreasThatNoTransportNearItsIconModels() {
+    public void aWorldMapLinkBetweenReachedAreasIsNotListed() {
+        // A link summarises a journey, or points near the entrance rather than at it: not an edge to add.
         ConnectorSnapshot snapshot = snapshot();
         snapshot.mapLinks.add(link(100, 100, 0, 104, 104, 1));
         snapshot.mapLinks.add(link(104, 104, 1, 100, 100, 0));
         Grid grid = new Grid();
         grid.upstairsReached = true;
         Report report = TransportCandidates.judge(snapshot, grid, Map.of(), Map.of(), Scope.none());
-        assertEquals(1, report.items.size());
+        assertEquals(0, report.items.size());
+        assertEquals(Integer.valueOf(2), report.funnel.get("both ends already reached"));
+    }
+
+    static ConnectorSnapshot.Label label(String name, int x, int y, int plane) {
+        ConnectorSnapshot.Label label = new ConnectorSnapshot.Label();
+        label.name = name;
+        label.x = x; label.y = y; label.plane = plane;
+        return label;
+    }
+
+    @Test
+    public void anUnreachedAreaIsTitledByTheWorldMapsNameForIt() {
+        Connector down = ladder(11, "Climb-down", 105, 105, 1, null);
+        Connector up = ladder(10, "Climb-up", 105, 105, 0, down);
+        ConnectorSnapshot snapshot = snapshot(up);
+        // The forge's label sits off the walkable ground; the attic's and the ground floor's names are other areas'.
+        snapshot.labels.add(label("Ancient Forge", 112, 106, 1));
+        snapshot.labels.add(label("Attic", 100, 100, 2));
+        snapshot.labels.add(label("Ground floor", 105, 105, 0));
+        Report report = TransportCandidates.judge(snapshot, new Grid(), Map.of(), Map.of(), Scope.none());
         Report.Item item = report.items.get(0);
-        assertEquals("link", item.kind);
-        assertEquals(List.of("unmodelled", "unmodelled"), item.connectors.stream().map(c -> c.role).collect(java.util.stream.Collectors.toList()));
+        assertEquals("Ancient Forge", item.label);
+        assertEquals("Ancient Forge (unreached area near 105 105 1)", item.title);
 
-        // A transport starting near the ground floor icon and landing upstairs models that direction only.
-        Transport stairs = new Transport.TransportBuilder().origin(WorldPointUtil.packWorldPoint(108, 100, 0))
-            .destination(WorldPointUtil.packWorldPoint(106, 106, 1)).type(TransportType.TRANSPORT).build();
-        Map<Integer, Set<Transport>> transports = Map.of(stairs.getOrigin(), Set.of(stairs));
-        Report half = TransportCandidates.judge(snapshot, grid, transports, Map.of(), Scope.none());
-        assertEquals(List.of("modelled", "unmodelled"), half.items.get(0).connectors.stream().map(c -> c.role).collect(java.util.stream.Collectors.toList()));
-
-        // Modelled both ways, it is not listed.
-        Transport down = new Transport.TransportBuilder().origin(WorldPointUtil.packWorldPoint(104, 104, 1))
-            .destination(WorldPointUtil.packWorldPoint(101, 101, 0)).type(TransportType.TRANSPORT).build();
-        Map<Integer, Set<Transport>> both = Map.of(stairs.getOrigin(), Set.of(stairs), down.getOrigin(), Set.of(down));
-        Report none = TransportCandidates.judge(snapshot, grid, both, Map.of(), Scope.none());
-        assertEquals(0, none.items.size());
-        assertEquals(Integer.valueOf(2), none.funnel.get("map links a transport models"));
+        // With no name nearby it keeps its tile title.
+        Report unnamed = TransportCandidates.judge(snapshot(up), new Grid(), Map.of(), Map.of(), Scope.none());
+        assertNull(unnamed.items.get(0).label);
+        assertEquals("Unreached area near 105 105 1", unnamed.items.get(0).title);
     }
 
     static ConnectorSnapshot.EntranceIcon entrance(int x, int y, int plane, Connector... connectors) {
@@ -238,7 +249,7 @@ public class TransportCandidatesTest {
         assertEquals("entrance", report.items.get(0).connectors.get(0).role);
         assertEquals(Integer.valueOf(1), report.funnel.get("dungeon icons repeating another"));
 
-        // A transport beside the icon covers it; a world map link beside it is judged as a link.
+        // A transport beside the icon covers it; a world map link beside it marks a dungeon the map already joins.
         int origin = WorldPointUtil.packWorldPoint(107, 107, 0);
         assertEquals(0, TransportCandidates.judge(snapshot, new Grid(), transports(origin, "Climb-down Ladder 99"), Map.of(),
             Scope.none()).items.size());

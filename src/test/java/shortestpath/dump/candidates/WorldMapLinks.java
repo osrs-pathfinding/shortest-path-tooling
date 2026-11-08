@@ -19,7 +19,8 @@ final class WorldMapLinks {
     private WorldMapLinks() { }
 
     static List<ConnectorSnapshot.MapLink> read(Store store) throws IOException {
-        // The library's loader asserts on a field newer caches set; the links it reads are unaffected.
+        // The library's loader asserts the link script has a default case; current caches have none, and
+        // every case is "push the far end, call 1706", so the links it pairs are unaffected.
         WorldMapManager.class.getClassLoader().setClassAssertionStatus(WorldMapManager.class.getName(), false);
         WorldMapManager worldMap = new WorldMapManager(store);
         worldMap.load();

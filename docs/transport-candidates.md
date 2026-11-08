@@ -1,16 +1,14 @@
 # Transport candidates
 
-Places where the game cache shows a connection the plugin has no transport for, in four
+Places where the game cache shows a connection the plugin has no transport for, in three
 lists:
 
 - **Unreached areas:** a ladder, staircase, trapdoor, cave entrance or world map link that
   would join an area nothing reaches.
 - **Agility shortcuts:** the game's shortcut map icon with no transport nearby.
-- **Unmodelled map links:** a world map link (a dungeon's entrance icon and the dungeon)
-  that no transport near the icon models.
 - **Dungeon entrances:** the game's dungeon entrance map icon with no transport nearby.
 
-All four lists come from a program, not from hand-curation. The criteria are fixed in code,
+All three lists come from a program, not from hand-curation. The criteria are fixed in code,
 and the same cache, plugin data and scope file always produce the same list. They are
 re-judged against whatever plugin data is loaded, so the lists follow the data as rows are
 added.
@@ -30,6 +28,7 @@ as `./gradlew transportCandidates`:
 | `CacheConnectors` | One pass over every cache placement: connectors, map icons, shortcut obstacles |
 | `ConnectorPairing` | Finds each connector's far end, and measures every pairing rule against the plugin's rows |
 | `WorldMapLinks` | Reads the world map's dungeon links |
+| `WorldMapLabels` | Reads the world map's place names |
 | `ShortcutIcons` | Finds the agility shortcut icon and matches each icon to RuneLite's shortcut list |
 | `DungeonIcons` | Finds the dungeon entrance icon, with the connectors beside each icon |
 | `MapIcons` | Finds which map icon marks a kind of place, from the rows it is placed beside |
@@ -42,8 +41,7 @@ calls it live:
 | `TransportCandidates` | Entry point: judges a snapshot against loaded plugin data |
 | `UnreachedAreas` | Candidate set 1: unreached areas and the connectors and links into them |
 | `AgilityShortcuts` | Candidate set 2: shortcut icons with no transport nearby |
-| `MapLinks` | Candidate set 3: world map links between reached areas that no transport models |
-| `DungeonEntrances` | Candidate set 4: dungeon entrance icons with no transport nearby |
+| `DungeonEntrances` | Candidate set 3: dungeon entrance icons with no transport nearby |
 | `Coverage` | Whether a transport row already covers a connector |
 | `Scope` | Map boxes left out (`candidate_scope.tsv`), each with a reason |
 | `Walking` | The plugin's walking areas and their reachability from Lumbridge |
@@ -54,7 +52,7 @@ Data (`routing/src/main/resources/candidates/`):
 
 | File | Contents |
 |---|---|
-| `connectors.json` | The snapshot of cache facts: connectors, map links and shortcut icons, one per line |
+| `connectors.json` | The snapshot of cache facts: connectors, map links, shortcut and dungeon icons, and place names, one per line |
 | `candidate_scope.tsv` | The scope boxes |
 
 Regenerate after a cache or plugin update:
@@ -134,8 +132,14 @@ Roles:
 Connectors are grouped into one item per unreached area. The item id hashes the sorted
 placements, so a review decision survives cache updates.
 
+An area the world map names is titled by that name, e.g. "Ancient Forge (unreached area
+near 1744 5321 1)". The name is a world map label (a map element whose map area has a name;
+1,058 on cache 2757) whose nearest walkable tile within 5 is in the area. When several are,
+the one nearest the item's focus wins. On cache 2757, 35 of the 127 listed areas are named.
+
 Items are sorted by the locations they contain (banks, altars, anvils, apothecaries),
-then by everything they contain, including transport origins, then by size.
+then named areas before unnamed ones, then by everything they contain, including
+transport origins, then by size.
 
 Everything else is counted in the funnel, not listed. That includes areas whose
 connectors have no known far end.
@@ -153,47 +157,38 @@ connectors have no known far end.
 | areas whose connectors all lead somewhere unknown | 560 |
 | **listed areas** | **127** |
 
-Each list has its own budget: at most 150 areas, and 50 each of shortcuts, map links and
-dungeon entrances. If a list
+Each list has its own budget: at most 150 areas, and 50 each of shortcuts and dungeon
+entrances. If a list
 grows past its budget, tighten its rule rather than paging through it.
 
 ## World map links
 
-The world map links each dungeon's entrance icon to the dungeon's own map
-(`WorldMapManager.getIntermapLinks`). There are 406 links, counting both directions. The
-library's loader trips an internal assertion on current caches, so the dumper turns
-assertions off for that class; the links it reads are unaffected.
+Clicking some icons on the world map jumps its view to another map: a dungeon's entrance
+icon opens the dungeon, and an icon in the dungeon jumps back to the surface. The game keeps
+these in clientscript 1705, one switch case per link that pushes the far end and calls
+script 1706, and `WorldMapManager.getIntermapLinks` reads them. There are 406 links, counting
+both directions. The library's loader asserts that the script has a default case, which
+current caches don't have, so the dumper turns assertions off for that class. Decoding the
+script directly gives the same 406 links.
 
 A link's ends are icon positions, not exact tiles. The gate uses the walkable tile nearest
 each icon, within 5 tiles. A link is a pair with rule `map-link`, so it can be the way in
-or out of an unreached area like any connector.
+or out of an unreached area like any connector. On cache 2757, 90 links pass that gate.
 
-On cache 2757, 90 links pass the unreached-area gate.
+Links between two reached areas aren't listed. A link is how the world map is navigated, not
+a playable edge:
 
-### Unmodelled map links
+- It can sum up a journey through several transports. Ectofuntus's basement icon links to
+  the surface through four, and Forthos's catacombs link to the surface through a passage and
+  a staircase.
+- It can point at a nearby place rather than the entrance. The Chasm of Fire links to the
+  Shayzien crypt's icon, 122 tiles from the rope that actually leads out.
+- Many are one-way.
 
-A link between two reached areas is **modelled** when a transport starts within 15 tiles of
-its icon and lands in the walking area of the link's other end. The test is local to the
-icon, not to the two areas. A dungeon with one modelled entrance and a second unmodelled one
-joins the same two areas, and the second entrance is still listed.
-
-A link and its reverse (each icon within 15 tiles of the other's) are one item. The item is
-listed when either direction is unmodelled, and each direction shows whether it's modelled.
-
-On cache 2757:
-
-| Step | Count |
-|---|---|
-| links | 406 |
-| an end off walkable ground | 49 |
-| into an unreached area (listed as areas) | 167 |
-| within one walking area | 0 |
-| modelled by a transport | 181 |
-| **listed** | **9** |
-
-Most listed links are one-way dungeon exits, plus Zanaris's way back to the Lumbridge shed
-(its way in is modelled). An exit can also be modelled by an object more than 15 tiles from
-the icon, which review sorts out.
+An earlier set listed links that no single transport near the icon modelled. Of its 9
+items on cache 2757, 7 joined areas that a chain of up to 4 transports already connects. The
+other 2, 1957 4952 → 3081 3420 and 2856 10087 → 2796 3718, had no such chain and are
+unreviewed. Don't add a transport from a link's two ends.
 
 ## Agility shortcuts
 
@@ -240,7 +235,8 @@ within 5 tiles, as the objects it most likely marks.
 The live list keeps one icon per entrance, merging icons on other planes or within 3 tiles.
 It drops:
 - icons with a transport origin within 5 tiles, or a covered connector beside them;
-- icons within 10 tiles of a world map link's icon, since the map link sets judge those;
+- icons within 10 tiles of a world map link's icon: the map already joins that dungeon, and
+  a link into an unreached area is judged there;
 - icons whose connectors are already an unreached area's way in;
 - icons with no walkable tile within 5 on reached ground.
 
