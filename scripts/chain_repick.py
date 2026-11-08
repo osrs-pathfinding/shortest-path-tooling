@@ -33,7 +33,11 @@ Subcommands
       pair must have the same subject and author.  A pair is "identical" when
       the two patches have the same stable patch id, "import-or-whitespace"
       when the two patches are equal after dropping import statement lines
-      and whitespace, "conflict-recorded" when the log holds a conflict for
+      and whitespace (or, when the parents differ in whitespace and git
+      aligned the hunks differently, when every normalised line has the same
+      net change in both patches and the replayed tree equals the original's
+      tree plus the fix patch apart from imports and whitespace),
+      "conflict-recorded" when the log holds a conflict for
       it, otherwise "unexplained" (a hard failure).  The range-diff of the two
       ranges is stored.  Import-only pairing: a commit whose patch only adds
       or removes import lines can replay to a commit that range-diff does not
@@ -542,12 +546,56 @@ def significant_changes(diff):
     return out
 
 
-def classify_pair(repo, old, new, conflict=None):
+def net_changes(diff):
+    """{file: {normalised line: added minus removed}} of a -U0 diff, import
+    statement lines and whitespace dropped, balanced lines and files omitted.
+
+    The net count of a line is how many more times the line is in the file
+    after the commit than before it, so it does not depend on how git aligned
+    the hunks: a line that one diff shows as removed and added again (because
+    a whitespace-only line next to it differs in the two parents) counts zero.
+    """
+    net, path, in_hunk = {}, None, False
+    for line in diff.split("\n"):
+        if line.startswith("diff --git "):
+            path, in_hunk = line.rsplit(" b/", 1)[-1], False
+        elif line.startswith("@@"):
+            in_hunk = True
+        elif in_hunk and line[:1] in ("+", "-"):
+            text = sc.normalise(line[1:])
+            if text:
+                counts = net.setdefault(path, {})
+                counts[text] = counts.get(text, 0) + (1 if line[0] == "+" else -1)
+    out = {}
+    for path, counts in net.items():
+        counts = {t: n for t, n in counts.items() if n}
+        if counts:
+            out[path] = counts
+    return out
+
+
+def trees_differ_only_in_imports(repo, old, new, fix_patch=None):
+    """True when NEW's tree equals OLD's tree (plus the fix patch, when there
+    is one) in every .java file apart from import lines and whitespace.  A fix
+    patch that does not apply counts as a difference."""
+    try:
+        return not check_diff(repo, old, new, base_patch=fix_patch)[0]
+    except UnusableInput:
+        return False
+
+
+def classify_pair(repo, old, new, conflict=None, fix_patch=None):
     """How a replayed commit relates to its original.
 
     "identical": the two patches have the same stable patch id.
     "import-or-whitespace": after dropping import statement lines and
-    whitespace the two patches make the same change.
+    whitespace the two patches make the same change.  When the parents differ
+    in whitespace (the tag's cleanup commit sits before the picks) git can
+    align the hunks of the same change differently and the positional
+    comparison fails; the pair then still counts when the net change of every
+    normalised line is the same in both patches AND the replayed commit's tree
+    equals the original's tree (plus the fix patch) apart from import lines
+    and whitespace, which also rules out a reordered or altered line.
     "conflict-recorded": the pick log holds a conflict for it (a resolved
     import section or a verdict written by hand).  Anything else is
     "unexplained", which fails the gate.
@@ -557,6 +605,9 @@ def classify_pair(repo, old, new, conflict=None):
     diffs = [git(repo, "show", "--format=", "--no-color", "--no-renames", "-U0", sha)
              for sha in (old, new)]
     if significant_changes(diffs[0]) == significant_changes(diffs[1]):
+        return "import-or-whitespace"
+    if (net_changes(diffs[0]) == net_changes(diffs[1])
+            and trees_differ_only_in_imports(repo, old, new, fix_patch)):
         return "import-or-whitespace"
     if conflict:
         return "conflict-recorded"
@@ -619,7 +670,7 @@ def build_map(repo, logs, old_range, new_range, inserted, fix_patch):
         for key in ("subject", "author"):
             if o[key] != n[key]:
                 errors.append(f"{p['old']} -> {p['new']}: the {key} differs")
-        cls = classify_pair(repo, p["old"], p["new"], p.get("conflict"))
+        cls = classify_pair(repo, p["old"], p["new"], p.get("conflict"), fix_patch)
         if cls == "unexplained":
             errors.append(f"{p['old']} -> {p['new']}: unexplained difference")
         counts[cls] = counts.get(cls, 0) + 1

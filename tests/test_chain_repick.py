@@ -455,6 +455,97 @@ def test_a_pair_differing_only_in_import_lines_and_whitespace_is_import_or_white
     assert rc == 0 and doc["pairs"][0]["class"] == "import-or-whitespace"
 
 
+CFG = "src/main/java/acme/Cfg.java"
+
+
+def cfg_text(lines, dirty):
+    """A small interface file; `dirty` marks the blank line at index 3 with a tab
+    (trailing whitespace that a cleanup commit would have removed)."""
+    body = "".join((("\t" if dirty and i == 3 and not line else "") + line) + "\n"
+                   for i, line in enumerate(lines))
+    return "package acme;\n\npublic interface Cfg\n{\n" + body + "}\n"
+
+
+CFG_LINES = ["\t@Item(", "\t}", "\t@Item(", "", "\t\tposition = 1,"]
+
+
+def whitespace_apart_chains(repo, old_lines, new_lines, new_last="\t\tposition = 1,"):
+    """The old chain adds Cfg.java with trailing whitespace then changes its
+    lines 1..3; the new chain adds it cleaned, then makes its own change."""
+    g(repo, "branch", "base")
+    g(repo, "checkout", "-q", "-b", "old")
+    ox = commit(repo, {CFG: cfg_text(CFG_LINES, True)}, "Add Cfg")
+    o = commit(repo, {CFG: cfg_text(CFG_LINES[:1] + old_lines + CFG_LINES[4:], True)}, "Change Cfg")
+    g(repo, "checkout", "-q", "-b", "new", "base")
+    clean = CFG_LINES[:4] + [new_last]
+    nx = commit(repo, {CFG: cfg_text(clean, False)}, "Add Cfg")
+    n = commit(repo, {CFG: cfg_text(clean[:1] + new_lines + clean[4:], False)}, "Change Cfg")
+    return (ox, nx), (o, n)
+
+
+def patches_of(repo, shas):
+    return [cr.git(repo, "show", "--format=", "--no-color", "--no-renames", "-U0", sha)
+            for sha in shas]
+
+
+def map_whitespace_apart(repo, tmp_path, fake_range_diff, add, change):
+    fake_range_diff["text"] = (f"1:  {add[0][:7]} = 1:  {add[1][:7]} Add Cfg\n"
+                               f"2:  {change[0][:7]} ! 2:  {change[1][:7]} Change Cfg\n")
+    return run_map(repo, tmp_path, [(add[0], add[1], None), (change[0], change[1], None)])
+
+
+def test_hunks_aligned_differently_by_whitespace_apart_parents_still_map(
+        repo, tmp_path, fake_range_diff):
+    add, change = whitespace_apart_chains(repo, [""], [""])
+    diffs = patches_of(repo, change)
+    # the scenario is real: the positional comparison cannot tell they agree
+    assert cr.significant_changes(diffs[0]) != cr.significant_changes(diffs[1])
+    assert cr.net_changes(diffs[0]) == cr.net_changes(diffs[1])
+    rc, doc = map_whitespace_apart(repo, tmp_path, fake_range_diff, add, change)
+    assert rc == 0, doc["errors"]
+    assert doc["pairs"][1]["class"] == "import-or-whitespace"
+
+
+def test_a_real_token_difference_is_still_unexplained_with_whitespace_apart_parents(
+        repo, tmp_path, fake_range_diff):
+    add, change = whitespace_apart_chains(repo, [""], ["\t\thidden = true"])
+    assert cr.net_changes(patches_of(repo, change)[0]) != cr.net_changes(patches_of(repo, change)[1])
+    rc, doc = map_whitespace_apart(repo, tmp_path, fake_range_diff, add, change)
+    assert rc == 1 and doc["pairs"][1]["class"] == "unexplained"
+
+
+def test_equal_net_change_but_a_tree_differing_in_a_kept_line_is_unexplained(
+        repo, tmp_path, fake_range_diff):
+    # same net lines, hunks aligned differently, but the new tree differs from
+    # the old one in a line neither patch touches
+    add, change = whitespace_apart_chains(repo, [""], [""], new_last="\t\tposition = 9,")
+    diffs = patches_of(repo, change)
+    assert cr.significant_changes(diffs[0]) != cr.significant_changes(diffs[1])
+    assert cr.net_changes(diffs[0]) == cr.net_changes(diffs[1])
+    rc, doc = map_whitespace_apart(repo, tmp_path, fake_range_diff, add, change)
+    assert rc == 1 and doc["pairs"][1]["class"] == "unexplained"
+
+
+def test_the_same_lines_added_in_another_order_are_unexplained(repo, tmp_path):
+    g(repo, "branch", "base")
+    g(repo, "checkout", "-q", "-b", "old")
+    o = commit(repo, {MAIN_BAR: BAR.replace("\tint v = 1;\n", "\tint v = 1;\n\tint w = 2;\n\tint z = 3;\n")},
+               "Bar two")
+    g(repo, "checkout", "-q", "-b", "new", "base")
+    n = commit(repo, {MAIN_BAR: BAR.replace("\tint v = 1;\n", "\tint v = 1;\n\tint z = 3;\n\tint w = 2;\n")},
+               "Bar two")
+    diffs = patches_of(repo, (o, n))
+    assert cr.net_changes(diffs[0]) == cr.net_changes(diffs[1])
+    rc, doc = run_map(repo, tmp_path, [(o, n, None)])
+    assert rc == 1 and doc["pairs"][0]["class"] == "unexplained"
+
+
+def test_net_changes_ignores_imports_whitespace_and_balanced_lines():
+    diff = ("diff --git a/x/A.java b/x/A.java\n@@ -1,2 +1,2 @@\n"
+            "-import a.B;\n-  keep  ;\n+ keep ;\n+int  x;\n")
+    assert cr.net_changes(diff) == {"x/A.java": {"int x;": 1}}
+
+
 def test_a_missing_old_commit_in_the_log_exits_1(repo, tmp_path, capsys):
     change = {MAIN_BAR: BAR.replace("v = 1", "v = 2")}
     o, n = two_chains(repo, change, change)
