@@ -71,11 +71,13 @@ Subcommands
                        ClientPlayerStateSource.java is the compile fix: its
                        patch id equals the fix patch's and its author is rsbfox.
         G3 cleanup     the inserted `style:` commit passes
-                       `style_cleanup.py check-diff --imports-subset`.
+                       `style_cleanup.py check-diff --imports-subset`, which
+                       examines .java paths only (G2 holds the other files).
         G4 wildcard    NEW is canonical for the wildcard rewriter; the inserted
-                       `refactor: use wildcard imports` commit is exactly the
-                       rewriter's output on its parent and compiles to the same
-                       class files as its parent.
+                       `refactor: use wildcard imports` commit touches nothing
+                       outside src/main/java, is exactly the rewriter's output
+                       on its parent and compiles to the same class files as
+                       its parent.
         G5 equivalence OLD plus the fix patch and NEW compile to the same class
                        files and differ in no .java file (tests included)
                        beyond import lines and whitespace.  One narrow
