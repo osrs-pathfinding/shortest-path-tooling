@@ -23,15 +23,26 @@ dependencies {
 }
 
 // The canonical corpus's routes, so a consumer without the repository finds them on the classpath
-// The legacy search engine the runner benchmarks against, kept in the plugin's test sources
-compileJava.source fileTree(
-    dir: new File(gradle.ext.shortestPathProjectDir, 'src/test/java'),
-    includes: [
-        'shortestpath/pathfinder/Pathfinder.java',
-        'shortestpath/pathfinder/LegacyNeighborGen.java',
-        'shortestpath/pathfinder/OrdinalDirection.java',
-    ]
-)
+// The legacy search engine the runner benchmarks against, kept in the plugin's test sources. It and
+// tooling's profiling pathfinder also need the node graph, visited set, heap and node kinds once the
+// plugin keeps them in its test sources too. A class that the plugin's main sources still hold is
+// skipped here, so a checkout with a copy in both places cannot fail with a duplicate class.
+def legacySearchSources = [
+    'shortestpath/pathfinder/Pathfinder.java',
+    'shortestpath/pathfinder/LegacyNeighborGen.java',
+    'shortestpath/pathfinder/OrdinalDirection.java',
+    'shortestpath/pathfinder/NodeGraph.java',
+    'shortestpath/pathfinder/VisitedTiles.java',
+    'shortestpath/pathfinder/IntMinHeap.java',
+    'shortestpath/pathfinder/AbstractNodeKind.java',
+].findAll { !new File(gradle.ext.shortestPathProjectDir, 'src/main/java/' + it).exists() }
+// An empty include list would select every file, so add nothing at all when none is left.
+if (!legacySearchSources.isEmpty()) {
+    compileJava.source fileTree(
+        dir: new File(gradle.ext.shortestPathProjectDir, 'src/test/java'),
+        includes: legacySearchSources
+    )
+}
 
 processResources {
     from(rootProject.file('corpus/corpus')) {

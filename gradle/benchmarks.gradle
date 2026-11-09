@@ -47,6 +47,36 @@ tasks.register('benchmark', JavaExec) {
     }
 }
 
+// Dumps the walking paths of every canonical scenario of a tier (route steps, click points, kept
+// steps, transport details and an independent game-BFS check), one JSON line each, after a header
+// line that records the plugin and tooling commits. Run it once per plugin checkout
+// (-PshortestPathDir=<old or new tree>) and compare the two files with scripts/walk_diff.py.
+def walkTier = providers.gradleProperty('walkTier').orElse('smoke')
+def pathDumpOutput = providers.gradleProperty('pathDumpOutput')
+
+tasks.register('pathDump', JavaExec) {
+    group = 'verification'
+    description = 'Dumps the walks of the canonical scenarios of a tier: -PwalkTier=smoke|standard|full (default smoke), ' +
+            '-PpathDumpOutput=<file> (default build/path-dump/<tier>.jsonl), -PshortestPathDir=<plugin checkout>.'
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'shortestpath.route.PathDump'
+    jvmArgs = ['-Xms1g', '-Xmx8g']
+    systemProperty 'corpus.dir', corpusDir.absolutePath
+    outputs.upToDateWhen { false }
+    doFirst {
+        File plugin = gradle.ext.shortestPathProjectDir
+        File output = pathDumpOutput.isPresent()
+                ? rootProject.file(pathDumpOutput.get())
+                : rootProject.file("build/path-dump/${walkTier.get()}.jsonl")
+        systemProperty 'pathDump.toolingCommit', commitOf(rootProject.projectDir)
+        systemProperty 'pathDump.toolingDirty', dirtyOf(rootProject.projectDir).toString()
+        systemProperty 'pathDump.shortestPathCommit', commitOf(plugin)
+        systemProperty 'pathDump.shortestPathDirty', dirtyOf(plugin).toString()
+        args = [walkTier.get(), output.absolutePath]
+    }
+}
+
 // Runs one canonical route for one account profile and prints the selected path.
 tasks.register('route', JavaExec) {
     group = 'verification'

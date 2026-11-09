@@ -186,7 +186,6 @@ the move that re-homed each cluster.
 | shortestpath/pathfinder/astar/SparseWalkingNetworkBuilder.java | A* backend | deferred unit |
 | shortestpath/pathfinder/astar/TargetOverlay.java | A* backend | deferred unit |
 | shortestpath/pathfinder/astar/TeleportCapability.java | A* backend | deferred unit |
-| shortestpath/pathfinder/astar/WalkGoal.java | A* backend | deferred unit |
 | shortestpath/pathfinder/astar/package-info.java | A* backend | declared dependency-rule precedent |
 | shortestpath/requirement/BankPickupRequirements.java | requirement middleware | bank-pickup adapter; display phrases ride the presentation seam |
 | shortestpath/requirement/ClientPlayerStateSource.java | requirement middleware | `Client`-backed `PlayerStateSource` |
