@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import shortestpath.WorldPointUtil;
+import shortestpath.candidates.PluginWalking;
 import shortestpath.pathfinder.astar.RoutingStaticBuilder;
 import shortestpath.transport.ResourceLoader;
 
@@ -16,7 +17,7 @@ public class TargetReachabilityTest {
     @BeforeClass
     public static void build() {
         CollisionMap map = new CollisionMap(PluginResources.map());
-        reachability = new TargetReachability(map, RoutingStaticBuilder.walkingGraph(map, ResourceLoader.transports()),
+        reachability = new TargetReachability(map, PluginWalking.of(RoutingStaticBuilder.walkingGraph(map, ResourceLoader.transports())),
             PluginResources.transports(), TargetReachability.DEFAULT_UNREACHABLE_DISTANCE);
     }
 
