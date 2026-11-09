@@ -19,7 +19,6 @@ import shortestpath.TestShortestPathConfig;
 import shortestpath.profiles.PluginSettings;
 import shortestpath.settings.ConfigKey;
 import shortestpath.settings.Settings;
-import shortestpath.settings.ConfigKey;
 
 /**
  * Config-surface parity lint between {@link ShortestPathConfig} and the dashboard
@@ -106,31 +105,6 @@ public class ConfigParityTest {
     }
 
     /**
-     * Twinned methods whose wire payload is deliberately inert through
-     * {@link Settings#effective()} — the {@code ConfigKey} registry declares
-     * these keys' coercion NONE, so a payload value never reaches the getter.
-     * Map value = one-line justification naming where the value actually
-     * lands. Untwinned keys are covered by {@link #NO_TWIN_ALLOWLIST} instead.
-     */
-    private static final Map<String, String> WIRE_INERT_ALLOWLIST = new TreeMap<>();
-
-    static {
-        // Serialised write-path state: persisted through the setBuilt*/blocked
-        // write methods, never payload-overridable (coercion NONE).
-        WIRE_INERT_ALLOWLIST.put("builtTeleportationBoxes",
-            "write-path key (setBuiltTeleportationBoxes); payload-inert through effective()");
-        WIRE_INERT_ALLOWLIST.put("builtTeleportationPortalsPoh",
-            "write-path key (setBuiltTeleportationPortalsPoh); payload-inert through effective()");
-        WIRE_INERT_ALLOWLIST.put("blockedTeleportItems",
-            "write-path key (persisted state); payload-inert through effective()");
-        // The payload pairs with the costQuetzals() base at the driven
-        // whistle read, so the effective getter is inert; parity is asserted
-        // through coerceInt in the test body instead.
-        WIRE_INERT_ALLOWLIST.put("costQuetzalWhistle",
-            "payload pairs with the costQuetzals() base at the driven whistle read; asserted via coerceInt");
-    }
-
-    /**
      * Twinned methods whose default intentionally differs from
      * {@link TestShortestPathConfig}. Map value = one-line justification; every
      * entry must also be justified on the twin's class doc.
@@ -184,16 +158,16 @@ public class ConfigParityTest {
             String key = getter.getName().equals("unreachableTargetDistance")
                 ? "unreachableTargetDistanceThreshold" : getter.getName();
             ConfigKey row = ConfigKey.forKey(key);
-            if (row == null || !row.isKeyed()) {
+            if (row == null) {
                 continue;
             }
             PluginSettings twin = new PluginSettings();
-            assertEquals(key, getter.invoke(twin), Settings.wrap(twin).configuredValue(key));
+            assertEquals(key, getter.invoke(twin), Settings.wrap(twin).configured(key));
             Object sample = sampleValue(getter, getter.invoke(twin), getter.invoke(twin));
             if (sample != null) {
                 PluginSettings.class.getDeclaredMethod(setterName(getter.getName()), getter.getReturnType())
                     .invoke(twin, sample);
-                assertEquals(key, sample, Settings.wrap(twin).configuredValue(key));
+                assertEquals(key, sample, Settings.wrap(twin).configured(key));
             }
         }
     }
@@ -279,7 +253,7 @@ public class ConfigParityTest {
     /**
      * Wire-vs-twin parity: for every twinned config item whose payload is
      * live, a {@link Settings#applyOverrides} payload keyed by
-     * {@code @ConfigItem.keyName} must move {@code effective()} to the same
+     * {@code @ConfigItem.keyName} must move {@link Settings#get} to the same
      * value the twin's {@code setXxx} setter produces — the surviving
      * unification contract between the plugin-message override seam and the
      * scenario-harness seam.
@@ -288,8 +262,7 @@ public class ConfigParityTest {
     public void wireOverridesMatchTwinSetters() throws Exception {
         List<String> failures = new ArrayList<>();
         for (Method m : configItems()) {
-            if (NO_TWIN_ALLOWLIST.containsKey(m.getName())
-                || WIRE_INERT_ALLOWLIST.containsKey(m.getName())) {
+            if (NO_TWIN_ALLOWLIST.containsKey(m.getName())) {
                 continue;
             }
             Object wireBase = m.invoke(new TestShortestPathConfig());
@@ -301,9 +274,14 @@ public class ConfigParityTest {
                     + m.getReturnType().getSimpleName());
                 continue;
             }
+            ConfigKey row = ConfigKey.forKey(keyName(m));
+            if (row == null) {
+                failures.add(m.getName() + ": keyName " + keyName(m) + " has no ConfigKey row");
+                continue;
+            }
             Settings wire = Settings.wrap(new TestShortestPathConfig());
             wire.applyOverrides(Map.of(keyName(m), wireForm(expected)));
-            Object wireValue = m.invoke(wire.effective());
+            Object wireValue = wire.get(row);
             Method setter;
             try {
                 setter = PluginSettings.class.getDeclaredMethod(setterName(m.getName()),
@@ -320,19 +298,17 @@ public class ConfigParityTest {
                     + wireValue + ", twin=" + twinValue + ", expected=" + expected);
             }
         }
-        // costQuetzalWhistle's payload pairs with the costQuetzals() base at
-        // the driven TransportType read for the whistle, so its own effective
-        // getter is inert; parity for that key goes through the keyed
-        // coerceInt read the production call site uses.
+        // costQuetzalWhistle is a hidden key, so the loop above does not reach it: a
+        // payload for it sets the whistle's own differential cost, which the twin's
+        // setter must reproduce.
         Settings whistleWire = Settings.wrap(new TestShortestPathConfig());
         whistleWire.applyOverrides(Map.of("costQuetzalWhistle", 7));
         PluginSettings whistleTwin = new PluginSettings();
         whistleTwin.setCostQuetzalWhistle(7);
         assertEquals("costQuetzalWhistle wire/twin divergence",
-            whistleTwin.costQuetzalWhistle(),
-            whistleWire.coerceInt("costQuetzalWhistle", whistleWire.effective().num(ConfigKey.COST_QUETZALS)));
-        assertTrue("Wire-override vs twin-setter divergence (justify in"
-            + " WIRE_INERT_ALLOWLIST or fix the seam): " + failures, failures.isEmpty());
+            whistleTwin.costQuetzalWhistle(), whistleWire.num(ConfigKey.COST_QUETZAL_WHISTLE));
+        assertTrue("Wire-override vs twin-setter divergence (fix the seam): " + failures,
+            failures.isEmpty());
     }
 
     /**
