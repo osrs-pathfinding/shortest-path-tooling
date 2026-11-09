@@ -763,6 +763,10 @@ public class CollisionMapDumper
 		// treated as a solid wall, sealing off the Burthorpe clue boxes.
 		BURTHORPE_TENT_OPENING_3673(3673, FlagMap.TILE_DEFAULT, 2887, 3539, 0),
 
+		// These Lassar Undercity doors cannot be crossed by ordinary walking.
+		LASSAR_UNDERCITY_DOOR_48266(48266, 2669, 6433, 0),
+		LASSAR_UNDERCITY_DOOR_48267(48267, 2669, 6432, 0),
+
 		CELL_DOOR_9562(9562),
 
 		// The guild's bank room door (10045 at 3144 3452) is an ordinary door: anyone inside the
