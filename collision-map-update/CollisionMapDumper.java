@@ -765,7 +765,10 @@ public class CollisionMapDumper
 
 		CELL_DOOR_9562(9562),
 
-		COOKING_GUILD_DOOR_10045(10045),
+		// The guild's bank room door (10045 at 3144 3452) is an ordinary door: anyone inside the
+		// guild can use the bank, so only the front door (24958, gated by its transport rows) needs
+		// the exclusion. The bank room door's only other placement keeps it.
+		COOKING_GUILD_DOOR_10045(10045, 3848, 4924, 0),
 		COOKING_GUILD_DOOR_24958(24958),
 
 		CRAFTING_GUILD_DOOR_14910(14910),
