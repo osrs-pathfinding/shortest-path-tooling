@@ -1,12 +1,12 @@
 package shortestpath.candidates;
 
 import shortestpath.WorldPointUtil;
-import shortestpath.pathfinder.astar.RoutingStaticBuilder;
 
 /**
  * The plugin's walking graph as the candidates read it: walkable tiles, their natural walking areas
  * (components), and whether a chain of transports reaches each area from Lumbridge, ignoring
- * requirements ({@link RoutingStaticBuilder#walkingGraph}). An interface so tests can use a small grid.
+ * requirements. An interface so tests can use a small grid, and so this library does not depend on how the
+ * plugin builds that graph.
  */
 public interface Walking {
     /** No tile. Packed tiles on planes 2 and 3 are negative, so this is the plugin's own sentinel, not "below 0". */
@@ -25,17 +25,6 @@ public interface Walking {
     int naturalComponent(int index);
 
     boolean isStructurallyReachable(int naturalComponent);
-
-    static Walking of(RoutingStaticBuilder.WalkingGraph graph) {
-        return new Walking() {
-            @Override public int tileCount() { return graph.tileCount(); }
-            @Override public int tile(int index) { return graph.tile(index); }
-            @Override public int indexOf(int tile) { return graph.indexOf(tile); }
-            @Override public int naturalComponentCount() { return graph.naturalComponentCount(); }
-            @Override public int naturalComponent(int index) { return graph.naturalComponent(index); }
-            @Override public boolean isStructurallyReachable(int component) { return graph.isStructurallyReachable(component); }
-        };
-    }
 
     /**
      * Where a footprint is used from: the walkable tile on it or within {@code reach} of it nearest its

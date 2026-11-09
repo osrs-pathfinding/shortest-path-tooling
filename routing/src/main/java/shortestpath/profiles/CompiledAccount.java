@@ -32,7 +32,7 @@ public final class CompiledAccount {
         ClientState state = AccountCompiler.compile(account);
         Client client = HeadlessClient.of(state);
         AccountPathfinderConfig config = new AccountPathfinderConfig(client, settings, state);
-        ItemStateService itemState = ItemStateService.forTesting();
+        ItemStateService itemState = new ItemStateService(null, null);
         config.setItemStateService(itemState);
         itemState.noteBankContainer(HeadlessClient.container(state.bank()));
         if (state.plantedSpiritTrees() != null) {

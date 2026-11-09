@@ -20,6 +20,7 @@ import org.junit.Test;
 import shortestpath.candidates.Connector;
 import shortestpath.candidates.ConnectorSnapshot;
 import shortestpath.candidates.Coverage;
+import shortestpath.candidates.PluginWalking;
 import shortestpath.candidates.Report;
 import shortestpath.candidates.Scope;
 import shortestpath.candidates.TransportCandidates;
@@ -106,7 +107,7 @@ public class TransportCandidatesDumperTest {
         if (snapshotPath.getParent() != null) Files.createDirectories(snapshotPath.getParent());
         Files.writeString(snapshotPath, snapshot.toJson());
 
-        Walking walking = Walking.of(RoutingStaticBuilder.walkingGraph(new CollisionMap(PluginResources.map()), ResourceLoader.transports()));
+        Walking walking = PluginWalking.of(RoutingStaticBuilder.walkingGraph(new CollisionMap(PluginResources.map()), ResourceLoader.transports()));
         Scope scope;
         try (InputStream stream = Files.newInputStream(scopePath)) {
             scope = Scope.read(stream);

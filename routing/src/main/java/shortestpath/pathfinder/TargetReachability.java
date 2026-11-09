@@ -6,15 +6,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import shortestpath.WorldPointUtil;
-import shortestpath.pathfinder.astar.RoutingStaticBuilder;
+import shortestpath.candidates.Walking;
 import shortestpath.transport.Transport;
 
 /**
  * Whether a player could ever end a route at a target, with the plugin's own snapping
  * ({@link ReachableGoalRule}, which the A* backend uses for blocked targets): a target on a counter, a
  * rock face or in a wall snaps to the reachable tiles beside it, as it does in game. Reachable means
- * in a walking area that a chain of transports reaches from Lumbridge, ignoring requirements
- * ({@link RoutingStaticBuilder#walkingGraph}). In this package to use the package-private rule.
+ * in a walking area that a chain of transports reaches from Lumbridge, ignoring requirements (see
+ * {@link Walking}). In this package to use the package-private rule.
  */
 public final class TargetReachability {
     /** The plugin's default Unreachable Target Distance, which bounds how far a blocked target snaps. */
@@ -40,7 +40,7 @@ public final class TargetReachability {
         }
     }
 
-    private final RoutingStaticBuilder.WalkingGraph walking;
+    private final Walking walking;
     private final ReachableGoalRule rule;
 
     /**
@@ -48,7 +48,7 @@ public final class TargetReachability {
      * landings of transports a player can get to count, those with no origin (teleports) or one on or
      * beside a reachable tile.
      */
-    public TargetReachability(CollisionMap map, RoutingStaticBuilder.WalkingGraph walking,
+    public TargetReachability(CollisionMap map, Walking walking,
                               Map<Integer, Set<Transport>> transports, int unreachableDistance) {
         this.walking = walking;
         Set<Integer> landings = new HashSet<>();
