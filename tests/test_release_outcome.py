@@ -30,6 +30,7 @@ TOKEN_BUDGET = 200_000
 RELEASE_TOKENS = 190_890
 
 NEW_RELEASE_TAG = "v1.22.3"
+NEW_RELEASE_REF = "refs/tags/" + NEW_RELEASE_TAG
 MASTER_REF = "upstream/master"
 
 
@@ -40,7 +41,10 @@ def _git(*args):
 
 
 def _have_ref(ref):
-    return _git("cat-file", "-e", ref + "^{commit}").returncode == 0
+    try:
+        return _git("cat-file", "-e", ref + "^{commit}").returncode == 0
+    except OSError:  # git binary missing: skip instead of failing collection
+        return False
 
 
 def _needs(*refs):
@@ -50,15 +54,28 @@ def _needs(*refs):
     )
 
 
+def _require_tiktoken():
+    """Skip unless tiktoken imports and its encoding can actually be loaded.
+
+    The encoding is downloaded on first use, so an installed package is not
+    enough: offline or uncached runs must skip rather than error.
+    """
+    tiktoken = pytest.importorskip("tiktoken")
+    try:
+        tiktoken.get_encoding("cl100k_base")
+    except Exception as exc:  # network or cache failure
+        pytest.skip(f"tiktoken encoding unavailable: {exc}")
+
+
 def _total(script, ref):
-    out = subprocess.run(
+    proc = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / script), "--repo", str(REPO), "--ref", ref],
         capture_output=True,
         text=True,
-        check=True,
-    ).stdout
-    match = re.search(r"^TOTAL\t(\d+)", out, re.MULTILINE)
-    assert match, out[-300:]
+    )
+    assert proc.returncode == 0, f"{script} exited {proc.returncode}: {proc.stderr[-300:]}"
+    match = re.search(r"^TOTAL\t(\d+)", proc.stdout, re.MULTILINE)
+    assert match, proc.stdout[-300:]
     return int(match.group(1))
 
 
@@ -76,39 +93,43 @@ def test_release_footprint_delta_against_baseline():
 
 @_needs(RELEASE_TAG)
 def test_release_token_count_within_hub_budget():
-    pytest.importorskip("tiktoken")
+    _require_tiktoken()
     tokens = _total("measure_tokens.py", RELEASE_TAG)
     assert tokens == RELEASE_TOKENS
     assert tokens <= TOKEN_BUDGET
 
 
-@_needs(NEW_RELEASE_TAG)
+@_needs(NEW_RELEASE_REF)
 def test_v1_22_3_tag_exists():
-    assert _git("tag", "-l", NEW_RELEASE_TAG).stdout.strip() == NEW_RELEASE_TAG
+    # Qualified ref: a branch or other ref named v1.22.3 must not satisfy this.
+    assert _git("rev-parse", "-q", "--verify", NEW_RELEASE_REF + "^{commit}").returncode == 0
 
 
-@_needs(NEW_RELEASE_TAG)
+@_needs(NEW_RELEASE_REF)
 def test_v1_22_3_tag_is_annotated():
-    assert _git("cat-file", "-t", NEW_RELEASE_TAG).stdout.strip() == "tag"
+    assert _git("cat-file", "-t", NEW_RELEASE_REF).stdout.strip() == "tag"
 
 
-@_needs(NEW_RELEASE_TAG)
+@_needs(NEW_RELEASE_REF)
 def test_v1_22_3_tag_is_on_master_history():
     if not _have_ref(MASTER_REF):
         pytest.skip(f"{MASTER_REF} not available")
-    result = _git("merge-base", "--is-ancestor", NEW_RELEASE_TAG + "^{commit}", MASTER_REF)
+    if _git("rev-parse", "--is-shallow-repository").stdout.strip() == "true":
+        pytest.skip("shallow clone: ancestry is not decidable")
+    result = _git("merge-base", "--is-ancestor", NEW_RELEASE_REF + "^{commit}", MASTER_REF)
     if result.returncode not in (0, 1):
         pytest.skip(result.stderr.strip())
     assert result.returncode == 0
 
 
-@_needs(NEW_RELEASE_TAG)
+@_needs(NEW_RELEASE_REF)
 def test_v1_22_3_version_line():
-    out = _git("show", NEW_RELEASE_TAG + ":runelite-plugin.properties").stdout
-    assert re.search(r"^version=1\.22\.3$", out, re.MULTILINE)
+    proc = _git("show", NEW_RELEASE_REF + ":runelite-plugin.properties")
+    assert proc.returncode == 0, proc.stderr.strip()
+    assert re.search(r"^version=1\.22\.3\r?$", proc.stdout, re.MULTILINE), proc.stdout[-300:]
 
 
-@_needs(NEW_RELEASE_TAG)
+@_needs(NEW_RELEASE_REF)
 def test_v1_22_3_tokens_within_budget():
-    pytest.importorskip("tiktoken")
-    assert _total("measure_tokens.py", NEW_RELEASE_TAG) <= TOKEN_BUDGET
+    _require_tiktoken()
+    assert _total("measure_tokens.py", NEW_RELEASE_REF) <= TOKEN_BUDGET
