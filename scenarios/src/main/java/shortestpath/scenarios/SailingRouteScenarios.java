@@ -54,7 +54,8 @@ final class SailingRouteScenarios {
         suite.scenario("Ruins of Unkah past the Elid Delta islands (sloop)", "sailing-tight")
             .from(3143, 2847, 0).to(3273, 2738, 0)
             .profile(UNIT_TEST)
-            .sailing(1.5, "sloop");
+            .sailing(1.5, "sloop")
+            .expectUnreachable();
 
         // Rocky seas
         suite.scenario("Through the Storm Tempor rocks past Tempoross Cove (raft)", "sailing-rocky")

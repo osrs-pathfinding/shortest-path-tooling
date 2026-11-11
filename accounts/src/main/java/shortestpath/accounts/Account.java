@@ -36,6 +36,7 @@ public final class Account {
     private final Map<Integer, Integer> bank;
     private final Poh poh;
     private final Set<PlantedSpiritTree> plantedSpiritTrees;
+    private final Boats boats;
     private final Set<WorldType> worldTypes;
     private final Location location;
     private final Long nowMinutes;
@@ -62,6 +63,7 @@ public final class Account {
         plantedSpiritTrees = builder.plantedSpiritTrees == null ? null
             : Collections.unmodifiableSet(builder.plantedSpiritTrees.isEmpty()
                 ? EnumSet.noneOf(PlantedSpiritTree.class) : EnumSet.copyOf(builder.plantedSpiritTrees));
+        boats = builder.boats;
         worldTypes = Collections.unmodifiableSet(builder.worldTypes.isEmpty()
             ? EnumSet.noneOf(WorldType.class) : EnumSet.copyOf(builder.worldTypes));
         location = builder.location;
@@ -108,6 +110,8 @@ public final class Account {
     public Poh poh() { return poh; }
     /** {@code null} leaves the plugin to detect them. */
     public Set<PlantedSpiritTree> plantedSpiritTrees() { return plantedSpiritTrees; }
+    /** The boats the account owns and where they can be boarded. */
+    public Boats boats() { return boats; }
     public Set<WorldType> worldTypes() { return worldTypes; }
     /** Where the player stands; {@code null} means the client reports no local player. */
     public Location location() { return location; }
@@ -151,6 +155,7 @@ public final class Account {
         private Map<Integer, Integer> bank;
         private Poh poh;
         private Set<PlantedSpiritTree> plantedSpiritTrees;
+        private Boats boats = Boats.NONE;
         private final Set<WorldType> worldTypes = EnumSet.noneOf(WorldType.class);
         private Location location;
         private Long nowMinutes;
@@ -178,6 +183,7 @@ public final class Account {
             plantedSpiritTrees = account.plantedSpiritTrees == null ? null
                 : EnumSet.copyOf(account.plantedSpiritTrees.isEmpty()
                     ? EnumSet.noneOf(PlantedSpiritTree.class) : account.plantedSpiritTrees);
+            boats = account.boats;
             worldTypes.addAll(account.worldTypes);
             location = account.location;
             nowMinutes = account.nowMinutes;
@@ -222,6 +228,9 @@ public final class Account {
         public Builder bankContainer() { bank = bank == null ? new LinkedHashMap<>() : bank; return this; }
 
         public Builder poh(Poh value) { poh = value; return this; }
+        public Builder boats(Boats value) { boats = value == null ? Boats.NONE : value; return this; }
+        /** The boats declared so far. */
+        public Boats boats() { return boats; }
         public Builder plantedSpiritTrees(PlantedSpiritTree... trees) {
             plantedSpiritTrees = EnumSet.noneOf(PlantedSpiritTree.class);
             plantedSpiritTrees.addAll(Set.of(trees));
