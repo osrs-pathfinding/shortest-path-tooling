@@ -1,5 +1,6 @@
 package shortestpath.pathfinder;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import shortestpath.requirement.model.DestinationRequirements;
@@ -31,7 +32,7 @@ public final class PluginResources {
     private static final class Destinations {
         static final Map<String, Set<Integer>> ALL = ResourceLoader.destinations();
         static final Map<String, Set<Integer>> FILTERED = PathfinderConfig.filterDestinations(ALL);
-        static final Map<Integer, DestinationRequirements> BANKS = ResourceLoader.bankRequirements();
+        static final Map<Integer, List<DestinationRequirements>> BANKS = ResourceLoader.bankRequirements();
     }
 
     private static final class CollisionData {
@@ -42,5 +43,5 @@ public final class PluginResources {
     public static Map<Integer, Set<Transport>> transports() { return Transports.ALL; }
     public static Map<String, Set<Integer>> destinations() { return Destinations.ALL; }
     public static Map<String, Set<Integer>> filteredDestinations() { return Destinations.FILTERED; }
-    public static Map<Integer, DestinationRequirements> bankRequirements() { return Destinations.BANKS; }
+    public static Map<Integer, List<DestinationRequirements>> bankRequirements() { return Destinations.BANKS; }
 }
